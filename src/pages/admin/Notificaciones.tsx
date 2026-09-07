@@ -23,7 +23,11 @@ interface NotificationRule {
 const AVAILABLE_EVENTS = [
   { id: 'contact_created', label: 'Nuevo Lead de Contacto', description: 'Cuando un usuario llena el formulario de contacto web' },
   { id: 'complaint_created', label: 'Nuevo Reclamo Registrado', description: 'Cuando un usuario ingresa una queja en el Libro de Reclamaciones' },
+  { id: 'quote_created', label: 'Nueva Cotización', description: 'Cuando se genera una nueva cotización' },
+  { id: 'quote_sent', label: 'Cotización Enviada', description: 'Cuando una cotización se marca como enviada al cliente' },
   { id: 'quote_accepted', label: 'Cotización Aceptada', description: 'Cuando una cotización pasa a estado Aceptada y debe iniciar proyecto' },
+  { id: 'quote_rejected', label: 'Cotización Rechazada', description: 'Cuando una cotización es declinada' },
+  { id: 'quote_expired', label: 'Cotización Expirada', description: 'Cuando una cotización expira por caducidad' },
 ];
 
 const NotificacionesAdmin: React.FC = () => {
