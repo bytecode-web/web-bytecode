@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/auth.js';
 import { requireCsrf } from '../../middleware/csrf.js';
 import { requireNonTerminalState } from '../../middleware/requireNonTerminalState.js';
 import { auditService } from '../../services/audit.js';
+import { sendInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { createBusinessCode, paginationQuerySchema } from './shared.js';
@@ -476,6 +477,40 @@ quotesRouter.post(
              VALUES ($1, $2, $3, $4)`,
             [quoteId, oldStatusId, newStatusId, req.admin?.id ?? null],
           );
+          
+          if (body.status === 'accepted') {
+            sendInAppNotification(
+              'quote_accepted', 
+              'Cotización Aceptada', 
+              `La cotización ${previousQuoteState.quote_code} ha sido aprobada. Iniciar asignación y Kick-off.`, 
+              'quotes', 
+              quoteId
+            ).catch(console.error);
+          } else if (body.status === 'sent') {
+            sendInAppNotification(
+              'quote_sent', 
+              'Cotización Enviada', 
+              `La cotización ${previousQuoteState.quote_code} ha sido enviada al cliente.`, 
+              'quotes', 
+              quoteId
+            ).catch(console.error);
+          } else if (body.status === 'rejected') {
+            sendInAppNotification(
+              'quote_rejected', 
+              'Cotización Rechazada', 
+              `La cotización ${previousQuoteState.quote_code} ha sido rechazada por el cliente.`, 
+              'quotes', 
+              quoteId
+            ).catch(console.error);
+          } else if (body.status === 'expired') {
+            sendInAppNotification(
+              'quote_expired', 
+              'Cotización Expirada', 
+              `La cotización ${previousQuoteState.quote_code} ha superado su fecha de validez.`, 
+              'quotes', 
+              quoteId
+            ).catch(console.error);
+          }
         }
         await client.query('DELETE FROM quote_items WHERE quote_id = $1', [quoteId]);
       } else {
@@ -484,17 +519,27 @@ quotesRouter.post(
            SELECT $1, $2, $3, sc.id, 0, current_date + interval '30 days', $4, $5, $7, $8
            FROM status_catalog sc
            WHERE sc.domain = 'quote' AND sc.code = $6 AND sc.is_active = true
-           RETURNING id, status_id as initial_status_id`,
+           RETURNING id, status_id as initial_status_id, quote_code`,
           [createBusinessCode('QT'), customerId, organizationId, paymentPolicyParts.join('') || null, req.admin?.id, body.status ?? 'draft', body.acquisitionChannel ?? 'web_form', currencyCode]
         );
         if (!quoteRes.rowCount) throw new HttpError(400, 'Estado de cotizacion invalido');
         quoteId = quoteRes.rows[0].id;
         const initialStatusId = quoteRes.rows[0].initial_status_id;
+        const newQuoteCode = quoteRes.rows[0].quote_code;
+        
         await client.query(
           `INSERT INTO quote_status_history (quote_id, old_status_id, new_status_id, changed_by)
            VALUES ($1, NULL, $2, $3)`,
           [quoteId, initialStatusId, req.admin?.id ?? null],
         );
+        
+        sendInAppNotification(
+          'quote_created',
+          'Nueva Cotización',
+          `La cotización ${newQuoteCode} ha sido registrada.`,
+          'quotes',
+          quoteId
+        ).catch(console.error);
       }
 
       for (const qi of quoteItemsData) {

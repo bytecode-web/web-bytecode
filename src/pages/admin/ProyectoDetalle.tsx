@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import { formatCurrencyValue } from '../../hooks/useQuoterState';
 import { ArrowLeft, ExternalLink, Pencil, Trash2, UserPlus, X, DollarSign, Plus, GitCommitHorizontal, AlertTriangle } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useLocation } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import ShineBorder from '../../components/ui/shine-border';
 import type { AdminUser } from '../../components/admin/AdminLayout';
@@ -12,6 +12,7 @@ import ProjectEnvironmentsHub from '../../components/admin/ProjectEnvironmentsHu
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import Timeline from '../../components/ui/Timeline';
+import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 import {
   apiRequest,
   assignProjectUser,
@@ -149,13 +150,14 @@ const ProyectoDetalle: React.FC = () => {
       setStatusHistory(historyResult);
     } catch (requestError: unknown) {
       addToast(requestError instanceof Error ? requestError.message : 'No se pudo cargar el proyecto.', 'error');
+      navigate('/admin/proyectos');
     } finally {
       setLoading(false);
     }
     if (canAssign) {
       fetchProjectAssignmentOptions().then(setAssignmentOptions).catch(() => setAssignmentOptions([]));
     }
-  }, [id, canAssign]);
+  }, [id, canAssign, navigate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -163,6 +165,37 @@ const ProyectoDetalle: React.FC = () => {
     }, 0);
     return () => clearTimeout(timer);
   }, [loadData]);
+
+  const location = useLocation();
+  const processedAutoOpenId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (location.state && typeof location.state === 'object') {
+      const stateObj = location.state as { autoOpenId?: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const timestamp = stateObj.notificationTimestamp;
+      
+      const uniqueId = timestamp ? `${autoOpenId || 'refresh'}-${timestamp}` : autoOpenId;
+      
+      if (uniqueId && uniqueId !== processedAutoOpenId.current) {
+        processedAutoOpenId.current = uniqueId;
+        
+        if (!autoOpenId) {
+          // Desasignado, volver a lista
+          addToast('Has sido removido de este proyecto y ya no tienes acceso.', 'error');
+          navigate('/admin/proyectos');
+        } else if (autoOpenId !== id) {
+          // Asignado a OTRO proyecto
+          navigate(`/admin/proyectos/${autoOpenId}`);
+        } else {
+          // Actualización de ESTE proyecto
+          void loadData();
+        }
+        
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [location.state, navigate, id, loadData]);
 
   const changeMilestoneStatus = async (milestoneId: string, status: string) => {
     try {
@@ -223,14 +256,25 @@ const ProyectoDetalle: React.FC = () => {
     }
   };
 
+  const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
+
   const handleRemoveAssignment = async (userId: string) => {
-    if (!confirm('¿Estás seguro de que deseas desasignar a este integrante?')) return;
-    try {
-      await apiRequest(`/admin/projects/${id}/assignments/${userId}`, { method: 'DELETE' });
-      setAssignments(await fetchProjectAssignments(id));
-    } catch (requestError) {
-      addToast(requestError instanceof Error ? requestError.message : 'No se pudo desasignar el integrante.', 'error');
-    }
+    setConfirmModal({
+      title: 'Desasignar integrante',
+      message: '¿Estás seguro de que deseas remover a este integrante del equipo del proyecto? Esta acción notificará al usuario.',
+      type: 'danger',
+      confirmText: 'Sí, desasignar',
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/admin/projects/${id}/assignments/${userId}`, { method: 'DELETE' });
+          setAssignments(await fetchProjectAssignments(id));
+        } catch (requestError) {
+          addToast(requestError instanceof Error ? requestError.message : 'No se pudo desasignar el integrante.', 'error');
+        } finally {
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
   const handlePaymentSubmit = async (event: React.FormEvent) => {
@@ -696,6 +740,18 @@ const ProyectoDetalle: React.FC = () => {
           </div>
         )}
       </RoleGuard>
+
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type={confirmModal.type}
+          confirmText={confirmModal.confirmText}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };

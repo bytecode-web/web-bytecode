@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X } from 'lucide-react';
+import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
+import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
+import { useOutletContext, useLocation } from 'react-router-dom';
+import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface Complaint {
   id: string;
@@ -23,9 +26,21 @@ export interface Complaint {
   priority_name?: string;
   attachment_original_name?: string;
   created_at: string;
+  assigned_to?: string;
 }
 
 type ComplaintItem = Complaint;
+
+type AssignmentHistoryItem = {
+  id: string;
+  assigned_to: string;
+  assigned_by: string;
+  assigned_at: string;
+  unassigned_at: string | null;
+  notes: string | null;
+  assigned_to_name: string;
+  assigned_by_name: string | null;
+};
 
 type DetailItem = Record<string, string | number | null | undefined>;
 
@@ -76,6 +91,12 @@ const Reclamos: React.FC = () => {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
+  const [adminsList, setAdminsList] = useState<{ value: string, label: string }[]>([]);
+  const [history, setHistory] = useState<AssignmentHistoryItem[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const { admin } = useOutletContext<{ admin: AdminUser }>();
+  const canAssign = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.reclamos.assign') === true;
+
   const statusLabel = (statusCode: string) => statuses.find((item) => item.value === statusCode)?.label ?? statusCode;
 
   const loadCatalogs = async () => {
@@ -84,6 +105,11 @@ const Reclamos: React.FC = () => {
       setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
+      const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint');
+      setAdminsList([
+        { value: '', label: 'Sin Asignar' },
+        ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
+      ]);
     } catch (err) {
       console.error(err);
     }
@@ -106,12 +132,14 @@ const Reclamos: React.FC = () => {
   const loadDetail = async (id: string) => {
     setSelectedId(id);
     try {
-      const [result, historyResult] = await Promise.all([
+      const [result, historyResult, assignmentResult] = await Promise.all([
         apiRequest<{ item: DetailItem }>(`/admin/complaints/${id}`),
         apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
+        apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/complaints/${id}/assignment-history`),
       ]);
       setDetail(result.item);
       setStatusHistory(historyResult.items);
+      setHistory(assignmentResult.items);
       setStatus(String(result.item.status ?? 'registered'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));
@@ -123,10 +151,53 @@ const Reclamos: React.FC = () => {
     }
   };
 
+  const handleAssignCase = async (adminId: string) => {
+    if (!selectedId) return;
+    setIsAssigning(true);
+    try {
+      const result = await apiRequest<{ item: DetailItem }>(`/admin/complaints/${selectedId}/assign`, {
+        method: 'POST',
+        json: { assigned_to: adminId },
+      });
+      setDetail(result.item);
+      const histResult = await apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/complaints/${selectedId}/assignment-history`);
+      setHistory(histResult.items);
+      addToast('Asignación actualizada exitosamente.', 'success');
+      loadList();
+    } catch (requestError) {
+      addToast(requestError instanceof Error ? requestError.message : 'Error al asignar el caso.', 'error');
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const location = useLocation();
+  const processedAutoOpenId = useRef<string | null>(null);
+
   useEffect(() => {
     void loadCatalogs();
+  }, []);
+
+  useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
+      const stateObj = location.state as { autoOpenId: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const uniqueId = stateObj.notificationTimestamp ? `${autoOpenId}-${stateObj.notificationTimestamp}` : autoOpenId;
+      
+      if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
+        processedAutoOpenId.current = uniqueId;
+        void (async () => {
+          await loadList();
+          await loadDetail(autoOpenId);
+        })();
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [location.state]);
 
   const handleSave = async () => {
     if (!selectedId) return;
@@ -185,15 +256,57 @@ const Reclamos: React.FC = () => {
               ))}
           </div>
 
-                    <div className="pt-6 border-t border-white/5 flex flex-col gap-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Timeline
+            heading="Historial de Asignaciones"
+            emptyMessage="No hay asignaciones registradas."
+            items={history.map((item) => ({
+              date: item.assigned_at,
+              icon: <UserCheck className="h-4 w-4" />,
+              title: (
+                <>
+                  Asignado a <span className="font-medium text-white">{item.assigned_to_name}</span>
+                  <span className="block text-white/45">por {item.assigned_by_name || 'Sistema'}</span>
+                  {item.notes && <span className="mt-2 block border-l border-white/20 pl-2 text-white/55">“{item.notes}”</span>}
+                </>
+              ),
+            }))}
+          />
+
+          <div className="pt-6 border-t border-white/5 flex flex-col gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Agente</label>
+                {isAssigning ? (
+                  <div className="w-full rounded-lg bg-white/5 border border-white/5 px-3 py-2.5 text-sm text-white/40 text-center animate-pulse">Asignando...</div>
+                ) : (
+                  <CustomDropdown
+                            value={String(detail.assigned_to ?? "")}
+                            placeholder="Seleccionar..."
+                            onChange={handleAssignCase}
+                            options={adminsList}
+                            disabled={isReadOnly || !canAssign}
+                          />
+                )}
+              </div>
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Estado</label>
-                <CustomDropdown value={status} placeholder="Seleccionar estado..." onChange={(val) => setStatus(val)} options={statuses} disabled={isReadOnly} />
+                <CustomDropdown
+                          value={status}
+                          placeholder="Seleccionar estado..."
+                          onChange={(val) => setStatus(val)}
+                          options={statuses}
+                          disabled={isReadOnly}
+                        />
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Prioridad</label>
-                <CustomDropdown value={priority} placeholder="Seleccionar..." onChange={(val) => setPriority(val)} options={priorities} disabled={isReadOnly} />
+                <CustomDropdown
+                  value={priority}
+                  placeholder="Seleccionar..."
+                  onChange={(val) => setPriority(val)}
+                  options={priorities}
+                  disabled={isReadOnly}
+                />
               </div>
             </div>
             <div>
@@ -202,7 +315,7 @@ const Reclamos: React.FC = () => {
                 {...formProps}
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                rows={3}
+                rows={2}
                 placeholder="Observaciones..."
                 className="w-full resize-none rounded-lg bg-white/5 border border-white/5 px-3 py-2.5 text-sm text-white/80 outline-none focus:border-white/20 transition-colors custom-scrollbar"
               />
@@ -281,6 +394,15 @@ const Reclamos: React.FC = () => {
                       {statusLabel(item.status)}
                     </span>
                     {item.priority && priorityBadge(item.priority, item.priority_name!)}
+                    {item.assigned_to === admin.id ? (
+                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
+                        <UserCheck className="w-3 h-3" /> Mío
+                      </span>
+                    ) : item.assigned_to ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
+                        <UserCheck className="h-3 w-3" />
+                      </span>
+                    ) : null}
                   </div>
                 </button>
               ))

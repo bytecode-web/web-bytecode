@@ -9,8 +9,9 @@ import { pool } from '../db/pool.js';
 import { deleteCloudinaryAsset, uploadComplaintEvidenceToCloudinary, type CloudinaryStoredAsset, } from '../lib/cloudinary.js';
 import { allowedUploadMimeTypeList, validateUpload, type ValidatedUpload } from '../lib/validateUpload.js';
 import { publicFormLimiter } from '../middleware/rateLimiters.js';
-import { notifyAdmins, sendCustomerAcknowledgement } from '../services/email.js';
-import { buildContactReceipt, buildComplaintReceipt, capitalize } from '../services/emailTemplates.js';
+import { notifyAdmins } from '../services/email.js';
+import { capitalize } from '../services/emailTemplates.js';
+import { sendInAppNotification, enqueueEmail } from '../services/notificationService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -540,12 +541,14 @@ router.post(
       }
 
       notifyAdmins('Nueva solicitud de contacto web', contactNotificationPayload, ['support_agent', 'super_admin'], 'contact').catch(console.error);
-      sendCustomerAcknowledgement(
-        body.email,
-        'Hemos recibido tu mensaje - Bytecode',
-        buildContactReceipt(body.nombre, body.apellido, caseCode, body.servicio, body.mensaje),
-        'contact',
-      ).catch(console.error);
+      sendInAppNotification('contact_created', 'Nuevo Lead de Contacto', `El prospecto ${body.nombre} ${body.apellido} ha dejado un mensaje.`, 'contact_cases', result.rows[0].id);
+      enqueueEmail('contact_receipt', body.email, {
+        name: body.nombre,
+        lastName: body.apellido,
+        caseCode: caseCode,
+        service: capitalize(body.servicio),
+        message: body.mensaje
+      }, 'contact_cases', result.rows[0].id).catch(console.error);
 
       res.status(201).json({ id: result.rows[0].id, createdAt: result.rows[0].created_at });
     } catch (e: unknown) {
@@ -750,12 +753,16 @@ router.post(
       };
 
       notifyAdmins(`Alerta: Nuevo Reclamo ${code}`, complaintNotificationPayload, ['legal_reviewer', 'admin', 'super_admin'], 'complaint').catch(console.error);
-      sendCustomerAcknowledgement(
-        body.email,
-        `Constancia de Reclamo ${code} - Bytecode`,
-        buildComplaintReceipt(code, customerReceiptPayload),
-        'complaint',
-      ).catch(console.error);
+      sendInAppNotification('complaint_created', `Nuevo Reclamo ${code}`, `El usuario ${body.nombres} ${body.apellidos} ha registrado un nuevo reclamo/queja.`, 'complaints', complaintId);
+      const rowsHtml = Object.entries(customerReceiptPayload)
+        .map(([key, value]) => `<tr><td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);"><strong style="color: #06CFD6;">${key}</strong></td><td style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">${value}</td></tr>`)
+        .join('');
+      
+      enqueueEmail('complaint_receipt', body.email, {
+        clientName: body.personType === 'company' ? body.nombres : `${body.nombres} ${body.apellidos}`,
+        complaintCode: code,
+        rowsHtml: rowsHtml
+      }, 'complaints', complaintId).catch(console.error);
 
       res.status(201).json({ id: complaintId, code: result.rows[0].complaint_code, createdAt: result.rows[0].created_at });
     } catch (error: unknown) {

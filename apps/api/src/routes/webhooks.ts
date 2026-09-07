@@ -10,6 +10,7 @@ import { pool } from '../db/pool.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 import { triggerEnvironmentVerification } from '../services/environmentVerification.js';
+import { sendDirectInAppNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -148,6 +149,26 @@ router.post('/github', asyncHandler(async (req: Request, res: Response) => {
         );
       } catch (err) {
         console.error('[GitHub Webhook] SQL Error cleaning up old commits:', err);
+      }
+
+      try {
+        const assignedUsersRes = await pool.query('SELECT user_id FROM project_assignments WHERE project_id = $1', [projectId]);
+        if (assignedUsersRes.rows.length > 0) {
+          const projectNameRes = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+          const projectName = projectNameRes.rows[0]?.name || 'Proyecto Desconocido';
+          
+          for (const row of assignedUsersRes.rows) {
+            await sendDirectInAppNotification(
+              row.user_id,
+              "Nuevos Commits",
+              `Se han registrado ${insertedCount} nuevo(s) commit(s) en el repositorio de "${projectName}".`,
+              "projects",
+              projectId
+            );
+          }
+        }
+      } catch (err) {
+        console.error('[GitHub Webhook] Error sending push notifications:', err);
       }
     }
 

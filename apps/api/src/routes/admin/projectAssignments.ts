@@ -8,6 +8,7 @@ import { requireCsrf } from '../../middleware/csrf.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { auditService } from '../../services/audit.js';
+import { sendDirectInAppNotification } from '../../services/notificationService.js';
 
 export const projectAssignmentsRouter = Router();
 
@@ -46,10 +47,21 @@ projectAssignmentsRouter.post(
        WHERE p.id = $1 AND p.deleted_at IS NULL
        ON CONFLICT (project_id, user_id)
        DO UPDATE SET role = EXCLUDED.role, assigned_at = now()
-       RETURNING project_id, user_id, role, assigned_at`,
+       RETURNING project_id, user_id, role, assigned_at, (SELECT name FROM projects WHERE id = $1) as project_name`,
       [projectId, body.userId, body.role || null],
     );
     if (!result.rowCount) throw new HttpError(400, 'Proyecto o usuario invalido.');
+
+    if (body.userId !== req.admin?.id) {
+      await sendDirectInAppNotification(
+        body.userId,
+        "Proyecto Asignado",
+        `Te han asignado al proyecto "${result.rows[0].project_name}".`,
+        "projects",
+        projectId
+      );
+    }
+
     await auditService.logAdminAction({ userId: req.admin?.id, action: 'assign_project_user', entityType: 'project_assignments', entity: projectId, req });
     res.status(201).json({ item: result.rows[0] });
   }),
@@ -61,12 +73,22 @@ projectAssignmentsRouter.delete(
   requirePermission('admin.proyectos.assign'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const userId = z.string().uuid().parse(req.params.userId);
+    const projectId = z.string().uuid().parse(req.params.id);    const userId = z.string().uuid().parse(req.params.userId);
     const result = await pool.query(
-      'DELETE FROM project_assignments WHERE project_id = $1 AND user_id = $2 RETURNING user_id',
+      'DELETE FROM project_assignments WHERE project_id = $1 AND user_id = $2 RETURNING user_id, (SELECT name FROM projects WHERE id = $1) as project_name',
       [projectId, userId]
     );
     if (!result.rowCount) throw new HttpError(404, 'Asignación no encontrada.');
+
+    if (userId !== req.admin?.id) {
+      await sendDirectInAppNotification(
+        userId,
+        "Asignación Removida",
+        `Has sido removido del equipo del proyecto "${result.rows[0].project_name}".`,
+        "projects",
+        undefined
+      );
+    }
     await auditService.logAdminAction({ userId: req.admin?.id, action: 'remove_project_user', entityType: 'project_assignments', entity: projectId, req });
     res.json({ ok: true });
   }),

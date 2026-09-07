@@ -13,6 +13,8 @@ import {
   UserCog,
   Users,
   X,
+  BellRing,
+  BookUser,
 } from 'lucide-react';
 import type { AdminUser } from './AdminLayout';
 import { apiRequest } from '../../lib/api';
@@ -42,6 +44,8 @@ const iconMap = {
   ShieldCheck,
   UserCog,
   Users,
+  BellRing,
+  BookUser,
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
@@ -69,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
       </div>
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
-          const Icon = iconMap[item.icon_name as keyof typeof iconMap] ?? LayoutDashboard;
+          const Icon = iconMap[item.icon_name as keyof typeof iconMap] ?? (item.label === 'Directorio' ? BookUser : LayoutDashboard);
 
           return (
             <NavLink
@@ -77,13 +81,15 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
               to={item.url}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
+                `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm group ${
                   isActive ? 'bg-white/10 text-white font-medium' : 'text-white/50 hover:bg-white/5 hover:text-white/80'
                 }`
               }
             >
               <Icon className="h-4 w-4" />
-              {item.label}
+              <span className="group-hover:text-[#06CFD6] group-hover:[text-shadow:0_0_8px_rgba(6,207,214,0.4)] transition-all">
+                {item.label}
+              </span>
             </NavLink>
           );
         })}

@@ -36,6 +36,7 @@ const AdminPortafolio = lazy(() => import('./pages/admin/PortafolioAdmin'));
 const AdminUsuarios = lazy(() => import('./pages/admin/Usuarios'));
 const AdminRoles = lazy(() => import('./pages/admin/Roles'));
 const AdminConfiguracion = lazy(() => import('./pages/admin/Configuracion'));
+const AdminNotificaciones = lazy(() => import('./pages/admin/Notificaciones'));
 const AdminSeguridad = lazy(() => import('./pages/admin/Seguridad'));
 const AdminCMS = lazy(() => import('./pages/admin/CMS'));
 const AdminAuditoria = lazy(() => import('./pages/admin/Auditoria'));
@@ -115,6 +116,7 @@ const App: React.FC = () => {
             <Route path="usuarios" element={<RoleGuard requiredPermission="admin.usuarios.view"><AdminUsuarios /></RoleGuard>} />
             <Route path="roles" element={<RoleGuard requiredPermission="admin.roles.view"><AdminRoles /></RoleGuard>} />
             <Route path="configuracion" element={<RoleGuard requiredPermission="admin.configuracion.view"><AdminConfiguracion /></RoleGuard>} />
+            <Route path="notificaciones" element={<RoleGuard requiredPermission="admin.notificaciones.view"><AdminNotificaciones /></RoleGuard>} />
             <Route path="seguridad" element={<RoleGuard requiredPermission="admin.seguridad.view"><AdminSeguridad /></RoleGuard>} />
             <Route path="cms" element={<RoleGuard requiredPermission="admin.cms.view"><AdminCMS /></RoleGuard>} />
             <Route path="auditoria" element={<RoleGuard requiredPermission="admin.auditoria.view"><AdminAuditoria /></RoleGuard>} />

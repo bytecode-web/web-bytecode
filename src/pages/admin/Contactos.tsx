@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
@@ -8,6 +8,8 @@ import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import type { StatusHistoryRecord } from '../../types/status';
 import { useToastStore } from '../../stores/toastStore';
+import { useOutletContext, useLocation } from 'react-router-dom';
+import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface ContactCase {
   id: string;
@@ -117,6 +119,8 @@ const Contactos: React.FC = () => {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const { admin } = useOutletContext<{ admin: AdminUser }>();
+  const canAssign = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.contactos.assign') === true;
 
   const statusLabel = (statusCode: string) => statuses.find((item) => item.value === statusCode)?.label ?? statusCode;
 
@@ -125,8 +129,11 @@ const Contactos: React.FC = () => {
       const res = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=case');
       setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
       
-      const adminRes = await apiRequest<{ data: { id: string, name: string }[]; total: number }>('/admin/users?limit=100&offset=0');
-      setAdminsList(adminRes.data.map(a => ({ value: a.id, label: a.name })));
+      const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=contact');
+      setAdminsList([
+        { value: '', label: 'Sin Asignar' },
+        ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
+      ]);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
     } catch (err) {
@@ -171,10 +178,33 @@ const Contactos: React.FC = () => {
     }
   };
 
+  const location = useLocation();
+  const processedAutoOpenId = useRef<string | null>(null);
+
   useEffect(() => {
     void loadCatalogs();
+  }, []);
+
+  useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
+      const stateObj = location.state as { autoOpenId: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const uniqueId = stateObj.notificationTimestamp ? `${autoOpenId}-${stateObj.notificationTimestamp}` : autoOpenId;
+      
+      if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
+        processedAutoOpenId.current = uniqueId;
+        void (async () => {
+          await loadList();
+          await loadDetail(autoOpenId);
+        })();
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [location.state]);
 
   const handleSave = async () => {
     if (!selectedId) return;
@@ -256,7 +286,7 @@ const Contactos: React.FC = () => {
                             placeholder="Seleccionar..."
                             onChange={handleAssignCase}
                             options={adminsList}
-                            disabled={isReadOnly}
+                            disabled={isReadOnly || !canAssign}
                           />
                 )}
               </div>
@@ -386,11 +416,15 @@ const Contactos: React.FC = () => {
                       {statusLabel(item.status)}
                     </span>
                     {item.priority && priorityBadge(item.priority, item.priority_name!)}
-                    {item.assigned_to && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-[#06CFD6]/70">
+                    {item.assigned_to === admin.id ? (
+                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
+                        <UserCheck className="w-3 h-3" /> Mío
+                      </span>
+                    ) : item.assigned_to ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
                         <UserCheck className="h-3 w-3" />
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </button>
               ))

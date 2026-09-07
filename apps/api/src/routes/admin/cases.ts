@@ -6,6 +6,7 @@ import { requirePermission } from '../../middleware/auth.js';
 import { requireCsrf } from '../../middleware/csrf.js';
 import { requireNonTerminalState } from '../../middleware/requireNonTerminalState.js';
 import { auditService } from '../../services/audit.js';
+import { sendDirectInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
@@ -133,6 +134,35 @@ const buildWhere = (status?: string, search?: string, fields: string[] = []) => 
 };
 
 casesRouter.get(
+  '/cases/assignment-options',
+  asyncHandler(async (req: Request, res: Response) => {
+    const domain = req.query.domain as string;
+    let allowedRoles = ['super_admin', 'admin'];
+    
+    if (domain === 'contact') {
+      allowedRoles.push('support_agent');
+    } else if (domain === 'complaint') {
+      allowedRoles.push('legal_reviewer');
+    }
+
+    const result = await pool.query(
+      `
+      SELECT DISTINCT u.id, u.name
+      FROM admin_users u
+      JOIN admin_user_roles aur ON u.id = aur.admin_user_id
+      JOIN roles r ON aur.role_id = r.id
+      WHERE u.is_active = true AND u.deleted_at IS NULL
+      AND r.code = ANY($1::varchar[])
+      ORDER BY u.name ASC
+      `,
+      [allowedRoles]
+    );
+
+    res.json({ data: result.rows });
+  })
+);
+
+casesRouter.get(
   '/contacts',
   requirePermission('admin.contactos.view'),
   asyncHandler(async (req: Request, res: Response) => {
@@ -240,6 +270,18 @@ casesRouter.patch(
            VALUES ($1, $2, $3, $4)`,
           [id, oldStatusId, newStatusId, req.admin?.id ?? null],
         );
+
+        const assignedTo = currentRow.assigned_to as string | undefined;
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          const caseCode = currentRow.case_code || id.split('-')[0];
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Actualización de Contacto",
+            `El estado del ticket #${caseCode} ha sido modificado.`,
+            "contacts",
+            id
+          );
+        }
       }
 
       const updated = await client.query(
@@ -269,7 +311,7 @@ casesRouter.patch(
 );
 
 const assignSchema = z.object({
-  assigned_to: z.string().uuid(),
+  assigned_to: z.string().uuid().or(z.literal('')).optional().nullable(),
   notes: z.string().max(3000).optional(),
 });
 
@@ -288,19 +330,23 @@ casesRouter.post(
       const current = await client.query('SELECT * FROM contact_cases WHERE id = $1', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
 
+      const assignedTo = body.assigned_to ? body.assigned_to : null;
+
       await client.query(
         'UPDATE contact_case_assignments SET unassigned_at = NOW() WHERE contact_case_id = $1 AND unassigned_at IS NULL',
         [id]
       );
       
-      await client.query(
-        'INSERT INTO contact_case_assignments (contact_case_id, assigned_to, assigned_by, notes) VALUES ($1, $2, $3, $4)',
-        [id, body.assigned_to, req.admin?.id, body.notes ?? null]
-      );
+      if (assignedTo) {
+        await client.query(
+          'INSERT INTO contact_case_assignments (contact_case_id, assigned_to, assigned_by, notes) VALUES ($1, $2, $3, $4)',
+          [id, assignedTo, req.admin?.id, body.notes ?? null]
+        );
+      }
       
       const updateResult = await client.query(
         'UPDATE contact_cases SET assigned_to = $2, updated_at = NOW() WHERE id = $1 RETURNING id',
-        [id, body.assigned_to]
+        [id, assignedTo]
       );
       
       if (updateResult.rowCount === 0) {
@@ -309,6 +355,31 @@ casesRouter.post(
       
       await client.query('COMMIT');
 
+      const caseCode = current.rows[0].case_code || current.rows[0].id.split('-')[0];
+
+      if (assignedTo !== current.rows[0].assigned_to) {
+        // Notificar al antiguo asignado (si no es el que hace el cambio)
+        if (current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            current.rows[0].assigned_to,
+            "Asignación Removida",
+            `Has sido removido del ticket de contacto #${caseCode}.`,
+            "contacts",
+            id
+          );
+        }
+        
+        // Notificar al nuevo asignado (si no es el que hace el cambio)
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Contacto Asignado",
+            `Te han asignado el ticket de contacto #${caseCode}.`,
+            "contacts",
+            id
+          );
+        }
+      }
       
       const normalized = await hasNormalizedContactSchema();
       const updated = await client.query(
@@ -379,7 +450,7 @@ casesRouter.get(
     ]);
     const [result, countResult] = await Promise.all([pool.query(
       `
-      SELECT c.id, c.complaint_code as code, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
+      SELECT c.id, c.complaint_code as code, c.assigned_to, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
       FROM complaints c
       JOIN customers cu ON c.customer_id = cu.id
       JOIN status_catalog sc ON c.status_id = sc.id
@@ -507,6 +578,18 @@ casesRouter.patch(
            VALUES ($1, $2, $3, $4)`,
           [id, oldStatusId, newStatusId, req.admin?.id ?? null],
         );
+
+        const assignedTo = currentRow.assigned_to as string | undefined;
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          const complaintCode = currentRow.complaint_code || id.split('-')[0];
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Actualización de Reclamo",
+            `El estado del reclamo #${complaintCode} ha sido modificado.`,
+            "complaints",
+            id
+          );
+        }
       }
 
       const updated = await client.query(
@@ -580,3 +663,122 @@ casesRouter.get(
   }),
 );
 
+casesRouter.post(
+  '/complaints/:id/assign',
+  requireCsrf,
+  requirePermission('admin.reclamos.assign'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const body = assignSchema.parse(req.body);
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      const current = await client.query('SELECT id, complaint_code, customer_id, status_id, priority_id, assigned_to FROM complaints WHERE id = $1', [id]);
+      if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+      const assignedTo = body.assigned_to ? body.assigned_to : null;
+
+      await client.query(
+        'UPDATE complaint_assignments SET unassigned_at = NOW() WHERE complaint_id = $1 AND unassigned_at IS NULL',
+        [id]
+      );
+      
+      if (assignedTo) {
+        await client.query(
+          'INSERT INTO complaint_assignments (complaint_id, assigned_to, assigned_by, notes) VALUES ($1, $2, $3, $4)',
+          [id, assignedTo, req.admin?.id, body.notes ?? null]
+        );
+      }
+      
+      const updateResult = await client.query(
+        'UPDATE complaints SET assigned_to = $2, updated_at = NOW() WHERE id = $1 RETURNING id, complaint_code',
+        [id, assignedTo]
+      );
+      
+      if (updateResult.rowCount === 0) {
+        throw new HttpError(404, 'Reclamo no encontrado.');
+      }
+      
+      await client.query('COMMIT');
+
+      const complaintCode = current.rows[0].complaint_code || current.rows[0].id.split('-')[0];
+
+      if (assignedTo !== current.rows[0].assigned_to) {
+        if (current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            current.rows[0].assigned_to,
+            "Asignación Removida",
+            `Has sido removido del reclamo #${complaintCode}.`,
+            "complaints",
+            id
+          );
+        }
+        
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Reclamo Asignado",
+            `Te han asignado el reclamo #${complaintCode}.`,
+            "complaints",
+            id
+          );
+        }
+      }
+
+      const updated = await client.query(
+        `SELECT ${complaintColumns} 
+        FROM complaints c
+        JOIN customers cu ON c.customer_id = cu.id
+        JOIN status_catalog sc ON c.status_id = sc.id
+        LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+        JOIN complaint_types ct ON c.complaint_type_id = ct.id
+        LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
+        LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
+        LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
+        LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE c.id = $1`, 
+        [id]
+      );
+
+      await auditService.logAdminAction({
+        userId: req.admin?.id,
+        action: 'assign_complaint',
+        entityType: 'complaint',
+        entity: updated.rows[0],
+        previousState: current.rows[0],
+        req
+      });
+
+      res.json({ item: updated.rows[0] });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/assignment-history',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const result = await pool.query(
+      `
+      SELECT 
+        ca.id, ca.assigned_to, ca.assigned_by, ca.assigned_at, ca.unassigned_at, ca.notes,
+        u1.name as assigned_to_name,
+        u2.name as assigned_by_name
+      FROM complaint_assignments ca
+      LEFT JOIN admin_users u1 ON ca.assigned_to = u1.id
+      LEFT JOIN admin_users u2 ON ca.assigned_by = u2.id
+      WHERE ca.complaint_id = $1
+      ORDER BY ca.assigned_at DESC
+      `,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { FolderKanban, Plus, RefreshCw, X } from 'lucide-react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useLocation } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 import RoleGuard from '../../components/admin/RoleGuard';
@@ -68,9 +68,33 @@ const Proyectos: React.FC = () => {
     }
   };
 
+  const location = useLocation();
+  const processedAutoOpenId = useRef<string | null>(null);
+
   useEffect(() => { void loadProjects(); }, [page]);
 
   useEffect(() => {
+    if (location.state && typeof location.state === 'object') {
+      const stateObj = location.state as { autoOpenId?: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const timestamp = stateObj.notificationTimestamp;
+      
+      const uniqueId = timestamp ? `${autoOpenId || 'refresh'}-${timestamp}` : autoOpenId;
+      
+      if (uniqueId && uniqueId !== processedAutoOpenId.current) {
+        processedAutoOpenId.current = uniqueId;
+        
+        if (autoOpenId) {
+          navigate(`/admin/proyectos/${autoOpenId}`);
+        } else {
+          addToast('Has sido removido de un proyecto y ya no tienes acceso.', 'error');
+          void loadProjects();
+        }
+        
+        window.history.replaceState({}, '');
+      }
+    }
+  }, [location.state, navigate]);  useEffect(() => {
     apiRequest<{ items: StatusCatalogItem[] }>('/catalog/statuses?domain=project')
       .then((result) => setStatuses(result.items))
       .catch(() => setStatuses([]));

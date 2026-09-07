@@ -23,7 +23,7 @@ export const getSenderConfig = (moduleType: EmailModuleType) => {
   }
 };
 
-async function getTransporter() {
+export async function getTransporter() {
   const config = await getSmtpConfig();
   const isEmailEnabled = Boolean(config.host && config.user && config.pass);
 

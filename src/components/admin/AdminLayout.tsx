@@ -5,6 +5,7 @@ import { apiRequest } from '../../lib/api';
 import { LogOut, Menu, UserCircle } from 'lucide-react';
 import ShineBorder from '../ui/shine-border';
 import ToastContainer from '../ui/ToastContainer';
+import NotificationBell from './NotificationBell';
 
 export type AdminUser = {
   id: string;
@@ -86,23 +87,27 @@ const AdminLayout: React.FC = () => {
           </div>
           <div className="flex items-center gap-6">
             {admin && (
-              <a 
-                href="/admin/perfil" 
-                onClick={(e) => { e.preventDefault(); navigate('/admin/perfil'); }} 
-                className="hidden md:flex items-center gap-3 hover:bg-white/5 border border-transparent hover:border-white/10 px-3 py-1.5 rounded-xl transition-all cursor-pointer group"
-                title="Configuración de Perfil"
-              >
-                <div className="flex flex-col items-end">
-                  <p className="text-sm font-medium text-white/90 group-hover:text-[#06CFD6] transition-colors">{admin.name}</p>
-                  <p className="text-xs text-white/40">{admin.email}</p>
-                </div>
-                <div className="p-1.5 bg-white/10 rounded-full group-hover:bg-[#06CFD6]/20 transition-colors">
-                  <UserCircle className="w-5 h-5 text-white/70 group-hover:text-[#06CFD6] transition-colors" />
-                </div>
-              </a>
+              <>
+                <NotificationBell />
+                <a 
+                  href="/admin/perfil" 
+                  onClick={(e) => { e.preventDefault(); navigate('/admin/perfil'); }} 
+                  className="hidden md:flex items-center gap-3 hover:bg-white/5 border border-transparent hover:border-white/10 px-3 py-1.5 rounded-xl transition-all cursor-pointer group"
+                  title="Configuración de Perfil"
+                >
+                  <div className="flex flex-col items-end">
+                    <p className="text-sm font-medium text-white/90 group-hover:text-[#06CFD6] transition-colors">{admin.name}</p>
+                    <p className="text-xs text-white/40">{admin.email}</p>
+                  </div>
+                  <div className="p-1.5 bg-white/10 rounded-full group-hover:bg-[#06CFD6]/20 transition-colors">
+                    <UserCircle className="w-5 h-5 text-white/70 group-hover:text-[#06CFD6] transition-colors" />
+                  </div>
+                </a>
+              </>
             )}
-            <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white">
-              <LogOut className="h-4 w-4" /> <span className="hidden sm:inline">Cerrar Sesión</span>
+            <button onClick={handleLogout} className="inline-flex items-center gap-2 rounded-xl bg-white/5 border border-transparent px-4 py-2 text-sm font-medium text-white/70 transition-all hover:bg-red-500/10 hover:border-red-500/30 group">
+              <LogOut className="h-4 w-4 group-hover:text-red-500 group-hover:[filter:drop-shadow(0_0_4px_rgba(239,68,68,0.5))] transition-all" /> 
+              <span className="hidden sm:inline group-hover:text-red-500 group-hover:[text-shadow:0_0_8px_rgba(239,68,68,0.5)] transition-all">Cerrar Sesión</span>
             </button>
           </div>
         </header>
