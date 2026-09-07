@@ -357,22 +357,28 @@ casesRouter.post(
 
       const caseCode = current.rows[0].case_code || current.rows[0].id.split('-')[0];
 
-      if (assignedTo && assignedTo !== req.admin?.id) {
-        await sendDirectInAppNotification(
-          assignedTo,
-          "Contacto Asignado",
-          `Te han asignado el ticket de contacto #${caseCode}.`,
-          "contacts",
-          id
-        );
-      } else if (!assignedTo && current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
-        await sendDirectInAppNotification(
-          current.rows[0].assigned_to,
-          "Asignación Removida",
-          `Has sido removido del ticket de contacto #${caseCode}.`,
-          "contacts",
-          id
-        );
+      if (assignedTo !== current.rows[0].assigned_to) {
+        // Notificar al antiguo asignado (si no es el que hace el cambio)
+        if (current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            current.rows[0].assigned_to,
+            "Asignación Removida",
+            `Has sido removido del ticket de contacto #${caseCode}.`,
+            "contacts",
+            id
+          );
+        }
+        
+        // Notificar al nuevo asignado (si no es el que hace el cambio)
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Contacto Asignado",
+            `Te han asignado el ticket de contacto #${caseCode}.`,
+            "contacts",
+            id
+          );
+        }
       }
       
       const normalized = await hasNormalizedContactSchema();
@@ -444,7 +450,7 @@ casesRouter.get(
     ]);
     const [result, countResult] = await Promise.all([pool.query(
       `
-      SELECT c.id, c.complaint_code as code, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
+      SELECT c.id, c.complaint_code as code, c.assigned_to, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
       FROM complaints c
       JOIN customers cu ON c.customer_id = cu.id
       JOIN status_catalog sc ON c.status_id = sc.id
@@ -698,22 +704,26 @@ casesRouter.post(
 
       const complaintCode = current.rows[0].complaint_code || current.rows[0].id.split('-')[0];
 
-      if (assignedTo && assignedTo !== req.admin?.id) {
-        await sendDirectInAppNotification(
-          assignedTo,
-          "Reclamo Asignado",
-          `Te han asignado el reclamo #${complaintCode}.`,
-          "complaints",
-          id
-        );
-      } else if (!assignedTo && current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
-        await sendDirectInAppNotification(
-          current.rows[0].assigned_to,
-          "Asignación Removida",
-          `Has sido removido del reclamo #${complaintCode}.`,
-          "complaints",
-          id
-        );
+      if (assignedTo !== current.rows[0].assigned_to) {
+        if (current.rows[0].assigned_to && current.rows[0].assigned_to !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            current.rows[0].assigned_to,
+            "Asignación Removida",
+            `Has sido removido del reclamo #${complaintCode}.`,
+            "complaints",
+            id
+          );
+        }
+        
+        if (assignedTo && assignedTo !== req.admin?.id) {
+          await sendDirectInAppNotification(
+            assignedTo,
+            "Reclamo Asignado",
+            `Te han asignado el reclamo #${complaintCode}.`,
+            "complaints",
+            id
+          );
+        }
       }
 
       const updated = await client.query(

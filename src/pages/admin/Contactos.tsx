@@ -130,7 +130,10 @@ const Contactos: React.FC = () => {
       setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
       
       const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=contact');
-      setAdminsList(adminRes.data.map(a => ({ value: a.id, label: a.name })));
+      setAdminsList([
+        { value: '', label: 'Sin Asignar' },
+        ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
+      ]);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
     } catch (err) {
@@ -180,8 +183,13 @@ const Contactos: React.FC = () => {
 
   useEffect(() => {
     void loadCatalogs();
+  }, []);
+
+  useEffect(() => {
     void loadList();
-    
+  }, [page]);
+
+  useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
       const autoOpenId = (location.state as { autoOpenId: string }).autoOpenId;
       if (autoOpenId && autoOpenId !== processedAutoOpenId.current) {
@@ -190,7 +198,7 @@ const Contactos: React.FC = () => {
         window.history.replaceState({}, '');
       }
     }
-  }, [page, location.state]);
+  }, [location.state]);
 
   const handleSave = async () => {
     if (!selectedId) return;

@@ -106,7 +106,10 @@ const Reclamos: React.FC = () => {
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
       const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint');
-      setAdminsList(adminRes.data.map(a => ({ value: a.id, label: a.name })));
+      setAdminsList([
+        { value: '', label: 'Sin Asignar' },
+        ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
+      ]);
     } catch (err) {
       console.error(err);
     }
@@ -173,8 +176,13 @@ const Reclamos: React.FC = () => {
 
   useEffect(() => {
     void loadCatalogs();
+  }, []);
+
+  useEffect(() => {
     void loadList();
-    
+  }, [page]);
+
+  useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
       const autoOpenId = (location.state as { autoOpenId: string }).autoOpenId;
       if (autoOpenId && autoOpenId !== processedAutoOpenId.current) {
@@ -183,7 +191,7 @@ const Reclamos: React.FC = () => {
         window.history.replaceState({}, '');
       }
     }
-  }, [page, location.state]);
+  }, [location.state]);
 
   const handleSave = async () => {
     if (!selectedId) return;
@@ -376,11 +384,15 @@ const Reclamos: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
-                    {item.assigned_to === admin.id && (
+                    {item.assigned_to === admin.id ? (
                       <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
                         <UserCheck className="w-3 h-3" /> Mío
                       </span>
-                    )}
+                    ) : item.assigned_to ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
+                        <UserCheck className="h-3 w-3" />
+                      </span>
+                    ) : null}
                     <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
                       {statusLabel(item.status)}
                     </span>
