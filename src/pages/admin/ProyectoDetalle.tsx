@@ -150,13 +150,14 @@ const ProyectoDetalle: React.FC = () => {
       setStatusHistory(historyResult);
     } catch (requestError: unknown) {
       addToast(requestError instanceof Error ? requestError.message : 'No se pudo cargar el proyecto.', 'error');
+      navigate('/admin/proyectos');
     } finally {
       setLoading(false);
     }
     if (canAssign) {
       fetchProjectAssignmentOptions().then(setAssignmentOptions).catch(() => setAssignmentOptions([]));
     }
-  }, [id, canAssign]);
+  }, [id, canAssign, navigate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -181,6 +182,7 @@ const ProyectoDetalle: React.FC = () => {
         
         if (!autoOpenId) {
           // Desasignado, volver a lista
+          addToast('Has sido removido de este proyecto y ya no tienes acceso.', 'error');
           navigate('/admin/proyectos');
         } else if (autoOpenId !== id) {
           // Asignado a OTRO proyecto

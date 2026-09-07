@@ -10,6 +10,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { createBusinessCode, getProjectStatusInfo } from './shared.js';
 import { auditService } from '../../services/audit.js';
+import { sendDirectInAppNotification } from '../../services/notificationService.js';
 import { projectSelectSql } from './projectRead.js';
 
 export const projectMutationsRouter = Router();
@@ -221,6 +222,25 @@ projectMutationsRouter.patch(
            ) VALUES ($1, $2, $3, $4)`,
           [id, oldStatusId, statusId, req.admin?.id ?? null],
         );
+
+        const assignedUsersRes = await client.query('SELECT user_id FROM project_assignments WHERE project_id = $1', [id]);
+        if (assignedUsersRes.rows.length > 0) {
+          const statusNamesRes = await client.query('SELECT id, name FROM status_catalog WHERE id IN ($1, $2)', [oldStatusId, statusId]);
+          const statusMap = Object.fromEntries(statusNamesRes.rows.map((r: { id: string; name: string }) => [r.id, r.name]));
+          const newStatusName = statusMap[statusId] || 'Actualizado';
+
+          for (const row of assignedUsersRes.rows) {
+            if (row.user_id !== req.admin?.id) {
+              await sendDirectInAppNotification(
+                row.user_id,
+                "Actualización de Proyecto",
+                `El estado del proyecto "${current.rows[0].name}" ha cambiado a "${newStatusName}".`,
+                "projects",
+                id
+              );
+            }
+          }
+        }
       }
       const updated = await client.query(`${projectSelectSql} AND p.id = $1`, [id]);
       await auditService.logAdminAction({ userId: req.admin?.id, action: 'update_project', entityType: 'project', entity: updated.rows[0], previousState: current.rows[0], req });
