@@ -86,7 +86,7 @@ projectAssignmentsRouter.delete(
         "Asignación Removida",
         `Has sido removido del equipo del proyecto "${result.rows[0].project_name}".`,
         "projects",
-        projectId
+        undefined
       );
     }
     await auditService.logAdminAction({ userId: req.admin?.id, action: 'remove_project_user', entityType: 'project_assignments', entity: projectId, req });

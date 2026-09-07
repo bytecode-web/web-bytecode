@@ -97,14 +97,20 @@ const NotificationBell: React.FC = () => {
 
     if (basePath) {
       if (notification.entity_id) {
-        navigate(basePath, {
+        const targetPath = notification.entity_type === 'projects' 
+          ? `${basePath}/${notification.entity_id}` 
+          : basePath;
+
+        navigate(targetPath, {
           state: { 
             autoOpenId: notification.entity_id,
             notificationTimestamp: Date.now() 
           }
         });
       } else {
-        navigate(basePath);
+        navigate(basePath, {
+          state: { notificationTimestamp: Date.now() }
+        });
       }
     }
   };
