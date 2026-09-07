@@ -254,11 +254,14 @@ const AdminCotizador: React.FC = () => {
       
       if (autoOpenId && autoOpenId !== processedAutoOpenId.current && catalog.length > 0 && !loading) {
         processedAutoOpenId.current = autoOpenId;
-        void handleEditQuote(autoOpenId);
+        void (async () => {
+          await loadData();
+          await handleEditQuote(autoOpenId);
+        })();
         window.history.replaceState({}, '');
       }
     }
-  }, [location.state, catalog.length, loading]);
+  }, [location.state, catalog.length, loading, loadData]);
 
   const formatDate = (val: string) =>
     new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(val));

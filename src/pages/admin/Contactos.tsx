@@ -194,7 +194,10 @@ const Contactos: React.FC = () => {
       const autoOpenId = (location.state as { autoOpenId: string }).autoOpenId;
       if (autoOpenId && autoOpenId !== processedAutoOpenId.current) {
         processedAutoOpenId.current = autoOpenId;
-        void loadDetail(autoOpenId);
+        void (async () => {
+          await loadList();
+          await loadDetail(autoOpenId);
+        })();
         window.history.replaceState({}, '');
       }
     }
