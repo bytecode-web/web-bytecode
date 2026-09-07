@@ -283,7 +283,7 @@ const Reclamos: React.FC = () => {
                             value={String(detail.assigned_to ?? "")}
                             placeholder="Seleccionar..."
                             onChange={handleAssignCase}
-                            options={[{ value: "", label: "Sin Asignar" }, ...adminsList]}
+                            options={adminsList}
                             disabled={isReadOnly || !canAssign}
                           />
                 )}
@@ -390,6 +390,10 @@ const Reclamos: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
+                    <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
+                      {statusLabel(item.status)}
+                    </span>
+                    {item.priority && priorityBadge(item.priority, item.priority_name!)}
                     {item.assigned_to === admin.id ? (
                       <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
                         <UserCheck className="w-3 h-3" /> Mío
@@ -399,10 +403,6 @@ const Reclamos: React.FC = () => {
                         <UserCheck className="h-3 w-3" />
                       </span>
                     ) : null}
-                    <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
-                      {statusLabel(item.status)}
-                    </span>
-                    {item.priority && priorityBadge(item.priority, item.priority_name!)}
                   </div>
                 </button>
               ))
