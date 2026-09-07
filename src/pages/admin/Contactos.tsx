@@ -191,9 +191,12 @@ const Contactos: React.FC = () => {
 
   useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
-      const autoOpenId = (location.state as { autoOpenId: string }).autoOpenId;
-      if (autoOpenId && autoOpenId !== processedAutoOpenId.current) {
-        processedAutoOpenId.current = autoOpenId;
+      const stateObj = location.state as { autoOpenId: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const uniqueId = stateObj.notificationTimestamp ? `${autoOpenId}-${stateObj.notificationTimestamp}` : autoOpenId;
+      
+      if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
+        processedAutoOpenId.current = uniqueId;
         void (async () => {
           await loadList();
           await loadDetail(autoOpenId);

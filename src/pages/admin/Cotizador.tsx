@@ -250,10 +250,12 @@ const AdminCotizador: React.FC = () => {
 
   useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
-      const autoOpenId = (location.state as { autoOpenId: string }).autoOpenId;
+      const stateObj = location.state as { autoOpenId: string, notificationTimestamp?: number };
+      const autoOpenId = stateObj.autoOpenId;
+      const uniqueId = stateObj.notificationTimestamp ? `${autoOpenId}-${stateObj.notificationTimestamp}` : autoOpenId;
       
-      if (autoOpenId && autoOpenId !== processedAutoOpenId.current && catalog.length > 0 && !loading) {
-        processedAutoOpenId.current = autoOpenId;
+      if (autoOpenId && uniqueId !== processedAutoOpenId.current && catalog.length > 0 && !loading) {
+        processedAutoOpenId.current = uniqueId;
         void (async () => {
           await loadData();
           await handleEditQuote(autoOpenId);

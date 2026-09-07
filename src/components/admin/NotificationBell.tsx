@@ -98,7 +98,10 @@ const NotificationBell: React.FC = () => {
     if (basePath) {
       if (notification.entity_id) {
         navigate(basePath, {
-          state: { autoOpenId: notification.entity_id }
+          state: { 
+            autoOpenId: notification.entity_id,
+            notificationTimestamp: Date.now() 
+          }
         });
       } else {
         navigate(basePath);
