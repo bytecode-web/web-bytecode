@@ -87,6 +87,7 @@ const Proyectos: React.FC = () => {
         if (autoOpenId) {
           navigate(`/admin/proyectos/${autoOpenId}`);
         } else {
+          addToast('Has sido removido de un proyecto y ya no tienes acceso.', 'error');
           void loadProjects();
         }
         
