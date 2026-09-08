@@ -1,21 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import {
-  Calculator,
-  ClipboardList,
-  Database,
-  FolderKanban,
-  Images,
-  LayoutDashboard,
-  MessageSquareText,
-  Settings,
-  ShieldCheck,
-  UserCog,
-  Users,
-  X,
-  BellRing,
-  BookUser,
-} from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { X, LayoutDashboard, type LucideIcon } from 'lucide-react';
 import type { AdminUser } from './AdminLayout';
 import { apiRequest } from '../../lib/api';
 
@@ -30,22 +16,6 @@ type MenuItem = {
   url: string;
   icon_name: string | null;
   permission_code: string | null;
-};
-
-const iconMap = {
-  Calculator,
-  ClipboardList,
-  Database,
-  FolderKanban,
-  Images,
-  LayoutDashboard,
-  MessageSquareText,
-  Settings,
-  ShieldCheck,
-  UserCog,
-  Users,
-  BellRing,
-  BookUser,
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
@@ -73,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
       </div>
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
-          const Icon = iconMap[item.icon_name as keyof typeof iconMap] ?? (item.label === 'Directorio' ? BookUser : LayoutDashboard);
+          const Icon = (item.icon_name && LucideIcons[item.icon_name as keyof typeof LucideIcons] as LucideIcon) || LayoutDashboard;
 
           return (
             <NavLink
@@ -86,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
                 }`
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 group-hover:text-[#06CFD6] group-hover:drop-shadow-[0_0_8px_rgba(6,207,214,0.4)] transition-all" />
               <span className="group-hover:text-[#06CFD6] group-hover:[text-shadow:0_0_8px_rgba(6,207,214,0.4)] transition-all">
                 {item.label}
               </span>
