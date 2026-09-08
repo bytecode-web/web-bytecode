@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
                 }`
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 group-hover:text-[#06CFD6] group-hover:drop-shadow-[0_0_8px_rgba(6,207,214,0.4)] transition-all" />
               <span className="group-hover:text-[#06CFD6] group-hover:[text-shadow:0_0_8px_rgba(6,207,214,0.4)] transition-all">
                 {item.label}
               </span>
