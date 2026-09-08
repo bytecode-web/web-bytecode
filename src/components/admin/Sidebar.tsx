@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
-import { X, LayoutDashboard } from 'lucide-react';
+import { X, LayoutDashboard, type LucideIcon } from 'lucide-react';
 import type { AdminUser } from './AdminLayout';
 import { apiRequest } from '../../lib/api';
 
@@ -43,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ admin, onClose }) => {
       </div>
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
-          const Icon = (LucideIcons as any)[item.icon_name ?? ''] || LayoutDashboard;
+          const Icon = (item.icon_name && LucideIcons[item.icon_name as keyof typeof LucideIcons] as LucideIcon) || LayoutDashboard;
 
           return (
             <NavLink
