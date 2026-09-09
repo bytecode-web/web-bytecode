@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import { formatCurrencyValue } from '../../hooks/useQuoterState';
 import { ArrowLeft, ExternalLink, Pencil, Trash2, UserPlus, X, DollarSign, Plus, GitCommitHorizontal, AlertTriangle } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import ShineBorder from '../../components/ui/shine-border';
 import type { AdminUser } from '../../components/admin/AdminLayout';
@@ -42,6 +42,7 @@ type ProjectEditForm = { name: string; description: string; githubRepo: string; 
 const ProyectoDetalle: React.FC = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addToast } = useToastStore();
   const { admin } = useOutletContext<{ admin: AdminUser }>();
   const canAssign = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.proyectos.assign') === true;
@@ -165,6 +166,21 @@ const ProyectoDetalle: React.FC = () => {
     }, 0);
     return () => clearTimeout(timer);
   }, [loadData]);
+
+  useEffect(() => {
+    const tb = searchParams.get('tab');
+    if (tb && tb !== tab) {
+      setTab(tb as Tab);
+    }
+    
+    const mId = searchParams.get('milestoneId');
+    if (mId && milestones.length > 0) {
+      const ms = milestones.find(m => m.id === mId);
+      if (ms && milestoneDetailsOpen?.id !== ms.id) {
+        setMilestoneDetailsOpen(ms);
+      }
+    }
+  }, [searchParams, milestones, tab, milestoneDetailsOpen?.id]);
 
   const location = useLocation();
   const processedAutoOpenId = useRef<string | null>(null);

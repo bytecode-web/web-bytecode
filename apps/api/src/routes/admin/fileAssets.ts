@@ -58,7 +58,8 @@ fileAssetsRouter.get(
         ce.complaint_id AS complaint_id,
         pia.portfolio_item_id AS portfolio_item_id,
         b.id AS banner_id,
-        pm.project_id AS payment_project_id
+        pm.project_id AS payment_project_id,
+        mp.milestone_id AS milestone_id
       FROM file_assets fa
       LEFT JOIN complaint_evidences ce ON ce.file_asset_id = fa.id
       LEFT JOIN portfolio_item_assets pia ON pia.file_asset_id = fa.id
@@ -85,8 +86,8 @@ fileAssetsRouter.get(
 
     // Mapeo mágico: Construimos las etiquetas y enlaces para el frontend
     const items = dataResult.rows.map((row: any) => {
+      let originUrl: string | null = null;
       let originLabel = 'Sin Uso / Huérfano';
-      let originUrl = null;
 
       if (row.complaint_id) {
         originLabel = 'Evidencia de Reclamo';
@@ -95,11 +96,11 @@ fileAssetsRouter.get(
         originLabel = 'Portada de Portafolio';
         originUrl = `/admin/portafolio?id=${row.portfolio_item_id}`;
       } else if (row.banner_id) {
-        originLabel = 'Banner del CMS';
-        originUrl = `/admin/cms`;
+        originLabel = 'Banner Web';
+        originUrl = `/admin/cms`; // Banners no tienen detalle split-screen
       } else if (row.payment_project_id) {
-        originLabel = 'Recibo de Pago';
-        originUrl = `/admin/proyectos/${row.payment_project_id}`;
+        originLabel = 'Recibo de Pago (Proyecto)';
+        originUrl = `/admin/proyectos/${row.payment_project_id}?tab=milestones&milestoneId=${row.milestone_id}`;
       }
 
       return {

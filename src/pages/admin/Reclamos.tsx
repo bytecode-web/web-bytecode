@@ -8,7 +8,7 @@ import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import { useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface Complaint {
@@ -172,6 +172,7 @@ const Reclamos: React.FC = () => {
   };
 
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const processedAutoOpenId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -181,6 +182,14 @@ const Reclamos: React.FC = () => {
   useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    const queryId = searchParams.get('id');
+    if (queryId && queryId !== processedAutoOpenId.current) {
+      processedAutoOpenId.current = queryId;
+      void loadDetail(queryId);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
