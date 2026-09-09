@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Download, ExternalLink, HardDrive, Search, File as FileIcon, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, HardDrive, Search, File as FileIcon, FileText, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
+import type { AdminUser } from '../../components/admin/AdminLayout';
+import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import { useToastStore } from '../../stores/toastStore';
 
 interface FileOrigin {
   label: string;
@@ -25,13 +28,34 @@ interface FileAssetsResponse {
 }
 
 const Archivos: React.FC = () => {
+  const { admin } = useOutletContext<{ admin: AdminUser }>();
+  const canManage = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.archivos.manage') === true;
+  const { addToast } = useToastStore();
+
   const [assets, setAssets] = useState<FileAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [heavyOnly, setHeavyOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
   const limit = 20;
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await apiRequest(`/admin/file-assets/${id}`, { method: 'DELETE' });
+      addToast('Archivo eliminado exitosamente de la base de datos y Cloudinary', 'success');
+      // Recargar lista si estamos en la primera pagina, o cambiar estado si es page 1
+      setAssets(assets.filter(a => a.id !== id));
+    } catch (err: any) {
+      addToast(err.message || 'Error eliminando el archivo', 'error');
+    } finally {
+      setDeletingId(null);
+      setConfirmModal(null);
+    }
+  };
 
   const fetchAssets = async (currentPage = page, currentSearch = search, isHeavy = heavyOnly) => {
     try {
@@ -164,26 +188,53 @@ const Archivos: React.FC = () => {
               <div className="p-4 bg-bytecode-background/50 flex items-center justify-between mt-auto">
                 <div className="flex-1">
                   <span className="text-xs font-medium text-gray-400 block mb-1">Origen:</span>
-                  {asset.origin.url ? (
-                    <Link to={asset.origin.url} className="text-sm text-bytecode-primary hover:underline flex items-center gap-1">
-                      {asset.origin.label}
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  ) : (
-                    <span className="text-sm text-gray-300">{asset.origin.label}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {asset.origin.url && (
+                      <Link 
+                        to={asset.origin.url} 
+                        target="_blank"
+                        className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors group relative"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Ir al origen
+                        </span>
+                      </Link>
+                    )}
+                    <a 
+                      href={asset.public_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      download={asset.original_name}
+                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 rounded-full transition-colors group relative"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        Descargar
+                      </span>
+                    </a>
+                    {canManage && (
+                      <button
+                        onClick={() => {
+                          setConfirmModal({
+                            title: '¿Eliminar archivo permanentemente?',
+                            message: `Estás a punto de desvincular y eliminar físicamente "${asset.original_name}" de Cloudinary y la base de datos. Si este archivo pertenece a una evidencia legal, se desvinculará por la fuerza. Esta acción es destructiva e irreversible.`,
+                            confirmText: 'Sí, eliminar',
+                            type: 'danger',
+                            onConfirm: () => handleDelete(asset.id),
+                          });
+                        }}
+                        disabled={deletingId === asset.id}
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors group relative ml-1"
+                      >
+                        {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Eliminar
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                
-                <a
-                  href={asset.public_url || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={asset.original_name}
-                  className="w-8 h-8 rounded-full bg-bytecode-primary/10 text-bytecode-primary flex items-center justify-center hover:bg-bytecode-primary hover:text-white transition-colors"
-                  title="Descargar Archivo"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
               </div>
             </div>
           ))}
@@ -191,25 +242,33 @@ const Archivos: React.FC = () => {
       )}
 
       {!loading && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-8">
+        <div className="flex justify-center items-center gap-4 mt-8">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 bg-bytecode-surface border border-white/10 rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5"
+            className="px-4 py-2 bg-bytecode-surface border border-white/10 rounded-lg text-white disabled:opacity-50 hover:bg-white/5 transition-colors"
           >
             Anterior
           </button>
-          <span className="text-gray-400 text-sm">
+          <span className="text-gray-400">
             Página {page} de {totalPages}
           </span>
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 bg-bytecode-surface border border-white/10 rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5"
+            className="px-4 py-2 bg-bytecode-surface border border-white/10 rounded-lg text-white disabled:opacity-50 hover:bg-white/5 transition-colors"
           >
             Siguiente
           </button>
         </div>
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={true}
+          onCancel={() => setConfirmModal(null)}
+          {...confirmModal}
+        />
       )}
     </div>
   );
