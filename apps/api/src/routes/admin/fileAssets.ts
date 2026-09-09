@@ -47,7 +47,7 @@ fileAssetsRouter.get(
 
     const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    // Consulta con LEFT JOIN para Trazabilidad
+    // Consulta con subqueries para evitar producto cartesiano (1 fila por file_asset)
     const sql = `
       SELECT 
         fa.id,
@@ -57,17 +57,14 @@ fileAssetsRouter.get(
         fa.mime_type,
         fa.byte_size,
         fa.created_at,
-        ce.complaint_id AS complaint_id,
-        pia.portfolio_item_id AS portfolio_item_id,
-        b.id AS banner_id,
-        pm.project_id AS payment_project_id,
-        mp.milestone_id AS milestone_id
+        (SELECT array_agg(complaint_id) FROM complaint_evidences WHERE file_asset_id = fa.id) AS complaint_ids,
+        (SELECT array_agg(portfolio_item_id) FROM portfolio_item_assets WHERE file_asset_id = fa.id) AS portfolio_item_ids,
+        (SELECT array_agg(id) FROM banners WHERE file_asset_id = fa.id) AS banner_ids,
+        (SELECT json_agg(json_build_object('project_id', pm.project_id, 'milestone_id', mp.milestone_id)) 
+         FROM milestone_payments mp 
+         JOIN project_milestones pm ON pm.id = mp.milestone_id 
+         WHERE mp.receipt_file_id = fa.id) AS payment_projects
       FROM file_assets fa
-      LEFT JOIN complaint_evidences ce ON ce.file_asset_id = fa.id
-      LEFT JOIN portfolio_item_assets pia ON pia.file_asset_id = fa.id
-      LEFT JOIN banners b ON b.file_asset_id = fa.id
-      LEFT JOIN milestone_payments mp ON mp.receipt_file_id = fa.id
-      LEFT JOIN project_milestones pm ON pm.id = mp.milestone_id
       ${whereString}
       ORDER BY fa.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -90,17 +87,25 @@ fileAssetsRouter.get(
     const items = dataResult.rows.map((row: any) => {
       const origins: { label: string; url: string | null }[] = [];
 
-      if (row.complaint_id) {
-        origins.push({ label: 'Evidencia de Reclamo', url: `/admin/reclamos?id=${row.complaint_id}` });
+      if (row.complaint_ids && row.complaint_ids.length > 0) {
+        row.complaint_ids.forEach((cId: string) => {
+          origins.push({ label: 'Evidencia de Reclamo', url: `/admin/reclamos?id=${cId}` });
+        });
       } 
-      if (row.portfolio_item_id) {
-        origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${row.portfolio_item_id}` });
+      if (row.portfolio_item_ids && row.portfolio_item_ids.length > 0) {
+        row.portfolio_item_ids.forEach((pId: string) => {
+          origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${pId}` });
+        });
       } 
-      if (row.banner_id) {
-        origins.push({ label: 'Banner Web', url: `/admin/cms` });
+      if (row.banner_ids && row.banner_ids.length > 0) {
+        row.banner_ids.forEach(() => {
+          origins.push({ label: 'Banner Web', url: `/admin/cms` });
+        });
       } 
-      if (row.payment_project_id) {
-        origins.push({ label: 'Recibo de Pago (Proyecto)', url: `/admin/proyectos/${row.payment_project_id}?tab=milestones&milestoneId=${row.milestone_id}` });
+      if (row.payment_projects && row.payment_projects.length > 0) {
+        row.payment_projects.forEach((pp: { project_id: string, milestone_id: string }) => {
+          origins.push({ label: 'Recibo de Pago', url: `/admin/proyectos/${pp.project_id}?tab=milestones&milestoneId=${pp.milestone_id}` });
+        });
       }
 
       const originLabels = origins.length > 0 ? origins.map(o => o.label).join(', ') : 'Sin Uso / Huérfano';

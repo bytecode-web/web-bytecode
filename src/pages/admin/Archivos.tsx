@@ -197,26 +197,35 @@ const Archivos: React.FC = () => {
                         key={i}
                         to={url} 
                         target="_blank"
-                        className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors group relative"
+                        title={`Abrir enlace ${i + 1}`}
+                        className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors relative"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          Abrir enlace {i + 1}
-                        </span>
                       </Link>
                     ))}
-                    <a 
-                      href={asset.public_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      download={asset.original_name}
-                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 rounded-full transition-colors group relative"
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(asset.public_url);
+                          const blob = await response.blob();
+                          const blobUrl = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.style.display = 'none';
+                          a.href = blobUrl;
+                          a.download = asset.original_name;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(blobUrl);
+                          document.body.removeChild(a);
+                        } catch (e) {
+                          window.open(asset.public_url, '_blank');
+                        }
+                      }}
+                      title="Descargar"
+                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 rounded-full transition-colors relative"
                     >
                       <Download className="w-4 h-4" />
-                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        Descargar
-                      </span>
-                    </a>
+                    </button>
                     {canManage && (
                       <button
                         onClick={() => {
@@ -229,12 +238,10 @@ const Archivos: React.FC = () => {
                           });
                         }}
                         disabled={deletingId === asset.id}
-                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors group relative ml-1"
+                        title="Eliminar"
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors relative ml-1"
                       >
                         {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                          Eliminar
-                        </span>
                       </button>
                     )}
                   </div>
