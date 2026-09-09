@@ -43,7 +43,7 @@ type ProjectEditForm = { name: string; description: string; githubRepo: string; 
 const ProyectoDetalle: React.FC = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToastStore();
   const { admin } = useOutletContext<{ admin: AdminUser }>();
   const canAssign = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.proyectos.assign') === true;
@@ -182,6 +182,14 @@ const ProyectoDetalle: React.FC = () => {
       }
     }
   }, [searchParams, milestones, tab, milestoneDetailsOpen?.id]);
+
+  const handleCloseMilestoneModal = () => {
+    setMilestoneDetailsOpen(null);
+    setSearchParams((params) => {
+      params.delete('milestoneId');
+      return params;
+    });
+  };
 
   const location = useLocation();
   const processedAutoOpenId = useRef<string | null>(null);
@@ -661,7 +669,7 @@ const ProyectoDetalle: React.FC = () => {
                   <h2 className="text-lg font-semibold text-white/90">Desglose de Pagos</h2>
                   <p className="mt-1 text-xs text-white/40">{milestoneDetailsOpen.title}</p>
                 </div>
-                <button type="button" onClick={() => setMilestoneDetailsOpen(null)} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <div className="max-h-[50vh] overflow-y-auto pr-1">
                 <div className="grid gap-3">
@@ -698,7 +706,7 @@ const ProyectoDetalle: React.FC = () => {
                 </div>
               </div>
               <div className="mt-6 flex justify-end border-t border-white/5 pt-5">
-                <button type="button" onClick={() => setMilestoneDetailsOpen(null)} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
+                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
               </div>
             </div>
           </div>

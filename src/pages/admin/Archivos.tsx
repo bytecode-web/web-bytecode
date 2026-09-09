@@ -199,9 +199,8 @@ const Archivos: React.FC = () => {
                         <Link 
                           key={i}
                           to={url} 
-                          target="_blank"
                           title={urls.length > 1 ? `Abrir enlace ${i + 1}` : 'Ir al origen'}
-                          className="p-2 text-bytecode-primary bg-bytecode-primary/10 hover:bg-bytecode-primary/30 hover:text-white hover:scale-105 rounded-full transition-all cursor-pointer relative flex items-center justify-center w-8 h-8 shadow-sm"
+                          className="p-2 text-bytecode-primary hover:bg-white/10 rounded-full transition-colors cursor-pointer relative flex items-center justify-center w-8 h-8"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </Link>
@@ -210,7 +209,7 @@ const Archivos: React.FC = () => {
                     <button 
                       onClick={() => forceDownload(asset.public_url, asset.original_name)}
                       title="Descargar"
-                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 hover:scale-105 rounded-full transition-all cursor-pointer relative flex items-center justify-center w-8 h-8 shadow-sm"
+                      className="p-2 text-white hover:text-bytecode-primary hover:bg-white/10 rounded-full transition-colors cursor-pointer relative flex items-center justify-center w-8 h-8"
                     >
                       <Download className="w-4 h-4" />
                     </button>
@@ -227,7 +226,7 @@ const Archivos: React.FC = () => {
                         }}
                         disabled={deletingId === asset.id}
                         title="Eliminar"
-                        className="p-2 text-red-400 bg-red-500/10 hover:bg-red-500/30 hover:text-red-200 hover:scale-105 rounded-full transition-all cursor-pointer relative ml-1 flex items-center justify-center w-8 h-8 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer relative ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                       </button>

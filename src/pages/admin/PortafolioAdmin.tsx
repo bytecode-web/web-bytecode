@@ -96,7 +96,15 @@ const AdminPortafolio: React.FC = () => {
   useEffect(() => {
     const openId = searchParams.get('id');
     if (openId && items.length > 0) {
-      setSelectedId(openId);
+      const foundItem = items.find((item) => item.id === openId);
+      if (foundItem) {
+        setSelectedId(foundItem.id);
+        setForm(toForm(foundItem));
+        setImageFile(null);
+        setImageAlt(foundItem.alt_text ?? '');
+      } else {
+        setSelectedId(openId);
+      }
     }
   }, [searchParams, items]);
 
