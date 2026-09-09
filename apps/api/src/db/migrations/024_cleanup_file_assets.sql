@@ -1,4 +1,4 @@
--- Migración 021: Limpieza de Archivos Huérfanos
+-- Migración 024: Limpieza de Archivos Huérfanos
 -- Este script purga los registros en file_assets que NO están siendo utilizados por ninguna otra tabla del sistema.
 
 DELETE FROM public.file_assets

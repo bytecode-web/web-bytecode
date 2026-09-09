@@ -43,6 +43,10 @@ export const adminPermissions = [
   { moduleCode: 'admin.seguridad', actionCode: 'manage', code: 'admin.seguridad.manage', name: 'Gestionar Seguridad' },
   { moduleCode: 'admin.configuracion', actionCode: 'view', code: 'admin.configuracion.view', name: 'Ver Configuracion' },
   { moduleCode: 'admin.configuracion', actionCode: 'manage', code: 'admin.configuracion.manage', name: 'Gestionar Configuracion' },
+  { moduleCode: 'admin.archivos', actionCode: 'view', code: 'admin.archivos.view', name: 'Ver Gestor de Archivos' },
+  { moduleCode: 'admin.archivos', actionCode: 'manage', code: 'admin.archivos.manage', name: 'Administrar Archivos' },
+  { moduleCode: 'admin.notificaciones', actionCode: 'view', code: 'admin.notificaciones.view', name: 'Ver Notificaciones' },
+  { moduleCode: 'admin.notificaciones', actionCode: 'manage', code: 'admin.notificaciones.manage', name: 'Gestionar Notificaciones' },
 ] as const satisfies readonly AdminPermissionSeed[];
 
 export type AdminPermissionCode = (typeof adminPermissions)[number]['code'];
@@ -58,9 +62,11 @@ export const adminMenuItems: AdminMenuSeed[] = [
   { label: 'Usuarios', url: '/admin/usuarios', routeName: 'admin.usuarios', iconName: 'UserCog', permissionCode: 'admin.usuarios.view', sortOrder: 60 },
   { label: 'Roles', url: '/admin/roles', routeName: 'admin.roles', iconName: 'ShieldCheck', permissionCode: 'admin.roles.view', sortOrder: 70 },
   { label: 'CMS', url: '/admin/cms', routeName: 'admin.cms', iconName: 'Database', permissionCode: 'admin.cms.view', sortOrder: 80 },
+  { label: 'Notificaciones', url: '/admin/notificaciones', routeName: 'admin.notificaciones', iconName: 'Bell', permissionCode: 'admin.notificaciones.view', sortOrder: 85 },
   { label: 'Auditoria', url: '/admin/auditoria', routeName: 'admin.auditoria', iconName: 'ClipboardList', permissionCode: 'admin.auditoria.view', sortOrder: 90 },
   { label: 'Seguridad', url: '/admin/seguridad', routeName: 'admin.seguridad', iconName: 'ShieldCheck', permissionCode: 'admin.seguridad.view', sortOrder: 100 },
   { label: 'Configuracion', url: '/admin/configuracion', routeName: 'admin.configuracion', iconName: 'Settings', permissionCode: 'admin.configuracion.view', sortOrder: 110 },
+  { label: 'Archivos', url: '/admin/archivos', routeName: 'admin.archivos', iconName: 'FolderOpen', permissionCode: 'admin.archivos.view', sortOrder: 115 },
 ];
 
 export const initialRolePermissions: Record<SystemRoleCode, AdminPermissionCode[]> = {
@@ -89,6 +95,9 @@ export const initialRolePermissions: Record<SystemRoleCode, AdminPermissionCode[
     'admin.seguridad.manage',
     'admin.configuracion.view',
     'admin.configuracion.manage',
+    'admin.archivos.view',
+    'admin.notificaciones.view',
+    'admin.notificaciones.manage',
   ],
   support_agent: [
     'admin.dashboard.view',

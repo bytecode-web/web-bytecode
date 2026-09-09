@@ -14,6 +14,7 @@ import { quotesRouter } from './admin/quotes.js';
 import directoryRouter from './admin/directory.js';
 import notificationsRouter from './admin/notifications.js';
 import { auditLogsRouter, dashboardRouter, governanceRouter } from './admin/system.js';
+import { fileAssetsRouter } from './admin/fileAssets.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use('/', projectReadRouter);
 router.use('/', quotesRouter);
 router.use('/', directoryRouter);
 router.use('/', notificationsRouter);
+router.use('/file-assets', fileAssetsRouter);
 router.use('/', governanceRouter);
 
 export default router;
