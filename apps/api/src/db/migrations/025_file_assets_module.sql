@@ -44,8 +44,8 @@ SET label = 'Archivos',
 WHERE route_name = 'admin.archivos';
 
 -- 3. Asignar permisos al rol 'super_admin' (View y Manage)
-INSERT INTO public.role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.code = 'super_admin' 
@@ -53,8 +53,8 @@ WHERE r.code = 'super_admin'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 4. Asignar permisos al rol 'admin' (Solo View)
-INSERT INTO public.role_permissions (role_id, permission_id, created_at)
-SELECT r.id, p.id, now()
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
 FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.code = 'admin' 
