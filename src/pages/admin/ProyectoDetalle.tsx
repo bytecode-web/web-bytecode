@@ -446,7 +446,7 @@ const ProyectoDetalle: React.FC = () => {
               <p className="mt-1 text-xs text-white/35">Vence {new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(milestone.due_date))} · {parseFloat(Number(milestone.payment_percentage).toFixed(2))}%</p>
               {milestone.payments && milestone.payments.length > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
-                  <button type="button" onClick={() => setMilestoneDetailsOpen(milestone)} className="mt-1 w-fit rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors">Ver detalle de {milestone.payments.length === 1 ? 'pago' : `pagos (${milestone.payments.length})`}</button>
+                  <button type="button" onClick={() => setSearchParams(p => { p.set('milestoneId', milestone.id); return p; })} className="mt-1 w-fit rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors">Ver detalle de {milestone.payments.length === 1 ? 'pago' : `pagos (${milestone.payments.length})`}</button>
                 </div>
               )}
               {Math.round(remaining * 100) > 0 && !['canceled', 'completed'].includes(milestone.status) && (
