@@ -23,7 +23,7 @@ SELECT
     'admin.archivos', 
     'FolderOpen', 
     id, 
-    115, 
+    106, 
     true, 
     now(), 
     now()

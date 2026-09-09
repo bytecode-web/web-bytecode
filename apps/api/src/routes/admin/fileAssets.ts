@@ -58,12 +58,13 @@ fileAssetsRouter.get(
         ce.complaint_id AS complaint_id,
         pia.portfolio_item_id AS portfolio_item_id,
         b.id AS banner_id,
-        mp.project_id AS payment_project_id
+        pm.project_id AS payment_project_id
       FROM file_assets fa
       LEFT JOIN complaint_evidences ce ON ce.file_asset_id = fa.id
       LEFT JOIN portfolio_item_assets pia ON pia.file_asset_id = fa.id
       LEFT JOIN banners b ON b.file_asset_id = fa.id
       LEFT JOIN milestone_payments mp ON mp.receipt_file_id = fa.id
+      LEFT JOIN project_milestones pm ON pm.id = mp.milestone_id
       ${whereString}
       ORDER BY fa.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
