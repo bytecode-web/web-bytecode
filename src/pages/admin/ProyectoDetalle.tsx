@@ -13,6 +13,7 @@ import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline'
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import Timeline from '../../components/ui/Timeline';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import { forceDownload } from '../../lib/download';
 import {
   apiRequest,
   assignProjectUser,
@@ -682,10 +683,10 @@ const ProyectoDetalle: React.FC = () => {
                       
                       {payment.receipt_url ? (
                         <div className="mt-3 border-t border-white/5 pt-3">
-                          <a href={payment.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300">
+                          <button onClick={() => forceDownload(payment.receipt_url!, 'Comprobante')} className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300">
                             <ExternalLink className="h-3.5 w-3.5" />
                             Ver comprobante adjunto
-                          </a>
+                          </button>
                         </div>
                       ) : (
                         <div className="mt-3 border-t border-white/5 pt-3">

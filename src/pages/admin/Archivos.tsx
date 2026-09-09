@@ -5,6 +5,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 import { useToastStore } from '../../stores/toastStore';
+import { forceDownload } from '../../lib/download';
 
 interface FileOrigin {
   label: string;
@@ -192,37 +193,24 @@ const Archivos: React.FC = () => {
                     {asset.origin.label}
                   </span>
                   <div className="flex items-center gap-2">
-                    {(asset.origin.allUrls || (asset.origin.url ? [asset.origin.url] : [])).map((url, i) => (
-                      <Link 
-                        key={i}
-                        to={url} 
-                        target="_blank"
-                        title={`Abrir enlace ${i + 1}`}
-                        className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors relative"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Link>
-                    ))}
+                    {(() => {
+                      const urls = asset.origin.allUrls || (asset.origin.url ? [asset.origin.url] : []);
+                      return urls.map((url, i) => (
+                        <Link 
+                          key={i}
+                          to={url} 
+                          target="_blank"
+                          title={urls.length > 1 ? `Abrir enlace ${i + 1}` : 'Ir al origen'}
+                          className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors relative flex items-center justify-center w-8 h-8"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Link>
+                      ));
+                    })()}
                     <button 
-                      onClick={async () => {
-                        try {
-                          const response = await fetch(asset.public_url);
-                          const blob = await response.blob();
-                          const blobUrl = window.URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.style.display = 'none';
-                          a.href = blobUrl;
-                          a.download = asset.original_name;
-                          document.body.appendChild(a);
-                          a.click();
-                          window.URL.revokeObjectURL(blobUrl);
-                          document.body.removeChild(a);
-                        } catch (e) {
-                          window.open(asset.public_url, '_blank');
-                        }
-                      }}
+                      onClick={() => forceDownload(asset.public_url, asset.original_name)}
                       title="Descargar"
-                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 rounded-full transition-colors relative"
+                      className="p-2 text-white bg-bytecode-primary/20 hover:bg-bytecode-primary/40 rounded-full transition-colors relative flex items-center justify-center w-8 h-8"
                     >
                       <Download className="w-4 h-4" />
                     </button>
@@ -239,7 +227,7 @@ const Archivos: React.FC = () => {
                         }}
                         disabled={deletingId === asset.id}
                         title="Eliminar"
-                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors relative ml-1"
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors relative ml-1 flex items-center justify-center w-8 h-8"
                       >
                         {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                       </button>
