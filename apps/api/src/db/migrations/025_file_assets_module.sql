@@ -14,7 +14,8 @@ SET name = EXCLUDED.name,
     deleted_at = NULL,
     updated_at = now();
 
--- 2. Insertar Elemento de Menú
+-- 2. Insertar Elemento de Menú 
+-- Omitimos ON CONFLICT(route_name) porque no tiene restricción UNIQUE explícita en BD
 INSERT INTO public.menu_items (label, url, route_name, icon_name, permission_id, sort_order, is_active, created_at, updated_at)
 SELECT 
     'Archivos', 
@@ -27,14 +28,20 @@ SELECT
     now(), 
     now()
 FROM public.permissions WHERE code = 'admin.archivos.view'
-ON CONFLICT (route_name) DO UPDATE
-SET label = EXCLUDED.label,
-    url = EXCLUDED.url,
-    icon_name = EXCLUDED.icon_name,
-    permission_id = EXCLUDED.permission_id,
+AND NOT EXISTS (
+    SELECT 1 FROM public.menu_items WHERE route_name = 'admin.archivos'
+);
+
+-- Actualizar por si ya existía pero estaba obsoleto/eliminado lógicamente
+UPDATE public.menu_items
+SET label = 'Archivos',
+    url = '/admin/archivos',
+    icon_name = 'FolderOpen',
+    permission_id = (SELECT id FROM public.permissions WHERE code = 'admin.archivos.view'),
     is_active = true,
     deleted_at = NULL,
-    updated_at = now();
+    updated_at = now()
+WHERE route_name = 'admin.archivos';
 
 -- 3. Asignar permisos al rol 'super_admin' (View y Manage)
 INSERT INTO public.role_permissions (role_id, permission_id, created_at)
@@ -43,17 +50,15 @@ FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.code = 'super_admin' 
   AND p.code IN ('admin.archivos.view', 'admin.archivos.manage')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 4. Asignar permisos al rol 'admin' (Solo View)
--- NOTA: El usuario pidio "al admin solo ver". 
--- (Si deseas que el admin tambien gestione, agrega 'admin.archivos.manage' abajo)
 INSERT INTO public.role_permissions (role_id, permission_id, created_at)
 SELECT r.id, p.id, now()
 FROM public.roles r
 CROSS JOIN public.permissions p
 WHERE r.code = 'admin' 
   AND p.code IN ('admin.archivos.view')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 COMMIT;
