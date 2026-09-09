@@ -28,17 +28,19 @@ const Archivos: React.FC = () => {
   const [assets, setAssets] = useState<FileAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [heavyOnly, setHeavyOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 20;
 
-  const fetchAssets = async () => {
+  const fetchAssets = async (currentPage = page, currentSearch = search, isHeavy = heavyOnly) => {
     try {
       setLoading(true);
       const query = new URLSearchParams({
-        page: page.toString(),
+        page: currentPage.toString(),
         limit: limit.toString(),
-        ...(search && { search })
+        ...(currentSearch && { search: currentSearch }),
+        ...(isHeavy && { minSize: '5242880' }) // 5 MB en bytes
       });
       
       const response = await apiRequest<FileAssetsResponse>(`/admin/file-assets?${query.toString()}`);
@@ -53,15 +55,24 @@ const Archivos: React.FC = () => {
     }
   };
 
+  // Búsqueda reactiva (Debounce)
   useEffect(() => {
-    fetchAssets();
-  }, [page]);
+    const timer = setTimeout(() => {
+      fetchAssets(1, search, heavyOnly);
+      setPage(1);
+    }, 400);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    fetchAssets();
-  };
+    return () => clearTimeout(timer);
+  }, [search, heavyOnly]);
+
+  // Paginación
+  useEffect(() => {
+    // Si page es 1, el debounce ya hizo el fetch. 
+    // Para evitar doble fetch, solo disparamos si page > 1
+    if (page > 1) {
+      fetchAssets(page, search, heavyOnly);
+    }
+  }, [page]);
 
   const formatBytes = (bytes: number, decimals = 2) => {
     if (!+bytes) return '0 Bytes';
@@ -90,25 +101,31 @@ const Archivos: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-bytecode-surface rounded-xl p-4 border border-white/10">
-        <form onSubmit={handleSearch} className="flex gap-2 max-w-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="bg-bytecode-surface rounded-xl p-4 border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="relative flex-1 w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Escribe para buscar archivos (automático)..."
+            className="w-full pl-9 pr-4 py-2 bg-bytecode-background border border-white/10 rounded-lg text-white focus:border-bytecode-primary focus:ring-1 focus:ring-bytecode-primary transition-colors"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div className="relative">
             <input
-              type="text"
-              placeholder="Buscar por nombre de archivo..."
-              className="w-full pl-9 pr-4 py-2 bg-bytecode-background border border-white/10 rounded-lg text-white focus:border-bytecode-primary focus:ring-1 focus:ring-bytecode-primary transition-colors"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              type="checkbox"
+              className="sr-only"
+              checked={heavyOnly}
+              onChange={(e) => setHeavyOnly(e.target.checked)}
             />
+            <div className={`block w-10 h-6 rounded-full transition-colors ${heavyOnly ? 'bg-bytecode-primary' : 'bg-gray-700'}`}></div>
+            <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${heavyOnly ? 'translate-x-4' : ''}`}></div>
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-bytecode-primary/10 text-bytecode-primary rounded-lg hover:bg-bytecode-primary/20 transition-colors whitespace-nowrap"
-          >
-            Buscar
-          </button>
-        </form>
+          <span className="text-sm text-gray-300">Mostrar &gt; 5MB (Para depuración)</span>
+        </label>
       </div>
 
       {loading ? (
