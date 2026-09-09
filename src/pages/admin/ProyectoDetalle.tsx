@@ -180,15 +180,17 @@ const ProyectoDetalle: React.FC = () => {
       if (ms && milestoneDetailsOpen?.id !== ms.id) {
         setMilestoneDetailsOpen(ms);
       }
+    } else if (!mId && milestoneDetailsOpen) {
+      setMilestoneDetailsOpen(null);
     }
-  }, [searchParams, milestones, tab, milestoneDetailsOpen?.id]);
+  }, [searchParams, milestones, tab, milestoneDetailsOpen]);
 
   const handleCloseMilestoneModal = () => {
-    setMilestoneDetailsOpen(null);
     setSearchParams((params) => {
       params.delete('milestoneId');
       return params;
     });
+    setMilestoneDetailsOpen(null);
   };
 
   const location = useLocation();
