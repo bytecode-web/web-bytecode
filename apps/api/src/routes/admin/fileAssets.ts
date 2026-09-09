@@ -88,22 +88,24 @@ fileAssetsRouter.get(
 
     // Mapeo mágico: Construimos las etiquetas y enlaces para el frontend
     const items = dataResult.rows.map((row: any) => {
-      let originUrl: string | null = null;
-      let originLabel = 'Sin Uso / Huérfano';
+      const origins: { label: string; url: string | null }[] = [];
 
       if (row.complaint_id) {
-        originLabel = 'Evidencia de Reclamo';
-        originUrl = `/admin/reclamos?id=${row.complaint_id}`;
-      } else if (row.portfolio_item_id) {
-        originLabel = 'Portada de Portafolio';
-        originUrl = `/admin/portafolio?id=${row.portfolio_item_id}`;
-      } else if (row.banner_id) {
-        originLabel = 'Banner Web';
-        originUrl = `/admin/cms`; // Banners no tienen detalle split-screen
-      } else if (row.payment_project_id) {
-        originLabel = 'Recibo de Pago (Proyecto)';
-        originUrl = `/admin/proyectos/${row.payment_project_id}?tab=milestones&milestoneId=${row.milestone_id}`;
+        origins.push({ label: 'Evidencia de Reclamo', url: `/admin/reclamos?id=${row.complaint_id}` });
+      } 
+      if (row.portfolio_item_id) {
+        origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${row.portfolio_item_id}` });
+      } 
+      if (row.banner_id) {
+        origins.push({ label: 'Banner Web', url: `/admin/cms` });
+      } 
+      if (row.payment_project_id) {
+        origins.push({ label: 'Recibo de Pago (Proyecto)', url: `/admin/proyectos/${row.payment_project_id}?tab=milestones&milestoneId=${row.milestone_id}` });
       }
+
+      const originLabels = origins.length > 0 ? origins.map(o => o.label).join(', ') : 'Sin Uso / Huérfano';
+      const mainUrl = origins.length > 0 ? origins[0].url : null;
+      const allUrls = origins.length > 0 ? origins.map(o => o.url).filter(u => u !== null) : [];
 
       return {
         id: row.id,
@@ -114,8 +116,9 @@ fileAssetsRouter.get(
         byte_size: row.byte_size,
         created_at: row.created_at,
         origin: {
-          label: originLabel,
-          url: originUrl
+          label: originLabels,
+          url: mainUrl,
+          allUrls: allUrls
         }
       };
     });

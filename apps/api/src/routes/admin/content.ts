@@ -681,13 +681,29 @@ contentRouter.post(
       // 2. Borrar relación en la tabla puente (portfolio_item_assets)
       await client.query("DELETE FROM portfolio_item_assets WHERE portfolio_item_id = $1 AND asset_role = 'cover'", [id]);
       
-      // 3. Borrar el archivo fantasma en file_assets y en Cloudinary
+      // 3. Borrar el archivo fantasma en file_assets y en Cloudinary si está huérfano
       if ((oldCover.rowCount ?? 0) > 0) {
         const oldFile = oldCover.rows[0];
-        await client.query("DELETE FROM file_assets WHERE id = $1", [oldFile.id]);
+        
+        // Verificar si el archivo es referenciado por otras tablas antes de eliminarlo físicamente
+        const otherReferences = await client.query(
+          `SELECT COUNT(*) FROM (
+            SELECT file_asset_id FROM complaint_evidences WHERE file_asset_id = $1
+            UNION ALL
+            SELECT file_asset_id FROM banners WHERE file_asset_id = $1
+            UNION ALL
+            SELECT receipt_file_id FROM milestone_payments WHERE receipt_file_id = $1
+            UNION ALL
+            SELECT file_asset_id FROM portfolio_item_assets WHERE file_asset_id = $1
+          ) AS refs`,
+          [oldFile.id]
+        );
 
-        if (oldFile.storage_provider === 'cloudinary') {
-           await deleteCloudinaryAsset(oldFile.storage_key, 'image').catch(() => {});
+        if (parseInt(otherReferences.rows[0].count, 10) === 0) {
+          await client.query("DELETE FROM file_assets WHERE id = $1", [oldFile.id]);
+          if (oldFile.storage_provider === 'cloudinary') {
+             await deleteCloudinaryAsset(oldFile.storage_key, 'image').catch(() => {});
+          }
         }
       }
 

@@ -9,6 +9,7 @@ import { useToastStore } from '../../stores/toastStore';
 interface FileOrigin {
   label: string;
   url: string | null;
+  allUrls?: string[];
 }
 
 interface FileAsset {
@@ -187,20 +188,23 @@ const Archivos: React.FC = () => {
 
               <div className="p-4 bg-bytecode-background/50 flex items-center justify-between mt-auto">
                 <div className="flex-1">
-                  <span className="text-xs font-medium text-gray-400 block mb-1">Origen:</span>
+                  <span className="text-xs font-medium text-gray-400 block mb-1 truncate max-w-[200px]" title={asset.origin.label}>
+                    {asset.origin.label}
+                  </span>
                   <div className="flex items-center gap-2">
-                    {asset.origin.url && (
+                    {(asset.origin.allUrls || (asset.origin.url ? [asset.origin.url] : [])).map((url, i) => (
                       <Link 
-                        to={asset.origin.url} 
+                        key={i}
+                        to={url} 
                         target="_blank"
                         className="p-2 text-bytecode-primary hover:bg-bytecode-primary/10 rounded-full transition-colors group relative"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                          Ir al origen
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          Abrir enlace {i + 1}
                         </span>
                       </Link>
-                    )}
+                    ))}
                     <a 
                       href={asset.public_url} 
                       target="_blank" 
