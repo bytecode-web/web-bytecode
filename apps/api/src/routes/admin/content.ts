@@ -408,7 +408,7 @@ contentRouter.post(
           itemCode,
           body.name,
           body.websiteUrl ?? null,
-          body.sortOrder,
+          body.sortOrder ?? 0,
           body.isFeatured,
           statusId,
           req.admin?.id ?? null,
