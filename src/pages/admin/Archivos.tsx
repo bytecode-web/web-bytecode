@@ -11,6 +11,7 @@ interface FileOrigin {
   label: string;
   url: string | null;
   allUrls?: string[];
+  details?: { label: string; url: string; module: string; recordId: string }[];
 }
 
 interface FileAsset {
@@ -42,6 +43,7 @@ const Archivos: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const limit = 20;
 
   const handleDelete = async (id: string) => {
@@ -53,6 +55,23 @@ const Archivos: React.FC = () => {
       setAssets(assets.filter(a => a.id !== id));
     } catch (err: any) {
       addToast(err.message || 'Error eliminando el archivo', 'error');
+    } finally {
+      setDeletingId(null);
+      setConfirmModal(null);
+    }
+  };
+
+  const handleDetach = async (id: string, module: string, recordId: string) => {
+    try {
+      setDeletingId(id);
+      await apiRequest(`/admin/file-assets/${id}/detach`, { 
+        method: 'DELETE',
+        json: { module, recordId }
+      });
+      addToast('Archivo desvinculado (y eliminado si no tenía más referencias).', 'success');
+      await fetchAssets();
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Error al desvincular archivo', 'error');
     } finally {
       setDeletingId(null);
       setConfirmModal(null);
@@ -214,22 +233,85 @@ const Archivos: React.FC = () => {
                       <Download className="w-4 h-4" />
                     </button>
                     {canManage && (
-                      <button
-                        onClick={() => {
-                          setConfirmModal({
-                            title: '¿Eliminar archivo permanentemente?',
-                            message: `Estás a punto de desvincular y eliminar físicamente "${asset.original_name}" de Cloudinary y la base de datos. Si este archivo pertenece a una evidencia legal, se desvinculará por la fuerza. Esta acción es destructiva e irreversible.`,
-                            confirmText: 'Sí, eliminar',
-                            type: 'danger',
-                            onConfirm: () => handleDelete(asset.id),
-                          });
-                        }}
-                        disabled={deletingId === asset.id}
-                        title="Eliminar"
-                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer relative ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
+                      asset.origin.details && asset.origin.details.length > 1 ? (
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdownId(openDropdownId === asset.id ? null : asset.id)}
+                            disabled={deletingId === asset.id}
+                            title="Gestionar eliminación"
+                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                          </button>
+                          
+                          {openDropdownId === asset.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)}></div>
+                              <div className="absolute bottom-full right-0 mb-2 w-64 bg-[#111111] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden text-sm">
+                                <div className="px-3 py-2 border-b border-white/5 bg-white/5 text-xs text-white/50">
+                                  Desvincular orígenes ({asset.origin.details.length})
+                                </div>
+                                <div className="max-h-48 overflow-y-auto py-1">
+                                  {asset.origin.details.map((det, index) => (
+                                    <button
+                                      key={index}
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        setConfirmModal({
+                                          title: `¿Desvincular de ${det.label}?`,
+                                          message: `El archivo "${asset.original_name}" se desvinculará únicamente de este origen. Si nadie más lo usa, se eliminará permanentemente del servidor.`,
+                                          confirmText: 'Sí, desvincular',
+                                          type: 'danger',
+                                          onConfirm: () => handleDetach(asset.id, det.module, det.recordId),
+                                        });
+                                      }}
+                                      className="w-full text-left px-3 py-2.5 text-white/80 hover:bg-white/10 transition-colors flex items-center gap-2"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span className="truncate">Desvincular de {det.label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="border-t border-red-500/20 bg-red-500/5 p-1">
+                                  <button
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      setConfirmModal({
+                                        title: '¿Eliminar de TODAS las ubicaciones?',
+                                        message: `Estás a punto de eliminar físicamente "${asset.original_name}". Este archivo está siendo utilizado en ${asset.origin.details?.length || 1} ubicación(es) simultáneamente. Si lo eliminas, se romperá el vínculo en TODAS las ubicaciones. Esta acción es destructiva e irreversible.`,
+                                        confirmText: 'Sí, destruir',
+                                        type: 'danger',
+                                        onConfirm: () => handleDelete(asset.id),
+                                      });
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-2 rounded-md"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Destrucción Total
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setConfirmModal({
+                              title: '¿Eliminar archivo permanentemente?',
+                              message: `Estás a punto de desvincular y eliminar físicamente "${asset.original_name}" de Cloudinary y la base de datos. Si este archivo pertenece a una evidencia legal, se desvinculará por la fuerza. Esta acción es destructiva e irreversible.`,
+                              confirmText: 'Sí, eliminar',
+                              type: 'danger',
+                              onConfirm: () => handleDelete(asset.id),
+                            });
+                          }}
+                          disabled={deletingId === asset.id}
+                          title="Eliminar"
+                          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer relative ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                      )
                     )}
                   </div>
                 </div>

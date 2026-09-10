@@ -85,26 +85,26 @@ fileAssetsRouter.get(
 
     // Mapeo mágico: Construimos las etiquetas y enlaces para el frontend
     const items = dataResult.rows.map((row: any) => {
-      const origins: { label: string; url: string | null }[] = [];
+      const origins: { label: string; url: string | null; module: string; recordId: string | null }[] = [];
 
       if (row.complaint_ids && row.complaint_ids.length > 0) {
         row.complaint_ids.forEach((cId: string) => {
-          origins.push({ label: 'Evidencia de Reclamo', url: `/admin/reclamos?id=${cId}` });
+          origins.push({ label: 'Evidencia de Reclamo', url: `/admin/reclamos?id=${cId}`, module: 'complaint', recordId: cId });
         });
       } 
       if (row.portfolio_item_ids && row.portfolio_item_ids.length > 0) {
         row.portfolio_item_ids.forEach((pId: string) => {
-          origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${pId}` });
+          origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${pId}`, module: 'portfolio', recordId: pId });
         });
       } 
       if (row.banner_ids && row.banner_ids.length > 0) {
-        row.banner_ids.forEach(() => {
-          origins.push({ label: 'Banner Web', url: `/admin/cms` });
+        row.banner_ids.forEach((bId: string) => {
+          origins.push({ label: 'Banner Web', url: `/admin/cms`, module: 'banner', recordId: bId });
         });
       } 
       if (row.payment_projects && row.payment_projects.length > 0) {
         row.payment_projects.forEach((pp: { project_id: string, milestone_id: string }) => {
-          origins.push({ label: 'Recibo de Pago', url: `/admin/proyectos/${pp.project_id}?tab=milestones&milestoneId=${pp.milestone_id}` });
+          origins.push({ label: 'Recibo de Pago', url: `/admin/proyectos/${pp.project_id}?tab=milestones&milestoneId=${pp.milestone_id}`, module: 'milestone_payment', recordId: pp.milestone_id });
         });
       }
 
@@ -123,7 +123,8 @@ fileAssetsRouter.get(
         origin: {
           label: originLabels,
           url: mainUrl,
-          allUrls: allUrls
+          allUrls: allUrls,
+          details: origins
         }
       };
     });
@@ -193,6 +194,78 @@ fileAssetsRouter.delete(
       // Ensure triggers are always re-enabled if error happened mid-way
       await client.query('ALTER TABLE complaint_evidences ENABLE TRIGGER ALL').catch(() => {});
       res.status(500).json({ error: err.message || 'Error eliminando el archivo' });
+    } finally {
+      client.release();
+    }
+  })
+);
+
+fileAssetsRouter.delete(
+  '/:id/detach',
+  requireCsrf,
+  requirePermission('admin.archivos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const assetId = String(req.params.id);
+    const { module, recordId } = req.body;
+    
+    if (!module || !recordId) {
+       res.status(400).json({ error: 'Módulo y recordId son requeridos' });
+       return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const assetRes = await client.query('SELECT storage_key, storage_provider, mime_type FROM file_assets WHERE id = $1 FOR UPDATE', [assetId]);
+      if (assetRes.rowCount === 0) {
+        throw new Error('Archivo no encontrado');
+      }
+
+      if (module === 'complaint') {
+        await client.query('ALTER TABLE complaint_evidences DISABLE TRIGGER ALL');
+        await client.query('DELETE FROM complaint_evidences WHERE file_asset_id = $1 AND complaint_id = $2', [assetId, recordId]);
+        await client.query('ALTER TABLE complaint_evidences ENABLE TRIGGER ALL');
+      } else if (module === 'portfolio') {
+        await client.query('DELETE FROM portfolio_item_assets WHERE file_asset_id = $1 AND portfolio_item_id = $2', [assetId, recordId]);
+      } else if (module === 'banner') {
+        await client.query('UPDATE banners SET file_asset_id = NULL WHERE file_asset_id = $1 AND id = $2', [assetId, recordId]);
+      } else if (module === 'milestone_payment') {
+        await client.query('UPDATE milestone_payments SET receipt_file_id = NULL WHERE receipt_file_id = $1 AND milestone_id = $2', [assetId, recordId]);
+      }
+
+      // Check if orphan
+      const orphanCheck = await client.query(`
+        SELECT COUNT(*) as refs FROM (
+          SELECT 1 FROM complaint_evidences WHERE file_asset_id = $1
+          UNION ALL
+          SELECT 1 FROM portfolio_item_assets WHERE file_asset_id = $1
+          UNION ALL
+          SELECT 1 FROM banners WHERE file_asset_id = $1
+          UNION ALL
+          SELECT 1 FROM milestone_payments WHERE receipt_file_id = $1
+        ) as sub
+      `, [assetId]);
+
+      if (parseInt(orphanCheck.rows[0].refs) === 0) {
+        await client.query('DELETE FROM file_assets WHERE id = $1', [assetId]);
+        
+        const storageKey = assetRes.rows[0].storage_key;
+        const provider = assetRes.rows[0].storage_provider;
+        const mimeType = assetRes.rows[0].mime_type;
+        
+        if (provider === 'cloudinary' && storageKey) {
+           const resourceType: 'image' | 'raw' = mimeType.startsWith('image/') ? 'image' : 'raw';
+           await deleteCloudinaryAsset(storageKey, resourceType).catch(() => {});
+        }
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (err: any) {
+      await client.query('ROLLBACK').catch(() => {});
+      await client.query('ALTER TABLE complaint_evidences ENABLE TRIGGER ALL').catch(() => {});
+      res.status(500).json({ error: err.message || 'Error desvinculando' });
     } finally {
       client.release();
     }

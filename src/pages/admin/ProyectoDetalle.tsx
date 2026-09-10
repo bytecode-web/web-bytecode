@@ -427,7 +427,7 @@ const ProyectoDetalle: React.FC = () => {
             ['activity', 'Actividad (GitHub)'],
             ['history', 'Historial de Estados']
           ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setTab(value as Tab)} className={`rounded-lg px-4 py-2 text-sm transition ${tab === value ? 'bg-white text-black' : 'bg-white/5 text-white/55 hover:text-white'}`}>{label}</button>
+            <button key={value} type="button" onClick={() => { setTab(value as Tab); setSearchParams(p => { p.set('tab', value); return p; }); }} className={`rounded-lg px-4 py-2 text-sm transition ${tab === value ? 'bg-white text-black' : 'bg-white/5 text-white/55 hover:text-white'}`}>{label}</button>
           ))}
         </div>
 
