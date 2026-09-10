@@ -40,6 +40,7 @@ const AdminNotificaciones = lazy(() => import('./pages/admin/Notificaciones'));
 const AdminSeguridad = lazy(() => import('./pages/admin/Seguridad'));
 const AdminCMS = lazy(() => import('./pages/admin/CMS'));
 const AdminAuditoria = lazy(() => import('./pages/admin/Auditoria'));
+const AdminArchivos = lazy(() => import('./pages/admin/Archivos'));
 const AdminPerfil = lazy(() => import('./pages/admin/Perfil'));
 
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -120,6 +121,7 @@ const App: React.FC = () => {
             <Route path="seguridad" element={<RoleGuard requiredPermission="admin.seguridad.view"><AdminSeguridad /></RoleGuard>} />
             <Route path="cms" element={<RoleGuard requiredPermission="admin.cms.view"><AdminCMS /></RoleGuard>} />
             <Route path="auditoria" element={<RoleGuard requiredPermission="admin.auditoria.view"><AdminAuditoria /></RoleGuard>} />
+            <Route path="archivos" element={<RoleGuard requiredPermission="admin.archivos.view"><AdminArchivos /></RoleGuard>} />
             <Route path="perfil" element={<AdminPerfil />} />
           </Route>
 

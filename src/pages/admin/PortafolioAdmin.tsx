@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { ImageUp, Plus, RefreshCw, Save, Trash2, ArrowLeft, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import { apiRequest, type AdminPortfolioItemData, type PortfolioTechnologyData } from '../../lib/api';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -50,6 +50,7 @@ const normalizeWebsiteUrl = (value: string) => {
 const AdminPortafolio: React.FC = () => {
   const { addToast } = useToastStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<AdminPortfolioItemData[]>([]);
   const [technologies, setTechnologies] = useState<PortfolioTechnologyData[]>([]);
   const [statuses, setStatuses] = useState<Array<{ id: string; code: string; name: string }>>([]);
@@ -91,6 +92,21 @@ const AdminPortafolio: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    const openId = searchParams.get('id');
+    if (openId && items.length > 0) {
+      const foundItem = items.find((item) => item.id === openId);
+      if (foundItem) {
+        setSelectedId(foundItem.id);
+        setForm(toForm(foundItem));
+        setImageFile(null);
+        setImageAlt(foundItem.alt_text ?? '');
+      } else {
+        setSelectedId(openId);
+      }
+    }
+  }, [searchParams, items]);
 
   useEffect(() => {
     if (!imageFile) {

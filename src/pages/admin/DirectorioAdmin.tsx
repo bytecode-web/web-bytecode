@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../lib/api';
-import { Users, Building2, Search, Plus, MoreVertical, RefreshCw } from 'lucide-react';
+import { Users, Building2, Search, Plus, MoreVertical, RefreshCw, Edit, Trash2 } from 'lucide-react';
 import { useToastStore } from '../../stores/toastStore';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
@@ -97,15 +97,37 @@ export default function DirectorioAdmin() {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const placement = spaceBelow < 150 ? 'top' : 'bottom';
+    const dropdownHeight = 140;
+    const padding = 16;
+    let top = rect.bottom + window.scrollY;
+    let left = rect.left - 100 + window.scrollX;
+    let placement: 'top' | 'bottom' = 'bottom';
+    if (top + dropdownHeight > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - dropdownHeight - padding;
+      placement = 'top';
+    }
     setActionsMenu({
       id,
-      top: placement === 'bottom' ? rect.bottom + window.scrollY : rect.top + window.scrollY - 100,
-      left: rect.left + window.scrollX - 120,
+      top,
+      left,
       placement,
     });
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-org-actions]')) {
+        setActionsMenu(null);
+      }
+    };
+    if (actionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [actionsMenu]);
 
   const handleDelete = async () => {
     if (!confirmModalState) return;
@@ -265,8 +287,13 @@ export default function DirectorioAdmin() {
                           <span className="text-xs">{org.contacts_count}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <button onClick={(e) => handleOpenActions(e, org.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+                      <td className="relative px-6 py-4 text-center" data-org-actions>
+                        <button 
+                          onClick={(e) => handleOpenActions(e, org.id)} 
+                          className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+                          aria-haspopup="menu"
+                          aria-expanded={actionsMenu?.id === org.id}
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </button>
                       </td>
@@ -342,8 +369,13 @@ export default function DirectorioAdmin() {
                           {cust.is_active ? 'Activo' : 'Inactivo'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <button onClick={(e) => handleOpenActions(e, cust.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+                      <td className="relative px-6 py-4 text-center" data-org-actions>
+                        <button 
+                          onClick={(e) => handleOpenActions(e, cust.id)} 
+                          className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+                          aria-haspopup="menu"
+                          aria-expanded={actionsMenu?.id === cust.id}
+                        >
                           <MoreVertical className="h-4 w-4" />
                         </button>
                       </td>
@@ -360,15 +392,20 @@ export default function DirectorioAdmin() {
       <AnimatePresence>
         {actionsMenu && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{ position: 'absolute', top: actionsMenu.top, left: actionsMenu.left }}
-            className={`absolute z-50 w-36 rounded-xl border border-white/10 bg-[#1a1a1a] p-1 shadow-2xl backdrop-blur-md origin-${actionsMenu.placement === 'bottom' ? 'top' : 'bottom'}`}
+            role="menu"
+            initial={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            transition={{ duration: 0.15 }}
+            style={{ position: 'fixed', top: actionsMenu.top, left: actionsMenu.left }}
+            className={`fixed z-[100] w-36 overflow-hidden rounded-xl border border-white/10 bg-[#121212] text-left shadow-xl ${
+              actionsMenu.placement === 'bottom' ? 'origin-top-right' : 'origin-bottom-right'
+            }`}
           >
-            <div className="py-1 px-1 flex flex-col gap-1">
+            <div className="flex flex-col gap-1 px-1 py-1">
               <button
+                type="button"
+                role="menuitem"
                 onClick={() => {
                   const item = activeTab === 'empresas' ? organizations.find(o => o.id === actionsMenu.id) : customers.find(c => c.id === actionsMenu.id);
                   setEditingId(actionsMenu.id);
@@ -377,22 +414,26 @@ export default function DirectorioAdmin() {
                   else setIsCustModalOpen(true);
                   setActionsMenu(null);
                 }}
-                className="w-full text-left px-3 py-2 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
+                <Edit className="h-4 w-4" />
                 Editar
               </button>
               
               {activeTab === 'empresas' && (
                 <button
+                  type="button"
+                  role="menuitem"
                   onClick={() => {
                     const item = organizations.find(o => o.id === actionsMenu.id);
                     setSelectedOrgForContacts(item);
                     setIsOrgContactsModalOpen(true);
                     setActionsMenu(null);
                   }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 >
-                  Ver Contactos
+                  <Users className="h-4 w-4" />
+                  Contactos
                 </button>
               )}
               {(() => {
@@ -401,22 +442,28 @@ export default function DirectorioAdmin() {
                 
                 return !isActive ? (
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => {
                       handleRestore(actionsMenu.id);
                       setActionsMenu(null);
                     }}
-                    className="w-full text-left px-3 py-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-emerald-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300"
                   >
+                    <RefreshCw className="h-4 w-4" />
                     Restaurar
                   </button>
                 ) : (
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => {
                       setConfirmModalState({ isOpen: true, id: actionsMenu.id, type: activeTab === 'empresas' ? 'empresa' : 'persona' });
                       setActionsMenu(null);
                     }}
-                    className="w-full text-left px-3 py-2 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
                   >
+                    <Trash2 className="h-4 w-4" />
                     Eliminar
                   </button>
                 );

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import { formatCurrencyValue } from '../../hooks/useQuoterState';
 import { ArrowLeft, ExternalLink, Pencil, Trash2, UserPlus, X, DollarSign, Plus, GitCommitHorizontal, AlertTriangle } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import ShineBorder from '../../components/ui/shine-border';
 import type { AdminUser } from '../../components/admin/AdminLayout';
@@ -13,6 +13,7 @@ import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline'
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import Timeline from '../../components/ui/Timeline';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import { forceDownload } from '../../lib/download';
 import {
   apiRequest,
   assignProjectUser,
@@ -42,6 +43,7 @@ type ProjectEditForm = { name: string; description: string; githubRepo: string; 
 const ProyectoDetalle: React.FC = () => {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToastStore();
   const { admin } = useOutletContext<{ admin: AdminUser }>();
   const canAssign = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.proyectos.assign') === true;
@@ -165,6 +167,31 @@ const ProyectoDetalle: React.FC = () => {
     }, 0);
     return () => clearTimeout(timer);
   }, [loadData]);
+
+  useEffect(() => {
+    const tb = searchParams.get('tab');
+    if (tb && tb !== tab) {
+      setTab(tb as Tab);
+    }
+    
+    const mId = searchParams.get('milestoneId');
+    if (mId && milestones.length > 0) {
+      const ms = milestones.find(m => m.id === mId);
+      if (ms && milestoneDetailsOpen?.id !== ms.id) {
+        setMilestoneDetailsOpen(ms);
+      }
+    } else if (!mId && milestoneDetailsOpen) {
+      setMilestoneDetailsOpen(null);
+    }
+  }, [searchParams, milestones, tab, milestoneDetailsOpen]);
+
+  const handleCloseMilestoneModal = () => {
+    setSearchParams((params) => {
+      params.delete('milestoneId');
+      return params;
+    });
+    setMilestoneDetailsOpen(null);
+  };
 
   const location = useLocation();
   const processedAutoOpenId = useRef<string | null>(null);
@@ -400,7 +427,7 @@ const ProyectoDetalle: React.FC = () => {
             ['activity', 'Actividad (GitHub)'],
             ['history', 'Historial de Estados']
           ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setTab(value as Tab)} className={`rounded-lg px-4 py-2 text-sm transition ${tab === value ? 'bg-white text-black' : 'bg-white/5 text-white/55 hover:text-white'}`}>{label}</button>
+            <button key={value} type="button" onClick={() => { setTab(value as Tab); setSearchParams(p => { p.set('tab', value); return p; }); }} className={`rounded-lg px-4 py-2 text-sm transition ${tab === value ? 'bg-white text-black' : 'bg-white/5 text-white/55 hover:text-white'}`}>{label}</button>
           ))}
         </div>
 
@@ -419,7 +446,7 @@ const ProyectoDetalle: React.FC = () => {
               <p className="mt-1 text-xs text-white/35">Vence {new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(milestone.due_date))} · {parseFloat(Number(milestone.payment_percentage).toFixed(2))}%</p>
               {milestone.payments && milestone.payments.length > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
-                  <button type="button" onClick={() => setMilestoneDetailsOpen(milestone)} className="mt-1 w-fit rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors">Ver detalle de {milestone.payments.length === 1 ? 'pago' : `pagos (${milestone.payments.length})`}</button>
+                  <button type="button" onClick={() => setSearchParams(p => { p.set('milestoneId', milestone.id); return p; })} className="mt-1 w-fit rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors">Ver detalle de {milestone.payments.length === 1 ? 'pago' : `pagos (${milestone.payments.length})`}</button>
                 </div>
               )}
               {Math.round(remaining * 100) > 0 && !['canceled', 'completed'].includes(milestone.status) && (
@@ -644,7 +671,7 @@ const ProyectoDetalle: React.FC = () => {
                   <h2 className="text-lg font-semibold text-white/90">Desglose de Pagos</h2>
                   <p className="mt-1 text-xs text-white/40">{milestoneDetailsOpen.title}</p>
                 </div>
-                <button type="button" onClick={() => setMilestoneDetailsOpen(null)} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <div className="max-h-[50vh] overflow-y-auto pr-1">
                 <div className="grid gap-3">
@@ -666,10 +693,10 @@ const ProyectoDetalle: React.FC = () => {
                       
                       {payment.receipt_url ? (
                         <div className="mt-3 border-t border-white/5 pt-3">
-                          <a href={payment.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300">
+                          <button onClick={() => forceDownload(payment.receipt_url!, 'Comprobante')} className="inline-flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300">
                             <ExternalLink className="h-3.5 w-3.5" />
                             Ver comprobante adjunto
-                          </a>
+                          </button>
                         </div>
                       ) : (
                         <div className="mt-3 border-t border-white/5 pt-3">
@@ -681,7 +708,7 @@ const ProyectoDetalle: React.FC = () => {
                 </div>
               </div>
               <div className="mt-6 flex justify-end border-t border-white/5 pt-5">
-                <button type="button" onClick={() => setMilestoneDetailsOpen(null)} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
+                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
               </div>
             </div>
           </div>

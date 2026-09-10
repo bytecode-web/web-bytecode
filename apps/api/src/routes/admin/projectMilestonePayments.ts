@@ -70,31 +70,39 @@ projectMilestonePaymentsRouter.post(
 
       if (file) {
         const validatedFile = await validateUpload(file);
-        cloudinaryAsset = await uploadPaymentReceiptToCloudinary({
-          buffer: file.buffer,
-          projectCode,
-          originalName: validatedFile.originalName,
-          mimeType: validatedFile.mimeType,
-        });
+        
+        // Motor de Deduplicación: Buscar si el archivo ya existe por su Hash
+        const existing = await client.query('SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND deleted_at IS NULL LIMIT 1', [validatedFile.checksumSha256]);
+        
+        if (existing.rowCount && existing.rowCount > 0) {
+          fileAssetId = existing.rows[0].id;
+        } else {
+          cloudinaryAsset = await uploadPaymentReceiptToCloudinary({
+            buffer: file.buffer,
+            projectCode,
+            originalName: validatedFile.originalName,
+            mimeType: validatedFile.mimeType,
+          });
 
-        const fileResult = await client.query(
-          `INSERT INTO file_assets (
-            original_name, storage_provider, storage_key, public_url,
-            mime_type, byte_size, checksum_sha256, uploaded_by, created_by
-          )
-          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $7)
-          RETURNING id`,
-          [
-            validatedFile.originalName,
-            cloudinaryAsset.publicId,
-            cloudinaryAsset.secureUrl,
-            validatedFile.mimeType,
-            cloudinaryAsset.bytes || file.size,
-            validatedFile.checksumSha256,
-            req.admin?.id ?? null,
-          ]
-        );
-        fileAssetId = fileResult.rows[0].id;
+          const fileResult = await client.query(
+            `INSERT INTO file_assets (
+              original_name, storage_provider, storage_key, public_url,
+              mime_type, byte_size, checksum_sha256, uploaded_by, created_by
+            )
+            VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $7)
+            RETURNING id`,
+            [
+              validatedFile.originalName,
+              cloudinaryAsset.publicId,
+              cloudinaryAsset.secureUrl,
+              validatedFile.mimeType,
+              cloudinaryAsset.bytes || file.size,
+              validatedFile.checksumSha256,
+              req.admin?.id ?? null,
+            ]
+          );
+          fileAssetId = fileResult.rows[0].id;
+        }
       }
 
       const milestoneRes = await client.query(`

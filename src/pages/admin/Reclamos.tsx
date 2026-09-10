@@ -3,12 +3,13 @@ import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
+import { forceDownload } from '../../lib/download';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import { useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface Complaint {
@@ -172,6 +173,7 @@ const Reclamos: React.FC = () => {
   };
 
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const processedAutoOpenId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -181,6 +183,14 @@ const Reclamos: React.FC = () => {
   useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    const queryId = searchParams.get('id');
+    if (queryId && queryId !== processedAutoOpenId.current) {
+      processedAutoOpenId.current = queryId;
+      void loadDetail(queryId);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
@@ -232,12 +242,12 @@ const Reclamos: React.FC = () => {
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
             <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
             {detail.attachment_original_name && selectedId && (
-              <a
-                href={apiUrl(`/admin/complaints/${selectedId}/attachment`)}
+              <button
+                onClick={() => forceDownload(apiUrl(`/admin/complaints/${selectedId}/attachment`), String(detail.attachment_original_name))}
                 className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20"
               >
                 <Download className="h-3.5 w-3.5" /> Adjunto
-              </a>
+              </button>
             )}
           </div>
 

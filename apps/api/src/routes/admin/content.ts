@@ -377,13 +377,22 @@ contentRouter.post(
         if (!validatedFile.mimeType.startsWith('image/')) {
           throw new HttpError(400, 'Solo se permiten imagenes para el portafolio.');
         }
-
-        cloudinaryAsset = await uploadPortfolioImageToCloudinary({
-          buffer: file.buffer,
-          itemCode,
-          originalName: validatedFile.originalName,
-          mimeType: validatedFile.mimeType,
-        });
+      }
+      
+      let existingFileId: string | null = null;
+      if (file && validatedFile) {
+        // Motor de Deduplicación: Buscar si el archivo ya existe por su Hash
+        const existing = await pool.query('SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND deleted_at IS NULL LIMIT 1', [validatedFile.checksumSha256]);
+        if (existing.rowCount && existing.rowCount > 0) {
+           existingFileId = existing.rows[0].id;
+        } else {
+           cloudinaryAsset = await uploadPortfolioImageToCloudinary({
+             buffer: file.buffer,
+             itemCode,
+             originalName: validatedFile.originalName,
+             mimeType: validatedFile.mimeType,
+           });
+        }
       }
 
       await client.query('BEGIN');
@@ -399,7 +408,7 @@ contentRouter.post(
           itemCode,
           body.name,
           body.websiteUrl ?? null,
-          body.sortOrder,
+          body.sortOrder ?? 0,
           body.isFeatured,
           statusId,
           req.admin?.id ?? null,
@@ -408,33 +417,42 @@ contentRouter.post(
       const id = result.rows[0].id;
       await replacePortfolioTechnologies(client, id, body.technologyIds, req.admin?.id);
 
-      if (file && validatedFile && cloudinaryAsset) {
-        const fileResult = await client.query(
-          `INSERT INTO file_assets (
-            original_name, storage_provider, storage_key, public_url,
-            mime_type, byte_size, checksum_sha256, uploaded_by, created_by
-          )
-          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $8)
-          RETURNING id`,
-          [
-            validatedFile.originalName,
-            cloudinaryAsset.publicId,
-            cloudinaryAsset.secureUrl,
-            validatedFile.mimeType,
-            cloudinaryAsset.bytes || file.size,
-            validatedFile.checksumSha256,
-            req.admin?.id ?? null,
-            req.admin?.id ?? null,
-          ],
-        );
+      if (file && validatedFile) {
+        let fileAssetIdToLink = existingFileId;
 
-        await client.query(
-          `INSERT INTO portfolio_item_assets (
-            portfolio_item_id, file_asset_id, asset_role, alt_text, sort_order, created_by
-          )
-          VALUES ($1, $2, 'cover', $3, 0, $4)`,
-          [id, fileResult.rows[0].id, imageBody.altText || body.name, req.admin?.id ?? null],
-        );
+        // Si no existía, registrar el nuevo archivo que se acaba de subir
+        if (!fileAssetIdToLink && cloudinaryAsset) {
+          const fileResult = await client.query(
+            `INSERT INTO file_assets (
+              original_name, storage_provider, storage_key, public_url,
+              mime_type, byte_size, checksum_sha256, uploaded_by, created_by
+            )
+            VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id`,
+            [
+              validatedFile.originalName,
+              cloudinaryAsset.publicId,
+              cloudinaryAsset.secureUrl,
+              validatedFile.mimeType,
+              cloudinaryAsset.bytes || file.size,
+              validatedFile.checksumSha256,
+              req.admin?.id ?? null,
+              req.admin?.id ?? null,
+            ],
+          );
+          fileAssetIdToLink = fileResult.rows[0].id;
+        }
+
+        // Ligar el archivo (existente o nuevo) al portafolio
+        if (fileAssetIdToLink) {
+          await client.query(
+            `INSERT INTO portfolio_item_assets (
+              portfolio_item_id, file_asset_id, asset_role, alt_text, sort_order, created_by
+            )
+            VALUES ($1, $2, 'cover', $3, 0, $4)`,
+            [id, fileAssetIdToLink, imageBody.altText || body.name, req.admin?.id ?? null],
+          );
+        }
       }
 
       await client.query('COMMIT');
@@ -611,58 +629,93 @@ contentRouter.post(
     }
 
     let cloudinaryAsset: CloudinaryStoredAsset | null = null;
+    let existingFileId: string | null = null;
     const client = await pool.connect();
 
     try {
-      cloudinaryAsset = await uploadPortfolioImageToCloudinary({
-        buffer: file.buffer,
-        itemCode: itemResult.rows[0].item_code,
-        originalName: validatedFile.originalName,
-        mimeType: validatedFile.mimeType,
-      });
+      // Motor de Deduplicación: Buscar si el archivo ya existe por su Hash
+      const existing = await client.query('SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND deleted_at IS NULL LIMIT 1', [validatedFile.checksumSha256]);
+      if (existing.rowCount && existing.rowCount > 0) {
+        existingFileId = existing.rows[0].id;
+      } else {
+        cloudinaryAsset = await uploadPortfolioImageToCloudinary({
+          buffer: file.buffer,
+          itemCode: itemResult.rows[0].item_code,
+          originalName: validatedFile.originalName,
+          mimeType: validatedFile.mimeType,
+        });
+      }
 
       await client.query('BEGIN');
+      
+      let newFileAssetId = existingFileId;
 
-      const fileResult = await client.query(
-        `INSERT INTO file_assets (
-          original_name, storage_provider, storage_key, public_url,
-          mime_type, byte_size, checksum_sha256, uploaded_by, created_by
-        )
-        VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $8)
-        RETURNING id`,
-        [
-          validatedFile.originalName,
-          cloudinaryAsset.publicId,
-          cloudinaryAsset.secureUrl,
-          validatedFile.mimeType,
-          cloudinaryAsset.bytes || file.size,
-          validatedFile.checksumSha256,
-          req.admin?.id ?? null,
-          req.admin?.id ?? null,
-        ],
-      );
+      if (!newFileAssetId && cloudinaryAsset) {
+        const fileResult = await client.query(
+          `INSERT INTO file_assets (
+            original_name, storage_provider, storage_key, public_url,
+            mime_type, byte_size, checksum_sha256, uploaded_by, created_by
+          )
+          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6, $7, $8)
+          RETURNING id`,
+          [
+            validatedFile.originalName,
+            cloudinaryAsset.publicId,
+            cloudinaryAsset.secureUrl,
+            validatedFile.mimeType,
+            cloudinaryAsset.bytes || file.size,
+            validatedFile.checksumSha256,
+            req.admin?.id ?? null,
+            req.admin?.id ?? null,
+          ],
+        );
+        newFileAssetId = fileResult.rows[0].id;
+      }
 
-      // 1. Obtener la imagen anterior para borrarla de cloudinary
+      // 1. Obtener la imagen anterior para borrarla de cloudinary y file_assets
       const oldCover = await client.query(
-        "SELECT fa.storage_key, fa.storage_provider FROM portfolio_item_assets pia JOIN file_assets fa ON pia.file_asset_id = fa.id WHERE pia.portfolio_item_id = $1 AND pia.asset_role = 'cover'",
+        "SELECT fa.id, fa.storage_key, fa.storage_provider FROM portfolio_item_assets pia JOIN file_assets fa ON pia.file_asset_id = fa.id WHERE pia.portfolio_item_id = $1 AND pia.asset_role = 'cover'",
         [id]
       );
       
-      // 2. Borrar relación lógicamente para no perder consistencia o romper constraints si hay keys huérfanas
-      // El usuario pidió "borrado por completo" (hard delete).
+      // 2. Borrar relación en la tabla puente (portfolio_item_assets)
       await client.query("DELETE FROM portfolio_item_assets WHERE portfolio_item_id = $1 AND asset_role = 'cover'", [id]);
       
-      if ((oldCover.rowCount ?? 0) > 0 && oldCover.rows[0].storage_provider === 'cloudinary') {
-         await deleteCloudinaryAsset(oldCover.rows[0].storage_key, 'image').catch(() => {});
+      // 3. Borrar el archivo fantasma en file_assets y en Cloudinary si está huérfano
+      if ((oldCover.rowCount ?? 0) > 0) {
+        const oldFile = oldCover.rows[0];
+        
+        // Verificar si el archivo es referenciado por otras tablas antes de eliminarlo físicamente
+        const otherReferences = await client.query(
+          `SELECT COUNT(*) FROM (
+            SELECT file_asset_id FROM complaint_evidences WHERE file_asset_id = $1
+            UNION ALL
+            SELECT file_asset_id FROM banners WHERE file_asset_id = $1
+            UNION ALL
+            SELECT receipt_file_id FROM milestone_payments WHERE receipt_file_id = $1
+            UNION ALL
+            SELECT file_asset_id FROM portfolio_item_assets WHERE file_asset_id = $1
+          ) AS refs`,
+          [oldFile.id]
+        );
+
+        if (parseInt(otherReferences.rows[0].count, 10) === 0) {
+          await client.query("DELETE FROM file_assets WHERE id = $1", [oldFile.id]);
+          if (oldFile.storage_provider === 'cloudinary') {
+             await deleteCloudinaryAsset(oldFile.storage_key, 'image').catch(() => {});
+          }
+        }
       }
 
-      await client.query(
-        `INSERT INTO portfolio_item_assets (
-          portfolio_item_id, file_asset_id, asset_role, alt_text, sort_order, created_by
-        )
-        VALUES ($1, $2, 'cover', $3, 0, $4)`,
-        [id, fileResult.rows[0].id, body.altText || itemResult.rows[0].name, req.admin?.id ?? null],
-      );
+      if (newFileAssetId) {
+        await client.query(
+          `INSERT INTO portfolio_item_assets (
+            portfolio_item_id, file_asset_id, asset_role, alt_text, sort_order, created_by
+          )
+          VALUES ($1, $2, 'cover', $3, 0, $4)`,
+          [id, newFileAssetId, body.altText || itemResult.rows[0].name, req.admin?.id ?? null],
+        );
+      }
 
       await client.query('COMMIT');
       const updated = await pool.query(`${selectPortfolioItemsSql} AND pi.id = $1 ${portfolioGroupOrderSql}`, [id]);
