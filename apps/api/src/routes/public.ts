@@ -572,35 +572,36 @@ router.post(
     let cloudinaryAsset: CloudinaryStoredAsset | null = null;
     let existingFileAssetId: string | null = null;
 
-    const client = await pool.connect();
-
     if (file) {
       validatedFile = await validateUpload(file);
-
-      const fileLookup = await client.query(
-        'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
-        [validatedFile.checksumSha256]
-      );
-
-      if ((fileLookup.rowCount ?? 0) > 0) {
-        existingFileAssetId = fileLookup.rows[0].id;
-      } else {
-        try {
-          cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
-            buffer: file.buffer,
-            complaintCode: code,
-            originalName: validatedFile.originalName,
-            mimeType: validatedFile.mimeType,
-          });
-        } catch (error: unknown) {
-          console.error('Cloudinary complaint evidence upload failed:', error);
-          client.release();
-          throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
-        }
-      }
     }
 
+    const client = await pool.connect();
+
     try {
+      if (file && validatedFile) {
+        const fileLookup = await client.query(
+          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
+          [validatedFile.checksumSha256]
+        );
+
+        if ((fileLookup.rowCount ?? 0) > 0) {
+          existingFileAssetId = fileLookup.rows[0].id;
+        } else {
+          try {
+            cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+              buffer: file.buffer,
+              complaintCode: code,
+              originalName: validatedFile.originalName,
+              mimeType: validatedFile.mimeType,
+            });
+          } catch (error: unknown) {
+            console.error('Cloudinary complaint evidence upload failed:', error);
+            throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
+          }
+        }
+      }
+
       await client.query('BEGIN');
 
       let customerId: string;
