@@ -570,26 +570,38 @@ router.post(
     const code = createComplaintCode();
     let validatedFile: ValidatedUpload | null = null;
     let cloudinaryAsset: CloudinaryStoredAsset | null = null;
+    let existingFileAssetId: string | null = null;
 
     if (file) {
       validatedFile = await validateUpload(file);
-
-      try {
-        cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
-          buffer: file.buffer,
-          complaintCode: code,
-          originalName: validatedFile.originalName,
-          mimeType: validatedFile.mimeType,
-        });
-      } catch (error: unknown) {
-        console.error('Cloudinary complaint evidence upload failed:', error);
-        throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
-      }
     }
 
     const client = await pool.connect();
 
     try {
+      if (file && validatedFile) {
+        const fileLookup = await client.query(
+          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
+          [validatedFile.checksumSha256]
+        );
+
+        if ((fileLookup.rowCount ?? 0) > 0) {
+          existingFileAssetId = fileLookup.rows[0].id;
+        } else {
+          try {
+            cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+              buffer: file.buffer,
+              complaintCode: code,
+              originalName: validatedFile.originalName,
+              mimeType: validatedFile.mimeType,
+            });
+          } catch (error: unknown) {
+            console.error('Cloudinary complaint evidence upload failed:', error);
+            throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
+          }
+        }
+      }
+
       await client.query('BEGIN');
 
       let customerId: string;
@@ -652,8 +664,8 @@ router.post(
       const complaintTypeId = (typeRes.rowCount ?? 0) > 0 ? typeRes.rows[0].id : null;
       if (!complaintTypeId) throw new Error('Tipo de reclamo inválido.');
 
-      let fileAssetId = null;
-      if (file && validatedFile && cloudinaryAsset) {
+      let fileAssetId = existingFileAssetId;
+      if (!fileAssetId && file && validatedFile && cloudinaryAsset) {
         const fileRes = await client.query(
           `
           INSERT INTO file_assets (
