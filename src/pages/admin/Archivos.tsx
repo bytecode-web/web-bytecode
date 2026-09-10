@@ -6,6 +6,7 @@ import type { AdminUser } from '../../components/admin/AdminLayout';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 import { useToastStore } from '../../stores/toastStore';
 import { forceDownload } from '../../lib/download';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface FileOrigin {
   label: string;
@@ -43,7 +44,46 @@ const Archivos: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [actionsMenu, setActionsMenu] = useState<{ id: string; top: number; left: number; placement: 'top' | 'bottom' } | null>(null);
+
+  const handleOpenActions = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (actionsMenu?.id === id) {
+      setActionsMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownHeight = 140;
+    const padding = 16;
+    let top = rect.bottom + window.scrollY;
+    let left = rect.left - 100 + window.scrollX;
+    let placement: 'top' | 'bottom' = 'bottom';
+    if (top + dropdownHeight > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - dropdownHeight - padding;
+      placement = 'top';
+    }
+    setActionsMenu({
+      id,
+      top,
+      left,
+      placement,
+    });
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-file-actions]')) {
+        setActionsMenu(null);
+      }
+    };
+    if (actionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [actionsMenu]);
   const limit = 20;
 
   const handleDelete = async (id: string) => {
@@ -234,65 +274,17 @@ const Archivos: React.FC = () => {
                     </button>
                     {canManage && (
                       asset.origin.details && asset.origin.details.length > 1 ? (
-                        <div className="relative">
+                        <div className="relative" data-file-actions>
                           <button
-                            onClick={() => setOpenDropdownId(openDropdownId === asset.id ? null : asset.id)}
+                            onClick={(e) => handleOpenActions(e, asset.id)}
                             disabled={deletingId === asset.id}
                             title="Gestionar eliminación"
-                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-haspopup="menu"
+                            aria-expanded={actionsMenu?.id === asset.id}
+                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-full transition-colors cursor-pointer ml-1 flex items-center justify-center w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
                           >
                             {deletingId === asset.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                           </button>
-                          
-                          {openDropdownId === asset.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)}></div>
-                              <div className="absolute bottom-full right-0 mb-2 w-64 bg-[#111111] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden text-sm">
-                                <div className="px-3 py-2 border-b border-white/5 bg-white/5 text-xs text-white/50">
-                                  Desvincular orígenes ({asset.origin.details.length})
-                                </div>
-                                <div className="max-h-48 overflow-y-auto py-1">
-                                  {asset.origin.details.map((det, index) => (
-                                    <button
-                                      key={index}
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        setConfirmModal({
-                                          title: `¿Desvincular de ${det.label}?`,
-                                          message: `El archivo "${asset.original_name}" se desvinculará únicamente de este origen. Si nadie más lo usa, se eliminará permanentemente del servidor.`,
-                                          confirmText: 'Sí, desvincular',
-                                          type: 'danger',
-                                          onConfirm: () => handleDetach(asset.id, det.module, det.recordId),
-                                        });
-                                      }}
-                                      className="w-full text-left px-3 py-2.5 text-white/80 hover:bg-white/10 transition-colors flex items-center gap-2"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      <span className="truncate">Desvincular de {det.label}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="border-t border-red-500/20 bg-red-500/5 p-1">
-                                  <button
-                                    onClick={() => {
-                                      setOpenDropdownId(null);
-                                      setConfirmModal({
-                                        title: '¿Eliminar de TODAS las ubicaciones?',
-                                        message: `Estás a punto de eliminar físicamente "${asset.original_name}". Este archivo está siendo utilizado en ${asset.origin.details?.length || 1} ubicación(es) simultáneamente. Si lo eliminas, se romperá el vínculo en TODAS las ubicaciones. Esta acción es destructiva e irreversible.`,
-                                        confirmText: 'Sí, destruir',
-                                        type: 'danger',
-                                        onConfirm: () => handleDelete(asset.id),
-                                      });
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-2 rounded-md"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    Destrucción Total
-                                  </button>
-                                </div>
-                              </div>
-                            </>
-                          )}
                         </div>
                       ) : (
                         <button
@@ -342,6 +334,76 @@ const Archivos: React.FC = () => {
           </button>
         </div>
       )}
+
+      <AnimatePresence>
+        {actionsMenu && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            transition={{ duration: 0.15 }}
+            style={{ position: 'fixed', top: actionsMenu.top, left: actionsMenu.left }}
+            className={`fixed z-[100] w-60 overflow-hidden rounded-xl border border-white/10 bg-[#121212] text-left shadow-xl ${
+              actionsMenu.placement === 'bottom' ? 'origin-top-right' : 'origin-bottom-right'
+            }`}
+          >
+            {(() => {
+              const activeAsset = assets.find(a => a.id === actionsMenu.id);
+              if (!activeAsset || !activeAsset.origin.details) return null;
+              
+              return (
+                <div className="flex flex-col gap-1 px-1 py-1">
+                  <div className="px-3 py-2 border-b border-white/5 bg-white/5 text-[10px] uppercase font-semibold tracking-wider text-white/50 mb-1">
+                    Desvincular orígenes ({activeAsset.origin.details.length})
+                  </div>
+                  {activeAsset.origin.details.map((det, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setActionsMenu(null);
+                        setConfirmModal({
+                          title: `¿Desvincular de ${det.label}?`,
+                          message: `El archivo "${activeAsset.original_name}" se desvinculará únicamente de este origen. Si nadie más lo usa, se eliminará permanentemente del servidor.`,
+                          confirmText: 'Sí, desvincular',
+                          type: 'danger',
+                          onConfirm: () => handleDetach(activeAsset.id, det.module, det.recordId),
+                        });
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      <Trash2 className="h-4 w-4 shrink-0" />
+                      <span className="truncate">De {det.label}</span>
+                    </button>
+                  ))}
+                  <div className="mt-1 border-t border-red-500/20 pt-1">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setActionsMenu(null);
+                        setConfirmModal({
+                          title: '¿Eliminar de TODAS las ubicaciones?',
+                          message: `Estás a punto de eliminar físicamente "${activeAsset.original_name}". Este archivo está siendo utilizado en ${activeAsset.origin.details?.length || 1} ubicación(es) simultáneamente. Si lo eliminas, se romperá el vínculo en TODAS las ubicaciones. Esta acción es destructiva e irreversible.`,
+                          confirmText: 'Sí, destruir',
+                          type: 'danger',
+                          onConfirm: () => handleDelete(activeAsset.id),
+                        });
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <Trash2 className="h-4 w-4 shrink-0" />
+                      Destrucción Total
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {confirmModal && (
         <ConfirmModal
