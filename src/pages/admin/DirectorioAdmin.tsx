@@ -20,6 +20,8 @@ export default function DirectorioAdmin() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const addToast = useToastStore((state) => state.addToast);
   const [actionsMenu, setActionsMenu] = useState<{ id: string, top: number, left: number, placement: string } | null>(null);
@@ -50,8 +52,19 @@ export default function DirectorioAdmin() {
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeTab, statusFilter]);
+
+  useEffect(() => {
     fetchData();
-  }, [page, activeTab, statusFilter]);
+  }, [page, activeTab, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     const handleGlobalClick = () => setActionsMenu(null);
@@ -63,9 +76,10 @@ export default function DirectorioAdmin() {
     setLoading(true);
     setActionsMenu(null);
     try {
+      const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : '';
       if (activeTab === 'empresas') {
         const [res, allOrgsRes] = await Promise.all([
-          apiRequest<{ items: any[], total: number }>(`/admin/organizations?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}`),
+          apiRequest<{ items: any[], total: number }>(`/admin/organizations?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}${searchParam}`),
           apiRequest<{items: any[]}>('/admin/organizations?limit=1000').catch(() => ({items: []}))
         ]);
         if (res.items.length === 0 && res.total > 0 && page > 1) { setPage(page - 1); return; }
@@ -73,7 +87,7 @@ export default function DirectorioAdmin() {
         setTotal(res.total || 0);
         setAllOrgs(allOrgsRes.items || []);
       } else {
-        const res = await apiRequest<{ items: any[], total: number }>(`/admin/customers?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}`);
+        const res = await apiRequest<{ items: any[], total: number }>(`/admin/customers?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}${searchParam}`);
         if (res.items.length === 0 && res.total > 0 && page > 1) { setPage(page - 1); return; }
         setCustomers(res.items || []);
         setTotal(res.total || 0);
@@ -211,6 +225,8 @@ export default function DirectorioAdmin() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
             <input 
               type="text" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={activeTab === 'empresas' ? "Buscar empresa..." : "Buscar persona..."}
               className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all"
             />

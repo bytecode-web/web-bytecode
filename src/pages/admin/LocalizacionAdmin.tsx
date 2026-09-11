@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Globe, FileText, Loader2, Trash2, MoreVertical, Edit } from 'lucide-react';
+import { Plus, Globe, FileText, Loader2, Trash2, MoreVertical, Edit, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
+import PaginationControl from '../../components/ui/PaginationControl';
 
 // Components
 import CountryModal from '../../components/admin/localizacion/CountryModal';
@@ -31,6 +32,18 @@ export default function LocalizacionAdmin() {
   const [countries, setCountries] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCountryFilter, setSelectedCountryFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 9;
+
+  const handleTabChange = (tab: 'countries' | 'documents') => {
+    setActiveTab(tab);
+    setSearchTerm('');
+    setSelectedCountryFilter('all');
+    setPage(1);
+  };
 
   const fetchCountries = async () => {
     try {
@@ -116,6 +129,22 @@ export default function LocalizacionAdmin() {
     }
   };
 
+  const filteredCountries = countries.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.iso2 || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.dial_code || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const paginatedCountries = filteredCountries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const filteredDocs = documents.filter(d => {
+    const matchesSearch = d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          d.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (d.country_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCountry = selectedCountryFilter === 'all' || d.country_id === selectedCountryFilter;
+    return matchesSearch && matchesCountry;
+  });
+  const paginatedDocs = filteredDocs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
@@ -131,7 +160,7 @@ export default function LocalizacionAdmin() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
         <div className="flex space-x-1 rounded-xl bg-white/5 p-1 w-fit border border-white/10">
           <button
-            onClick={() => setActiveTab('countries')}
+            onClick={() => handleTabChange('countries')}
             className={`flex items-center justify-center space-x-2 rounded-lg py-2 px-6 text-sm font-medium transition-all ${
               activeTab === 'countries' 
                 ? 'bg-white text-black shadow' 
@@ -142,7 +171,7 @@ export default function LocalizacionAdmin() {
             <span>Países</span>
           </button>
           <button
-            onClick={() => setActiveTab('documents')}
+            onClick={() => handleTabChange('documents')}
             className={`flex items-center justify-center space-x-2 rounded-lg py-2 px-6 text-sm font-medium transition-all ${
               activeTab === 'documents' 
                 ? 'bg-white text-black shadow' 
@@ -156,9 +185,33 @@ export default function LocalizacionAdmin() {
       </div>
 
       <AdminPanel className="flex flex-col overflow-hidden">
-        {canManage && (
-          <div className="p-4 border-b border-white/5 flex justify-end items-center bg-white/[0.01]">
-            {activeTab === 'countries' ? (
+        <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+          <div className="flex items-center space-x-3 w-full max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                placeholder={activeTab === 'countries' ? "Buscar país..." : "Buscar documento..."}
+                className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30 transition-all"
+              />
+            </div>
+            {activeTab === 'documents' && (
+              <select
+                value={selectedCountryFilter}
+                onChange={(e) => { setSelectedCountryFilter(e.target.value); setPage(1); }}
+                className="w-48 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/20 px-3 py-2"
+              >
+                <option value="all" className="bg-[#0a0a0a]">Todos los países</option>
+                {countries.map(c => (
+                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">{c.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          {canManage && (
+            activeTab === 'countries' ? (
               <button 
                 onClick={() => { setEditingCountry(null); setIsCountryModalOpen(true); }}
                 className="flex items-center space-x-2 px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-white/90 transition-colors"
@@ -174,9 +227,9 @@ export default function LocalizacionAdmin() {
                 <Plus size={16} />
                 <span>Nuevo Documento</span>
               </button>
-            )}
-          </div>
-        )}
+            )
+          )}
+        </div>
 
         <div className="overflow-x-auto">
           {activeTab === 'countries' && (
@@ -193,10 +246,10 @@ export default function LocalizacionAdmin() {
               <tbody className="divide-y divide-white/5 text-white/80">
                 {loading ? (
                   <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[#06CFD6]" /></td></tr>
-                ) : countries.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay países registrados.</td></tr>
+                ) : paginatedCountries.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay países que coincidan con la búsqueda.</td></tr>
                 ) : (
-                  countries.map((c: any) => (
+                  paginatedCountries.map((c: any) => (
                     <tr key={c.id} className="transition-colors hover:bg-white/[0.02]">
                       <td className="px-6 py-4 text-white/90 font-medium">{c.name}</td>
                       <td className="px-6 py-4 text-white/60">{c.iso2}</td>
@@ -239,10 +292,10 @@ export default function LocalizacionAdmin() {
               <tbody className="divide-y divide-white/5 text-white/80">
                 {loading ? (
                   <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[#06CFD6]" /></td></tr>
-                ) : documents.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay documentos registrados.</td></tr>
+                ) : paginatedDocs.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay documentos que coincidan con la búsqueda.</td></tr>
                 ) : (
-                  documents.map((d: any) => (
+                  paginatedDocs.map((d: any) => (
                     <tr key={d.id} className="transition-colors hover:bg-white/[0.02]">
                       <td className="px-6 py-4">
                         <div className="font-medium text-white/90">{d.code}</div>
@@ -276,6 +329,13 @@ export default function LocalizacionAdmin() {
             </table>
           )}
         </div>
+        <PaginationControl
+          currentPage={page}
+          totalItems={activeTab === 'countries' ? filteredCountries.length : filteredDocs.length}
+          itemsPerPage={PAGE_SIZE}
+          onPageChange={setPage}
+          disabled={loading}
+        />
       </AdminPanel>
 
       {isCountryModalOpen && (
