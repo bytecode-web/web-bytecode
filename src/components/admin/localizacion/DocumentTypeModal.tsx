@@ -81,20 +81,20 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-        <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-white p-6 shadow-2xl transition-all">
+        <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-[#121212] border border-white/10 p-6 shadow-2xl transition-all">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-medium text-gray-900">
+            <h3 className="text-lg font-medium text-white/90">
               {isEditing ? 'Editar Tipo de Documento' : 'Nuevo Tipo de Documento'}
             </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
+            <div className="mb-4 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">
               {error}
             </div>
           )}
@@ -102,10 +102,10 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700">País</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">País</label>
                 <select
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all [&>option]:bg-[#121212]"
                   value={formData.country_id}
                   onChange={e => setFormData({ ...formData, country_id: e.target.value })}
                 >
@@ -117,11 +117,11 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Código Corto</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">Código Corto</label>
                 <input
                   type="text"
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.code}
                   onChange={e => setFormData({ ...formData, code: e.target.value })}
                   placeholder="Ej. NIT"
@@ -129,24 +129,24 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Nombre Completo</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">Nombre Completo</label>
                 <input
                   type="text"
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ej. Número de Identificación Tributaria"
+                  placeholder="Ej. Número de Id..."
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Placeholder</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">Placeholder</label>
                 <input
                   type="text"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.placeholder}
                   onChange={e => setFormData({ ...formData, placeholder: e.target.value })}
                   placeholder="000.000.000-0"
@@ -154,26 +154,26 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-2">
-              <h4 className="text-sm font-medium text-gray-900 mb-2">Reglas de Validación</h4>
+            <div className="border-t border-white/10 pt-4 mt-2">
+              <h4 className="text-sm font-medium text-white/90 mb-2">Reglas de Validación</h4>
               
               <div className="grid grid-cols-2 gap-4 mb-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700">Mínimo de caracteres</label>
+                  <label className="block text-xs font-medium text-white/60 mb-1">Mínimo de caracteres</label>
                   <input
                     type="number"
                     min="1"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                     value={formData.min_length}
                     onChange={e => setFormData({ ...formData, min_length: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700">Máximo de caracteres</label>
+                  <label className="block text-xs font-medium text-white/60 mb-1">Máximo de caracteres</label>
                   <input
                     type="number"
                     min="1"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                     value={formData.max_length}
                     onChange={e => setFormData({ ...formData, max_length: e.target.value })}
                   />
@@ -181,28 +181,28 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700">Expresión Regular (RegEx)</label>
+                <label className="block text-xs font-medium text-white/60 mb-1">Expresión Regular (RegEx)</label>
                 <input
                   type="text"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-indigo-600"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-[#06CFD6] font-mono placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.validation_regex}
                   onChange={e => setFormData({ ...formData, validation_regex: e.target.value })}
                   placeholder="[0-9]{8,15}"
                 />
-                <p className="text-xs text-gray-500 mt-1">No incluyas ^ o $ (se añaden automáticamente).</p>
+                <p className="text-xs text-white/40 mt-1.5">No incluyas ^ o $ (se añaden automáticamente).</p>
               </div>
 
               {/* LIVE TESTER */}
-              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Live Tester (Prueba en vivo)</label>
+              <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
+                <label className="block text-xs font-semibold text-white/80 mb-2">Live Tester (Prueba en vivo)</label>
                 <div className="relative">
                   <input
                     type="text"
-                    className={`block w-full pr-10 rounded-md shadow-sm sm:text-sm ${
-                      !testValue ? 'border-gray-300' :
+                    className={`w-full pl-4 pr-10 py-2 bg-[#121212] border rounded-lg text-sm text-white focus:outline-none transition-all ${
+                      !testValue ? 'border-white/10 focus:border-white/30' :
                       testResult 
-                        ? 'border-green-300 focus:border-green-500 focus:ring-green-500' 
-                        : 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                        ? 'border-emerald-500/50 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' 
+                        : 'border-rose-500/50 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
                     }`}
                     value={testValue}
                     onChange={e => setTestValue(e.target.value)}
@@ -211,54 +211,56 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                     {testValue && (
                       testResult 
-                        ? <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        : <XCircle className="h-5 w-5 text-red-500" />
+                        ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                        : <XCircle className="h-5 w-5 text-rose-400" />
                     )}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-4 space-y-2">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_company_document"
-                  checked={formData.is_company_document}
-                  onChange={e => setFormData({ ...formData, is_company_document: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label htmlFor="is_company_document" className="ml-2 block text-sm text-gray-900">
-                  Documento B2B (Empresarial)
-                </label>
-              </div>
+            <div className="border-t border-white/10 pt-4 mt-4 space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={formData.is_company_document}
+                    onChange={e => setFormData({ ...formData, is_company_document: e.target.checked })}
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${formData.is_company_document ? 'bg-indigo-500' : 'bg-white/10'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.is_company_document ? 'translate-x-4' : ''}`}></div>
+                </div>
+                <span className="text-sm text-white/80">Documento B2B (Empresarial)</span>
+              </label>
               
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
-                  Activo
-                </label>
-              </div>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={formData.is_active}
+                    onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${formData.is_active ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.is_active ? 'translate-x-4' : ''}`}></div>
+                </div>
+                <span className="text-sm text-white/80">Activo</span>
+              </label>
             </div>
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-white/10">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-black bg-[#06CFD6] hover:bg-[#06CFD6]/90 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Guardando...' : 'Guardar'}
               </button>

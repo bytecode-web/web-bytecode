@@ -63,18 +63,18 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-600">
+            <div className="mb-4 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Nombre del País</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Nombre del País</label>
               <input
                 type="text"
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Ej. Colombia"
@@ -83,22 +83,22 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">ISO2</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">ISO2</label>
                 <input
                   type="text"
                   required
                   maxLength={2}
-                  className="mt-1 block w-full uppercase rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full uppercase px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.iso2}
                   onChange={e => setFormData({ ...formData, iso2: e.target.value.toUpperCase() })}
                   placeholder="CO"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Dial Code</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">Dial Code</label>
                 <input
                   type="text"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.dial_code}
                   onChange={e => setFormData({ ...formData, dial_code: e.target.value })}
                   placeholder="+57"
@@ -107,41 +107,42 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Formato Telefónico</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Formato Telefónico</label>
               <input
                 type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono"
+                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
                 value={formData.phone_format}
                 onChange={e => setFormData({ ...formData, phone_format: e.target.value })}
                 placeholder="### ### ####"
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={formData.is_active}
-                onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
-                País Activo
-              </label>
-            </div>
+            <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={formData.is_active}
+                  onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
+                />
+                <div className={`block w-10 h-6 rounded-full transition-colors ${formData.is_active ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.is_active ? 'translate-x-4' : ''}`}></div>
+              </div>
+              <span className="text-sm text-white/80">País Activo</span>
+            </label>
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-white/10">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-black bg-[#06CFD6] hover:bg-[#06CFD6]/90 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Guardando...' : 'Guardar'}
               </button>
