@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Globe, FileText, Loader2, Edit2, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Globe, FileText, Loader2, Trash2, CheckCircle2, XCircle, MoreVertical, Edit } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 
@@ -59,6 +60,42 @@ export default function LocalizacionAdmin() {
     loadData();
   }, []);
 
+  const [actionsMenu, setActionsMenu] = useState<{ id: string, type: 'country' | 'doc', top: number, left: number, placement: string } | null>(null);
+
+  const handleOpenActions = (e: React.MouseEvent, id: string, type: 'country' | 'doc') => {
+    e.stopPropagation();
+    if (actionsMenu?.id === id) {
+      setActionsMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownHeight = 110;
+    const padding = 16;
+    let top = rect.bottom + window.scrollY;
+    let left = rect.left - 100 + window.scrollX;
+    let placement: 'top' | 'bottom' = 'bottom';
+    if (top + dropdownHeight > window.innerHeight + window.scrollY) {
+      top = rect.top + window.scrollY - dropdownHeight - padding;
+      placement = 'top';
+    }
+    setActionsMenu({ id, type, top, left, placement });
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-org-actions]')) {
+        setActionsMenu(null);
+      }
+    };
+    if (actionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [actionsMenu]);
+
   const handleDeleteCountry = async (id: string) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este país?')) return;
     try {
@@ -91,27 +128,31 @@ export default function LocalizacionAdmin() {
         </div>
       </div>
 
-      <div className="flex border-b border-white/10 mt-2">
-        <button
-          onClick={() => setActiveTab('countries')}
-          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px
-            ${activeTab === 'countries' 
-              ? 'border-[#06CFD6] text-[#06CFD6]' 
-              : 'border-transparent text-white/50 hover:text-white/80 hover:border-white/20'}`}
-        >
-          <Globe size={16} />
-          Países
-        </button>
-        <button
-          onClick={() => setActiveTab('documents')}
-          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px
-            ${activeTab === 'documents' 
-              ? 'border-[#06CFD6] text-[#06CFD6]' 
-              : 'border-transparent text-white/50 hover:text-white/80 hover:border-white/20'}`}
-        >
-          <FileText size={16} />
-          Tipos de Documento
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
+        <div className="flex space-x-1 rounded-xl bg-white/5 p-1 w-fit border border-white/10">
+          <button
+            onClick={() => setActiveTab('countries')}
+            className={`flex items-center justify-center space-x-2 rounded-lg py-2 px-6 text-sm font-medium transition-all ${
+              activeTab === 'countries' 
+                ? 'bg-white text-black shadow' 
+                : 'text-white/50 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Globe size={16} />
+            <span>Países</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`flex items-center justify-center space-x-2 rounded-lg py-2 px-6 text-sm font-medium transition-all ${
+              activeTab === 'documents' 
+                ? 'bg-white text-black shadow' 
+                : 'text-white/50 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <FileText size={16} />
+            <span>Tipos de Documento</span>
+          </button>
+        </div>
       </div>
 
       <AdminPanel className="flex flex-col overflow-hidden">
@@ -165,16 +206,16 @@ export default function LocalizacionAdmin() {
                           ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Activo</span>
                           : <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3.5 h-3.5" /> Inactivo</span>}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="relative px-6 py-4 text-center" data-org-actions>
                         {canManage && (
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => { setEditingCountry(c); setIsCountryModalOpen(true); }} className="p-2 text-white/40 hover:text-white transition-colors" title="Editar">
-                              <Edit2 size={16} />
-                            </button>
-                            <button onClick={() => handleDeleteCountry(c.id)} className="p-2 text-white/40 hover:text-red-400 transition-colors" title="Eliminar">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          <button 
+                            onClick={(e) => handleOpenActions(e, c.id, 'country')} 
+                            className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+                            aria-haspopup="menu"
+                            aria-expanded={actionsMenu?.id === c.id}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -216,16 +257,16 @@ export default function LocalizacionAdmin() {
                       <td className="px-6 py-4 text-white/40 font-mono text-xs">
                         {d.validation_regex ? `/${d.validation_regex}/` : 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="relative px-6 py-4 text-center" data-org-actions>
                         {canManage && (
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => { setEditingDoc(d); setIsDocModalOpen(true); }} className="p-2 text-white/40 hover:text-white transition-colors" title="Editar">
-                              <Edit2 size={16} />
-                            </button>
-                            <button onClick={() => handleDeleteDoc(d.id)} className="p-2 text-white/40 hover:text-red-400 transition-colors" title="Eliminar">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          <button 
+                            onClick={(e) => handleOpenActions(e, d.id, 'doc')} 
+                            className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors focus:outline-none"
+                            aria-haspopup="menu"
+                            aria-expanded={actionsMenu?.id === d.id}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -253,6 +294,62 @@ export default function LocalizacionAdmin() {
           onSuccess={() => { setIsDocModalOpen(false); fetchDocs(); }}
         />
       )}
+
+      <AnimatePresence>
+        {actionsMenu && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: actionsMenu.placement === 'bottom' ? 6 : -6 }}
+            transition={{ duration: 0.15 }}
+            style={{ position: 'fixed', top: actionsMenu.top, left: actionsMenu.left }}
+            className={`fixed z-[100] w-36 overflow-hidden rounded-xl border border-white/10 bg-[#121212] text-left shadow-xl ${
+              actionsMenu.placement === 'bottom' ? 'origin-top-right' : 'origin-bottom-right'
+            }`}
+          >
+            <div className="flex flex-col gap-1 px-1 py-1">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  if (actionsMenu.type === 'country') {
+                    const c = countries.find(x => x.id === actionsMenu.id);
+                    setEditingCountry(c);
+                    setIsCountryModalOpen(true);
+                  } else {
+                    const d = documents.find(x => x.id === actionsMenu.id);
+                    setEditingDoc(d);
+                    setIsDocModalOpen(true);
+                  }
+                  setActionsMenu(null);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <Edit className="h-4 w-4" />
+                Editar
+              </button>
+              
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  if (actionsMenu.type === 'country') {
+                    handleDeleteCountry(actionsMenu.id);
+                  } else {
+                    handleDeleteDoc(actionsMenu.id);
+                  }
+                  setActionsMenu(null);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400/80 transition-colors hover:bg-red-500/10 hover:text-red-400"
+              >
+                <Trash2 className="h-4 w-4" />
+                Eliminar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

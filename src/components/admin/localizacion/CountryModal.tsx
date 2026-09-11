@@ -50,14 +50,14 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-        <div className="relative w-full max-w-md transform overflow-hidden rounded-xl bg-white p-6 shadow-2xl transition-all">
+        <div className="relative w-full max-w-md transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-2xl transition-all">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-medium text-gray-900">
+            <h3 className="text-lg font-medium text-white/90">
               {isEditing ? 'Editar País' : 'Nuevo País'}
             </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+            <button onClick={onClose} className="text-white/40 hover:text-white/70">
               <X className="h-5 w-5" />
             </button>
           </div>
