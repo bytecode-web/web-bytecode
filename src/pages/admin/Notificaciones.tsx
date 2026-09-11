@@ -85,14 +85,14 @@ const NotificacionesAdmin: React.FC = () => {
   return (
     <RoleGuard requiredPermission="admin.notificaciones.view">
       <div className="flex flex-col gap-6 font-sansation">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-wide text-white/90 flex items-center gap-3">
-            <BellRing className="w-6 h-6 text-[#06CFD6]" />
-            Reglas de Notificación In-App
-          </h1>
-          <p className="text-white/50 mt-2">
-            Configura qué roles reciben alertas internas en la campana del panel cuando ocurren eventos clave.
-          </p>
+        <div className="flex items-center justify-between pb-4 border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <BellRing className="h-6 w-6 text-[#06CFD6]" />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-wide text-white/90">Reglas de Notificación In-App</h1>
+              <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Configura alertas por roles</p>
+            </div>
+          </div>
         </div>
 
         {loading ? (

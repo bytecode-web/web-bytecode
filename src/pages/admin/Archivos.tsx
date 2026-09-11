@@ -177,13 +177,13 @@ const Archivos: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <HardDrive className="w-6 h-6 text-bytecode-primary" />
-            Gestor Maestro de Archivos
-          </h1>
-          <p className="text-gray-400 mt-1">Administra de manera centralizada todos los archivos y evidencias de la empresa.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <HardDrive className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Gestor Maestro de Archivos</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Administración de archivos y evidencias</p>
+          </div>
         </div>
       </div>
 

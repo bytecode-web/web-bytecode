@@ -81,15 +81,13 @@ export default function LocalizacionAdmin() {
 
   return (
     <div className="flex flex-col gap-6 font-sansation">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-wide text-white/90 flex items-center gap-3">
-            <Globe className="w-6 h-6 text-[#06CFD6]" />
-            Localización
-          </h1>
-          <p className="text-white/50 mt-2">
-            Administra los países soportados y sus tipos de documentos válidos.
-          </p>
+      <div className="flex items-center justify-between pb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <Globe className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Localización</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Países y tipos de documentos</p>
+          </div>
         </div>
       </div>
 
