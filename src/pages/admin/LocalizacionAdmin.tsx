@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Globe, FileText, Loader2, Trash2, CheckCircle2, XCircle, MoreVertical, Edit } from 'lucide-react';
+import { Plus, Globe, FileText, Loader2, Trash2, MoreVertical, Edit } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
@@ -187,7 +187,7 @@ export default function LocalizacionAdmin() {
                   <th className="px-6 py-4 font-medium">ISO2</th>
                   <th className="px-6 py-4 font-medium">Dial Code</th>
                   <th className="px-6 py-4 font-medium text-center">Estado</th>
-                  <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                  <th className="px-6 py-4 font-medium text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/80">
@@ -202,9 +202,9 @@ export default function LocalizacionAdmin() {
                       <td className="px-6 py-4 text-white/60">{c.iso2}</td>
                       <td className="px-6 py-4 text-white/60">{c.dial_code || '-'}</td>
                       <td className="px-6 py-4 text-center">
-                        {c.is_active 
-                          ? <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Activo</span>
-                          : <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle className="w-3.5 h-3.5" /> Inactivo</span>}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium border ${c.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                          {c.is_active ? 'Activo' : 'Inactivo'}
+                        </span>
                       </td>
                       <td className="relative px-6 py-4 text-center" data-org-actions>
                         {canManage && (
@@ -233,7 +233,7 @@ export default function LocalizacionAdmin() {
                   <th className="px-6 py-4 font-medium">País</th>
                   <th className="px-6 py-4 font-medium text-center">Uso</th>
                   <th className="px-6 py-4 font-medium">Validación Regex</th>
-                  <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                  <th className="px-6 py-4 font-medium text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/80">

@@ -222,7 +222,7 @@ const Roles: React.FC = () => {
                   <td className="px-6 py-4 text-xs font-mono text-white/50">{role.code}</td>
                   <td className="px-6 py-4 text-center text-white/60">{role.permission_codes?.length ?? 0}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`rounded px-2 py-0.5 text-[10px] font-medium border ${role.is_active ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium border ${role.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                       {role.is_active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
