@@ -141,9 +141,10 @@ const parseClaimedAmount = (value: string) => {
 let normalizedContactSchema: boolean | null = null;
 
 router.get('/catalog/countries', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, code as iso2, name, phone_code as "dialCode" FROM countries WHERE is_active = true ORDER BY name ASC');
+  // tax_id_regex y tax_id_format fueron removidos en la migración, los simulamos a null para el front viejo
+  const result = await pool.query('SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", phone_regex, phone_format FROM countries WHERE is_active = true ORDER BY name ASC');
   // Aseguramos iso2 en vez de iso por compatibilidad con el front
-  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2, maxLength: 15, tax_id_regex: null, phone_regex: null }));
+  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2, tax_id_regex: null, tax_id_format: null }));
   res.json({ items: mapped });
 }));
 
@@ -153,7 +154,7 @@ router.get('/catalog/services', asyncHandler(async (_req: Request, res: Response
 }));
 
 router.get('/catalog/document-types', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, short_name as code, name, country_id, code_regex as validation_regex, is_for_b2b as is_company_document FROM document_types WHERE is_active = true ORDER BY name ASC');
+  const result = await pool.query('SELECT id, code, name, country_id, validation_regex, min_length, max_length, is_company_document, placeholder FROM document_types WHERE is_active = true ORDER BY name ASC');
   res.json({ items: result.rows });
 }));
 
