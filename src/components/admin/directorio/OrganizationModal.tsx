@@ -12,18 +12,38 @@ interface Props {
   editingId?: string | null;
   initialData?: any;
   countries: any[];
+  documentTypes: any[];
 }
 
-export default function OrganizationModal({ isOpen, onClose, onSuccess, editingId, initialData, countries }: Props) {
+export default function OrganizationModal({ isOpen, onClose, onSuccess, editingId, initialData, countries, documentTypes }: Props) {
   const [formData, setFormData] = useState({
     legal_name: '',
     trade_name: '',
     ruc: '',
+    document_type_id: '',
+    document_number: '',
     industry: '',
     country_id: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [taxIdError, setTaxIdError] = useState('');
   const addToast = useToastStore((state) => state.addToast);
+
+  const filteredDocs = React.useMemo(() => {
+    if (!formData.country_id) return [];
+    return documentTypes.filter(d => d.countryId === formData.country_id && d.isCompanyDocument);
+  }, [documentTypes, formData.country_id]);
+
+  const activeDoc = React.useMemo(() => {
+    return filteredDocs.find(d => d.id === formData.document_type_id);
+  }, [filteredDocs, formData.document_type_id]);
+
+  // Si cambia el país, autoseleccionamos el primer documento
+  useEffect(() => {
+    if (isOpen && !editingId && formData.country_id && filteredDocs.length > 0 && !formData.document_type_id) {
+      setFormData(prev => ({ ...prev, document_type_id: filteredDocs[0].id }));
+    }
+  }, [formData.country_id, filteredDocs, isOpen, editingId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,40 +52,52 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
           legal_name: initialData.legal_name || '',
           trade_name: initialData.trade_name || '',
           ruc: initialData.ruc || '',
+          document_type_id: initialData.primary_document?.document_type_id || '',
+          document_number: initialData.primary_document?.document_number || initialData.ruc || '',
           industry: initialData.industry || '',
           country_id: initialData.country_id || '',
         });
       } else {
-        setFormData({ legal_name: '', trade_name: '', ruc: '', industry: '', country_id: '' });
+        setFormData({ legal_name: '', trade_name: '', ruc: '', document_type_id: '', document_number: '', industry: '', country_id: '' });
       }
+      setTaxIdError('');
     }
   }, [isOpen, editingId, initialData]);
 
-  const getRucRegex = () => {
-    if (!formData.country_id) return null;
-    const country = countries.find(c => c.id === formData.country_id);
-    if (!country || !country.tax_id_regex) return null;
+  const validateDocument = (val: string) => {
+    if (!activeDoc || !activeDoc.validationRegex || !val) {
+      setTaxIdError('');
+      return true;
+    }
     try {
-      const cleanRegex = country.tax_id_regex.replace(/\\\\/g, '\\');
-      return new RegExp(cleanRegex);
+      const regex = new RegExp(activeDoc.validationRegex);
+      if (!regex.test(val)) {
+        setTaxIdError(`Formato inválido. Esperado: ${activeDoc.placeholder || 'Documento'}`);
+        return false;
+      }
+      setTaxIdError('');
+      return true;
     } catch {
-      return null;
+      return true;
     }
   };
 
-  const getRucPlaceholder = () => {
-    if (!formData.country_id) return 'Ej. 20123456789';
-    const country = countries.find(c => c.id === formData.country_id);
-    return country?.tax_id_format || 'Ej. 20123456789';
+  const handleDocumentBlur = () => {
+    validateDocument(formData.document_number);
+  };
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/[^A-Za-z0-9\-]/g, '').toUpperCase();
+    setFormData(prev => ({ ...prev, document_number: val }));
+    if (taxIdError) validateDocument(val);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const regex = getRucRegex();
-    if (regex && formData.ruc && !regex.test(formData.ruc)) {
-      addToast(`El identificador no tiene un formato válido. Esperado: ${getRucPlaceholder()}`, 'error');
+    if (!validateDocument(formData.document_number)) {
+      addToast(`El identificador no tiene un formato válido.`, 'error');
       setIsLoading(false);
       return;
     }
@@ -74,6 +106,7 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
       const payload = {
         ...formData,
         country_id: formData.country_id || null,
+        document_type_id: formData.document_type_id || null,
       };
       
       if (editingId) {
@@ -146,7 +179,7 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
                 value={formData.country_id}
                 onChange={(val) => {
                   if (val !== formData.country_id) {
-                    setFormData({ ...formData, country_id: val || '', ruc: '' });
+                    setFormData({ ...formData, country_id: val || '', document_type_id: '', document_number: '' });
                   }
                 }}
                 placeholder="Seleccionar país"
@@ -161,16 +194,37 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
               />
             </div>
 
-            <label className="grid gap-1.5">
-              <span className="text-xs uppercase tracking-wider text-white/40">RUC / Tax ID</span>
-              <input
-                name="ruc"
-                value={formData.ruc}
-                onChange={(e) => setFormData({ ...formData, ruc: e.target.value })}
-                placeholder={getRucPlaceholder()}
-                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
-              />
-            </label>
+            <div className="grid gap-1.5 md:col-span-1">
+              <span className="text-xs uppercase tracking-wider text-white/40">{activeDoc?.name || 'Identificación'} *</span>
+              <div className="flex gap-2">
+                 <div className="w-[35%]">
+                    <CustomDropdown
+                      variant="admin"
+                      value={formData.document_type_id}
+                      placeholder="Doc."
+                      options={filteredDocs.map(d => ({ value: d.id, label: d.code, icon: null }))}
+                      onChange={(val) => { setFormData(p => ({ ...p, document_type_id: val, document_number: '' })); setTaxIdError(''); }}
+                    />
+                 </div>
+                 <div className="relative w-[65%]">
+                    <input
+                      name="document_number"
+                      value={formData.document_number}
+                      onChange={handleDocumentChange}
+                      onBlur={handleDocumentBlur}
+                      required
+                      maxLength={activeDoc?.maxLength || 50}
+                      placeholder={activeDoc?.placeholder || 'Ingrese número'}
+                      className={`w-full rounded-lg border bg-white/5 px-4 py-[0.6rem] text-sm text-white/90 outline-none transition ${taxIdError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-white/30'}`}
+                    />
+                    {taxIdError && (
+                      <span className="absolute -bottom-5 left-1 text-[10px] text-red-400">
+                        {taxIdError}
+                      </span>
+                    )}
+                 </div>
+              </div>
+            </div>
 
             <label className="grid gap-1.5 md:col-span-2">
               <span className="text-xs uppercase tracking-wider text-white/40">Industria / Sector</span>

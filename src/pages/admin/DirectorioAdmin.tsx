@@ -232,7 +232,7 @@ export default function DirectorioAdmin() {
               <thead className="bg-white/[0.02] text-white/50 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-4 font-medium">Razón Social / Comercial</th>
-                  <th className="px-6 py-4 font-medium">RUC</th>
+                  <th className="px-6 py-4 font-medium">Identificación</th>
                   <th className="px-6 py-4 font-medium">País</th>
                   <th className="px-6 py-4 font-medium">Industria</th>
                   <th className="px-6 py-4 font-medium">Estado</th>
@@ -254,7 +254,7 @@ export default function DirectorioAdmin() {
                           <div className="text-xs text-white/40 mt-1">{org.trade_name}</div>
                         )}
                       </td>
-                      <td className="px-6 py-4 font-mono text-white/50 text-xs">{org.ruc}</td>
+                      <td className="px-6 py-4 font-mono text-white/50 text-xs">{org.primary_document?.document_number || org.ruc}</td>
                       <td className="px-6 py-4">
                         {org.country_iso ? (
                           <div className="flex items-center gap-2">
@@ -484,6 +484,7 @@ export default function DirectorioAdmin() {
         editingId={editingId}
         initialData={editingData}
         countries={countries}
+        documentTypes={documentTypes}
       />
 
       <CustomerModal

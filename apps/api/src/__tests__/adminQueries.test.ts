@@ -39,7 +39,7 @@ test('contact admin queries return separated company fields', async () => {
   assert.doesNotMatch(contactColumns, /'' as ruc/);
   assert.match(contactColumns, /co\.position_title/);
   assert.match(contactColumns, /o\.legal_name/);
-  assert.match(contactColumns, /o\.ruc/);
+  assert.match(contactColumns, /organization_documents/);
   assert.match(source, /LEFT JOIN organizations o ON c\.organization_id = o\.id/);
   assert.match(source, /LEFT JOIN customer_organizations co ON co\.customer_id = c\.customer_id/);
 });
