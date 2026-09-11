@@ -316,14 +316,18 @@ const Roles: React.FC = () => {
                   </div>
 
                   {isEditing && (
-                    <label className="md:col-span-2 flex items-center gap-3 text-sm text-white/70">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(event) => setFormData({ ...formData, isActive: event.target.checked })}
-                        className="h-4 w-4 rounded border-white/20 bg-white/5 text-white focus:ring-white/20 focus:ring-offset-black"
-                      />
-                      Rol activo
+                    <label className="md:col-span-2 flex items-center gap-3 cursor-pointer select-none mt-2">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={formData.isActive}
+                          onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                        />
+                        <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                        <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isActive ? 'translate-x-4' : ''}`}></div>
+                      </div>
+                      <span className="text-sm text-white/80">Rol Activo</span>
                     </label>
                   )}
                 </div>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
+import CustomDropdown from '../../components/ui/CustomDropdown';
 
 // Components
 import CountryModal from '../../components/admin/localizacion/CountryModal';
@@ -198,16 +199,22 @@ export default function LocalizacionAdmin() {
               />
             </div>
             {activeTab === 'documents' && (
-              <select
-                value={selectedCountryFilter}
-                onChange={(e) => { setSelectedCountryFilter(e.target.value); setPage(1); }}
-                className="w-48 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/20 px-3 py-2"
-              >
-                <option value="all" className="bg-[#0a0a0a]">Todos los países</option>
-                {countries.map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#0a0a0a]">{c.name}</option>
-                ))}
-              </select>
+              <div className="w-48 z-10">
+                <CustomDropdown
+                  value={selectedCountryFilter}
+                  onChange={(val) => { setSelectedCountryFilter(val); setPage(1); }}
+                  placeholder="Todos los países"
+                  variant="admin"
+                  options={[
+                    { value: 'all', label: 'Todos los países' },
+                    ...countries.map(c => ({
+                      value: c.id,
+                      label: c.name,
+                      icon: <img src={`https://flagcdn.com/w20/${(c.iso2 || '').toLowerCase()}.png`} alt={c.iso2} className="w-4 h-3 object-cover rounded-[2px]" />
+                    }))
+                  ]}
+                />
+              </div>
             )}
           </div>
           {canManage && (
@@ -251,7 +258,12 @@ export default function LocalizacionAdmin() {
                 ) : (
                   paginatedCountries.map((c: any) => (
                     <tr key={c.id} className="transition-colors hover:bg-white/[0.02]">
-                      <td className="px-6 py-4 text-white/90 font-medium">{c.name}</td>
+                      <td className="px-6 py-4 text-white/90 font-medium">
+                        <div className="flex items-center gap-3">
+                          <img src={`https://flagcdn.com/w20/${(c.iso2 || '').toLowerCase()}.png`} alt={c.iso2} className="w-5 h-3.5 object-cover rounded-[2px]" />
+                          <span>{c.name}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-white/60">{c.iso2}</td>
                       <td className="px-6 py-4 text-white/60">{c.dial_code || '-'}</td>
                       <td className="px-6 py-4 text-center">

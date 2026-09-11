@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
+import CustomDropdown from '../../ui/CustomDropdown';
 
 interface DocumentTypeModalProps {
   documentType?: any;
@@ -103,17 +104,19 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-white/70 mb-1">País</label>
-                <select
-                  required
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all [&>option]:bg-[#121212]"
-                  value={formData.country_id}
-                  onChange={e => setFormData({ ...formData, country_id: e.target.value })}
-                >
-                  <option value="">Selecciona un país...</option>
-                  {countries.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <div className="z-10 relative">
+                  <CustomDropdown
+                    value={formData.country_id}
+                    onChange={val => setFormData({ ...formData, country_id: val })}
+                    placeholder="Selecciona un país..."
+                    variant="admin"
+                    options={countries.map(c => ({
+                      value: c.id,
+                      label: c.name,
+                      icon: <img src={`https://flagcdn.com/w20/${(c.iso2 || '').toLowerCase()}.png`} alt={c.iso2} className="w-5 h-3.5 object-cover rounded-[2px]" />
+                    }))}
+                  />
+                </div>
               </div>
 
               <div>
