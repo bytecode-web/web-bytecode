@@ -7,6 +7,7 @@ import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/Confir
 import { useToastStore } from '../../stores/toastStore';
 import { forceDownload } from '../../lib/download';
 import { motion, AnimatePresence } from 'framer-motion';
+import ShineBorder from '../../components/ui/shine-border';
 
 interface FileOrigin {
   label: string;
@@ -226,8 +227,14 @@ const Archivos: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {assets.map((asset) => (
-            <div key={asset.id} className="bg-bytecode-surface rounded-xl border border-white/10 overflow-hidden flex flex-col group hover:border-bytecode-primary/50 transition-colors">
-              <div className="p-4 border-b border-white/5 flex items-start gap-4">
+            <ShineBorder 
+              key={asset.id} 
+              borderRadius={12} 
+              borderWidth={2} 
+              color={["#024F79", "#026B9B", "#06CFD6"]} 
+              className="!p-0 bg-bytecode-surface border-2 border-[#0CA3C6] md:border-transparent overflow-hidden flex flex-col group hover:shadow-[0_0_15px_-3px_rgba(6,207,214,0.3)] transition-all"
+            >
+              <div className="p-4 border-b border-white/5 flex items-start gap-4 w-full">
                 <div className="w-16 h-16 rounded-lg bg-bytecode-background flex items-center justify-center shrink-0 border border-white/5 overflow-hidden">
                   {asset.mime_type.startsWith('image/') && asset.public_url ? (
                     <img src={asset.public_url} alt={asset.original_name} className="w-full h-full object-cover" />
@@ -308,7 +315,7 @@ const Archivos: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </ShineBorder>
           ))}
         </div>
       )}

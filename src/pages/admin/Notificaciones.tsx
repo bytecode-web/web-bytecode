@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { useToastStore } from '../../stores/toastStore';
-import { ShieldCheck, Loader2, BellRing, Info } from 'lucide-react';
+import { BellRing, ShieldCheck, Loader2, Info } from 'lucide-react';
 import RoleGuard from '../../components/admin/RoleGuard';
+import AdminPanel from '../../components/admin/AdminPanel';
 
 interface Role {
   id: string;
@@ -99,7 +100,7 @@ const NotificacionesAdmin: React.FC = () => {
             <Loader2 className="w-8 h-8 animate-spin text-[#06CFD6]" />
           </div>
         ) : (
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+          <AdminPanel className="flex flex-col overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -150,7 +151,7 @@ const NotificacionesAdmin: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+          </AdminPanel>
         )}
       </div>
     </RoleGuard>
