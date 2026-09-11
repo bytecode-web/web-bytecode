@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2 } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -221,7 +221,13 @@ const Usuarios: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
-        <h1 className="text-2xl font-semibold tracking-wide text-white/90">Usuarios Administradores</h1>
+        <div className="flex items-center gap-3">
+          <UserCog className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Usuarios Administradores</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Control de accesos</p>
+          </div>
+        </div>
         <div className="flex gap-3 items-center">
           <div className="flex gap-1 bg-white/5 p-1 rounded-lg border border-white/10 mr-2">
             <button onClick={() => { setStatusFilter('all'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>

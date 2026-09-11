@@ -156,9 +156,12 @@ export default function DirectorioAdmin() {
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-wide text-white/90">Directorio CRM</h1>
-          <p className="text-white/40 text-sm mt-1">Gestión centralizada de Empresas B2B y Contactos B2C</p>
+        <div className="flex items-center gap-3">
+          <Building2 className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Directorio CRM</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Gestión centralizada de Empresas y Contactos</p>
+          </div>
         </div>
         <div className="flex gap-3 items-center">
           <button onClick={fetchData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">

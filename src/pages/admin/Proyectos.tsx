@@ -134,7 +134,7 @@ const Proyectos: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-4">
-        <div className="flex items-center gap-3"><FolderKanban className="h-6 w-6 text-white/50" /><div><h1 className="text-2xl font-semibold text-white/90">Proyectos</h1><p className="mt-1 text-xs uppercase tracking-widest text-white/40">Entrega y seguimiento técnico</p></div></div>
+        <div className="flex items-center gap-3"><FolderKanban className="h-6 w-6 text-[#06CFD6]" /><div><h1 className="text-2xl font-semibold text-white/90">Proyectos</h1><p className="mt-1 text-xs uppercase tracking-widest text-white/40">Entrega y seguimiento técnico</p></div></div>
         <div className="flex gap-3">
           <button type="button" onClick={() => void loadProjects()} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80"><RefreshCw className="h-4 w-4" />Actualizar</button>
           <RoleGuard requiredPermission="admin.proyectos.create" fallback={null}>

@@ -292,7 +292,7 @@ const AdminCotizador: React.FC = () => {
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div className="flex items-center gap-3">
-          <Calculator className="h-6 w-6 text-white/50" />
+          <Calculator className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Cotizador</h1>
             <p className="mt-1 text-xs uppercase tracking-widest text-white/40">Generacion dinamica de cotizaciones</p>
