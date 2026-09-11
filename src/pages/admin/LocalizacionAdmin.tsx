@@ -313,7 +313,17 @@ export default function LocalizacionAdmin() {
                         <div className="font-medium text-white/90">{d.code}</div>
                         <div className="text-xs text-white/50 mt-0.5">{d.name}</div>
                       </td>
-                      <td className="px-6 py-4 text-white/60">{d.country_name}</td>
+                      <td className="px-6 py-4 text-white/60">
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const country = countries.find(c => c.id === d.country_id);
+                            return country?.iso2 ? (
+                              <img src={`https://flagcdn.com/w20/${country.iso2.toLowerCase()}.png`} alt={country.iso2} className="w-5 h-3.5 object-cover rounded-[2px]" />
+                            ) : null;
+                          })()}
+                          <span>{d.country_name}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-center">
                         {d.is_company_document 
                           ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">B2B</span>
