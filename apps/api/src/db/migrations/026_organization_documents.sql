@@ -22,17 +22,30 @@ CREATE TRIGGER trg_organization_documents_updated_at
     FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- Data Seeding (Migración en caliente de los datos existentes sin perder rucs)
-WITH CompanyDocs AS (
-    SELECT id as dt_id, country_id,
-    ROW_NUMBER() OVER (PARTITION BY country_id ORDER BY created_at ASC) as rn
-    FROM document_types
-    WHERE is_company_document = true
-)
-INSERT INTO organization_documents (organization_id, document_type_id, document_number)
-SELECT o.id, cd.dt_id, o.ruc
-FROM organizations o
-JOIN CompanyDocs cd ON cd.country_id = o.country_id AND cd.rn = 1
-WHERE o.ruc IS NOT NULL AND o.ruc != ''
-ON CONFLICT (organization_id, document_type_id) DO NOTHING;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'organizations'
+          AND column_name = 'ruc'
+    ) THEN
+        EXECUTE '
+            WITH CompanyDocs AS (
+                SELECT id as dt_id, country_id,
+                ROW_NUMBER() OVER (PARTITION BY country_id ORDER BY created_at ASC) as rn
+                FROM document_types
+                WHERE is_company_document = true
+            )
+            INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+            SELECT o.id, cd.dt_id, o.ruc
+            FROM organizations o
+            JOIN CompanyDocs cd ON cd.country_id = o.country_id AND cd.rn = 1
+            WHERE o.ruc IS NOT NULL AND o.ruc != ''''
+            ON CONFLICT (organization_id, document_type_id) DO NOTHING;
+        ';
+    END IF;
+END $$;
 
 -- Nota: NO borramos la columna organizations.ruc todavía. Eso ocurrirá en la Fase 3.4.
