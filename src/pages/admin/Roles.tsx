@@ -195,21 +195,18 @@ const Roles: React.FC = () => {
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Permisos por rol</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={loadData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
+            <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
+            <button onClick={() => setStatusFilter('active')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
+            <button onClick={() => setStatusFilter('inactive')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
+          </div>
+          <button onClick={loadData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white h-[38px]">
             <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
           </button>
-          <button onClick={handleOpenCreate} className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90">
+          <button onClick={handleOpenCreate} className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90 h-[38px]">
             <Plus className="h-4 w-4" /> <span>Nuevo Rol</span>
           </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4 mt-2">
-        <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
-          <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
-          <button onClick={() => setStatusFilter('active')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
-          <button onClick={() => setStatusFilter('inactive')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
         </div>
       </div>
 
