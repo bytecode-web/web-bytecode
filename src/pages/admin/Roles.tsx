@@ -65,6 +65,7 @@ const Roles: React.FC = () => {
   const [actionsMenu, setActionsMenu] = useState<ActionMenuState | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   const permissionsByModule = useMemo(() => {
     return permissions.reduce<Record<string, Permission[]>>((acc, permission) => {
@@ -78,7 +79,7 @@ const Roles: React.FC = () => {
     setLoading(true);
     try {
       const [rolesResult, permissionsResult] = await Promise.all([
-        apiRequest<{ data: Role[]; total: number }>(`/admin/roles?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`),
+        apiRequest<{ data: Role[]; total: number }>(`/admin/roles?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}`),
         apiRequest<{ items: Permission[] }>('/admin/permissions'),
       ]);
       if (rolesResult.data.length === 0 && rolesResult.total > 0 && page > 1) { setPage(page - 1); return; }
@@ -93,8 +94,12 @@ const Roles: React.FC = () => {
   };
 
   useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  useEffect(() => {
     void loadData();
-  }, [page]);
+  }, [page, statusFilter]);
 
   useEffect(() => {
     const handleClickOutside = () => setActionsMenu(null);
@@ -200,6 +205,14 @@ const Roles: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex flex-col sm:flex-row justify-end items-start sm:items-center gap-4 mt-2">
+        <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
+          <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
+          <button onClick={() => setStatusFilter('active')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
+          <button onClick={() => setStatusFilter('inactive')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
+        </div>
+      </div>
+
       <AdminPanel className="flex flex-col overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
@@ -214,7 +227,7 @@ const Roles: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-white/5 text-white/80">
               {roles.map((role) => (
-                <tr key={role.id} className="transition-colors hover:bg-white/[0.02]">
+                <tr key={role.id} className={`transition-colors hover:bg-white/[0.02] ${!role.is_active ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
                     <p className="font-medium text-white/90">{role.name}</p>
                     {role.description && <p className="mt-1 text-xs text-white/40 max-w-[320px] truncate">{role.description}</p>}

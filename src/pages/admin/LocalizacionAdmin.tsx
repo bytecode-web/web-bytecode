@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Plus, Globe, FileText, Loader2, Trash2, MoreVertical, Edit, Search } from 'lucide-react';
+import { Plus, Globe, FileText, Loader2, Trash2, MoreVertical, Edit, Search, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
@@ -36,6 +36,7 @@ export default function LocalizacionAdmin() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCountryFilter, setSelectedCountryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 9;
 
@@ -43,6 +44,7 @@ export default function LocalizacionAdmin() {
     setActiveTab(tab);
     setSearchTerm('');
     setSelectedCountryFilter('all');
+    setStatusFilter('active');
     setPage(1);
   };
 
@@ -130,11 +132,15 @@ export default function LocalizacionAdmin() {
     }
   };
 
-  const filteredCountries = countries.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.iso2 || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.dial_code || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCountries = countries.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (c.iso2 || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (c.dial_code || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (statusFilter === 'active') return matchesSearch && c.is_active;
+    if (statusFilter === 'inactive') return matchesSearch && !c.is_active;
+    return matchesSearch;
+  });
   const paginatedCountries = filteredCountries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const filteredDocs = documents.filter(d => {
@@ -148,13 +154,18 @@ export default function LocalizacionAdmin() {
 
   return (
     <div className="flex flex-col gap-6 font-sansation">
-      <div className="flex items-center justify-between pb-4 border-b border-white/5">
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <Globe className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Localización</h1>
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Países y tipos de documentos</p>
           </div>
+        </div>
+        <div className="flex gap-3 items-center">
+          <button onClick={loadData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+            <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
+          </button>
         </div>
       </div>
 
@@ -183,6 +194,13 @@ export default function LocalizacionAdmin() {
             <span>Tipos de Documento</span>
           </button>
         </div>
+        {activeTab === 'countries' && (
+          <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
+            <button onClick={() => { setStatusFilter('all'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
+            <button onClick={() => { setStatusFilter('active'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
+            <button onClick={() => { setStatusFilter('inactive'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
+          </div>
+        )}
       </div>
 
       <AdminPanel className="flex flex-col overflow-hidden">
@@ -257,7 +275,7 @@ export default function LocalizacionAdmin() {
                   <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay países que coincidan con la búsqueda.</td></tr>
                 ) : (
                   paginatedCountries.map((c: any) => (
-                    <tr key={c.id} className="transition-colors hover:bg-white/[0.02]">
+                    <tr key={c.id} className={`transition-colors hover:bg-white/[0.02] ${!c.is_active ? 'opacity-50' : ''}`}>
                       <td className="px-6 py-4 text-white/90 font-medium">
                         <div className="flex items-center gap-3">
                           <img src={`https://flagcdn.com/w20/${(c.iso2 || '').toLowerCase()}.png`} alt={c.iso2} className="w-5 h-3.5 object-cover rounded-[2px]" />
