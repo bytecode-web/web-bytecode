@@ -80,9 +80,9 @@ export default function OrganizationContactsModal({ isOpen, onClose, organizatio
 
   return (
     <>
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-2xl flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             
             <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
               <div className="flex items-center gap-3">
