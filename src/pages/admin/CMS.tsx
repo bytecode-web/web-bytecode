@@ -123,7 +123,7 @@ const AdminCMS: React.FC = () => {
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Database className="h-6 w-6 text-white/50" />
+          <Database className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Gestor de Contenido (CMS)</h1>
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Administracion de paginas y SEO</p>

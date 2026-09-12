@@ -27,7 +27,7 @@ directoryRouter.get(
     const countResult = await pool.query(`
       SELECT COUNT(*) as total
       FROM organizations o
-      WHERE (o.legal_name ILIKE $1 OR o.trade_name ILIKE $1 OR o.ruc ILIKE $1)
+      WHERE (o.legal_name ILIKE $1 OR o.trade_name ILIKE $1 OR EXISTS (SELECT 1 FROM organization_documents od WHERE od.organization_id = o.id AND od.document_number ILIKE $1))
       ${statusFilter}
     `, [search]);
     
@@ -38,18 +38,23 @@ directoryRouter.get(
         o.id, 
         o.legal_name, 
         o.trade_name, 
-        o.ruc, 
         o.industry,
         o.country_id,
         o.created_at,
         c.iso2 AS country_iso,
         c.name AS country_name,
         o.deleted_at IS NULL as is_active,
-        COUNT(co.customer_id) as contacts_count
+        COUNT(co.customer_id) as contacts_count,
+        (
+          SELECT json_build_object('document_type_id', od.document_type_id, 'document_number', od.document_number)
+          FROM organization_documents od
+          WHERE od.organization_id = o.id AND od.is_active = true
+          LIMIT 1
+        ) as primary_document
       FROM organizations o
       LEFT JOIN customer_organizations co ON o.id = co.organization_id AND co.deleted_at IS NULL
       LEFT JOIN countries c ON o.country_id = c.id
-      WHERE (o.legal_name ILIKE $3 OR o.trade_name ILIKE $3 OR o.ruc ILIKE $3)
+      WHERE (o.legal_name ILIKE $3 OR o.trade_name ILIKE $3 OR EXISTS (SELECT 1 FROM organization_documents od WHERE od.organization_id = o.id AND od.document_number ILIKE $3))
       ${statusFilter}
       GROUP BY o.id, c.iso2, c.name
       ORDER BY o.created_at DESC
@@ -129,7 +134,8 @@ directoryRouter.get(
 const organizationSchema = z.object({
   legal_name: z.string().min(2, 'La Razón Social debe tener al menos 2 caracteres').max(200),
   trade_name: z.string().max(200).optional().nullable(),
-  ruc: z.string().max(50).optional().nullable(),
+  document_type_id: z.string().uuid('ID de documento inválido').optional().nullable(),
+  document_number: z.string().max(50).optional().nullable(),
   industry: z.string().max(100).optional().nullable(),
   country_id: z.string().uuid('ID de país inválido').optional().nullable(),
 });
@@ -154,19 +160,46 @@ directoryRouter.post(
   requireCsrf,
   asyncHandler(async (req: Request, res: Response) => {
     const body = organizationSchema.parse(req.body);
+    const client = await pool.connect();
     try {
-      const result = await pool.query(
-        `INSERT INTO organizations (legal_name, trade_name, ruc, industry, country_id) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [body.legal_name, body.trade_name || body.legal_name, body.ruc, body.industry, body.country_id]
+      await client.query('BEGIN');
+      const finalDocNumber = body.document_number || null;
+
+      const orgRes = await client.query(
+        `INSERT INTO organizations (legal_name, trade_name, industry, country_id) 
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [body.legal_name, body.trade_name || body.legal_name, body.industry, body.country_id]
       );
-      await auditService.logAdminAction({ userId: req.admin?.id, action: 'create', entityType: 'organizations', entity: result.rows[0], req });
-      res.status(201).json(result.rows[0]);
+      
+      const orgId = orgRes.rows[0].id;
+
+      if (finalDocNumber) {
+        let docTypeId = body.document_type_id;
+        if (!docTypeId && body.country_id) {
+           const dtRes = await client.query("SELECT id FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1", [body.country_id]);
+           if ((dtRes.rowCount ?? 0) > 0) docTypeId = dtRes.rows[0].id;
+        }
+
+        if (docTypeId) {
+           await client.query(
+             `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+              VALUES ($1, $2, $3)`,
+             [orgId, docTypeId, finalDocNumber]
+           );
+        }
+      }
+
+      await client.query('COMMIT');
+      await auditService.logAdminAction({ userId: req.admin?.id, action: 'create', entityType: 'organizations', entity: orgRes.rows[0], req });
+      res.status(201).json(orgRes.rows[0]);
     } catch (err: any) {
+      await client.query('ROLLBACK');
       if (err.code === '23505') {
-        throw new HttpError(409, 'El RUC o documento de la empresa ya se encuentra registrado.');
+        throw new HttpError(409, 'El documento de la empresa ya se encuentra registrado.');
       }
       throw err;
+    } finally {
+      client.release();
     }
   })
 );
@@ -178,23 +211,55 @@ directoryRouter.put(
   asyncHandler(async (req: Request, res: Response) => {
     const id = z.string().uuid().parse(req.params.id);
     const body = organizationSchema.parse(req.body);
-    const oldRes = await pool.query('SELECT * FROM organizations WHERE id = $1', [id]);
-    const previousState = oldRes.rows[0];
+    const client = await pool.connect();
+    
     try {
-      const result = await pool.query(
+      await client.query('BEGIN');
+      const oldRes = await client.query('SELECT * FROM organizations WHERE id = $1', [id]);
+      if (oldRes.rowCount === 0) {
+         await client.query('ROLLBACK');
+         return res.status(404).json({ message: 'Organización no encontrada' });
+      }
+      const previousState = oldRes.rows[0];
+      const finalDocNumber = body.document_number || null;
+
+      const result = await client.query(
         `UPDATE organizations 
-         SET legal_name = $1, trade_name = $2, ruc = $3, industry = $4, country_id = $5, updated_at = NOW() 
-         WHERE id = $6 AND deleted_at IS NULL RETURNING *`,
-        [body.legal_name, body.trade_name || body.legal_name, body.ruc, body.industry, body.country_id, id]
+         SET legal_name = $1, trade_name = $2, industry = $3, country_id = $4, updated_at = NOW() 
+         WHERE id = $5 AND deleted_at IS NULL RETURNING *`,
+        [body.legal_name, body.trade_name || body.legal_name, body.industry, body.country_id, id]
       );
-      if (result.rowCount === 0) return res.status(404).json({ message: 'Organización no encontrada' });
+      
+      if (finalDocNumber) {
+        let docTypeId = body.document_type_id;
+        if (!docTypeId && body.country_id) {
+           const dtRes = await client.query("SELECT id FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1", [body.country_id]);
+           if ((dtRes.rowCount ?? 0) > 0) docTypeId = dtRes.rows[0].id;
+        }
+
+        if (docTypeId) {
+           // En update o insertamos si no existia
+           await client.query(
+             `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (organization_id, document_type_id) 
+              DO UPDATE SET document_number = EXCLUDED.document_number, is_active = true, updated_at = NOW()`,
+             [id, docTypeId, finalDocNumber]
+           );
+        }
+      }
+
+      await client.query('COMMIT');
       await auditService.logAdminAction({ userId: req.admin?.id, action: 'update', entityType: 'organizations', entity: result.rows[0], previousState, req });
       res.json(result.rows[0]);
     } catch (err: any) {
+      await client.query('ROLLBACK');
       if (err.code === '23505') {
-        throw new HttpError(409, 'El RUC o documento de la empresa ya se encuentra registrado por otra.');
+        throw new HttpError(409, 'El documento de la empresa ya se encuentra registrado por otra.');
       }
       throw err;
+    } finally {
+      client.release();
     }
   })
 );

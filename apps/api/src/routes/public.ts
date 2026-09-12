@@ -141,9 +141,10 @@ const parseClaimedAmount = (value: string) => {
 let normalizedContactSchema: boolean | null = null;
 
 router.get('/catalog/countries', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", tax_id_regex, tax_id_format, phone_regex, phone_format FROM countries WHERE is_active = true ORDER BY name ASC');
+  // tax_id_regex y tax_id_format fueron removidos en la migración, los simulamos a null para el front viejo
+  const result = await pool.query('SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", phone_regex, phone_format FROM countries WHERE is_active = true ORDER BY name ASC');
   // Aseguramos iso2 en vez de iso por compatibilidad con el front
-  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2 }));
+  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2, tax_id_regex: null, tax_id_format: null }));
   res.json({ items: mapped });
 }));
 
@@ -284,6 +285,7 @@ router.post(
 
     try {
       await client.query('BEGIN');
+      let companyDocTypeId: string | null = null;
 
       if (body.countryId) {
         const countryRes = await client.query(
@@ -321,12 +323,13 @@ router.post(
         // Fetch validation regex from document_types based on personType
         if (body.personType === 'company') {
           const docTypeRes = await client.query(
-            `SELECT validation_regex, name FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1`,
+            `SELECT id, validation_regex, name FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1`,
             [body.countryId]
           );
           
           if ((docTypeRes.rowCount ?? 0) > 0) {
              const docType = docTypeRes.rows[0];
+             companyDocTypeId = docType.id;
              if (docType.validation_regex && body.ruc) {
                  const taxRegex = new RegExp(docType.validation_regex);
                  if (!taxRegex.test(body.ruc)) {
@@ -433,20 +436,32 @@ router.post(
 
       if (body.personType === 'company') {
         const existingOrganization = await client.query(
-          'SELECT id FROM organizations WHERE ruc = $1 AND deleted_at IS NULL LIMIT 1',
+          `SELECT o.id 
+           FROM organizations o
+           JOIN organization_documents od ON o.id = od.organization_id
+           WHERE od.document_number = $1 AND o.deleted_at IS NULL LIMIT 1`,
           [body.ruc],
         );
         const organizationId = existingOrganization.rowCount
           ? existingOrganization.rows[0].id
           : (await client.query(
-              'INSERT INTO organizations (legal_name, trade_name, ruc) VALUES ($1, $1, $2) RETURNING id',
-              [body.empresa, body.ruc],
+              'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
+              [body.empresa, body.countryId ?? null],
             )).rows[0].id;
 
         if (existingOrganization.rowCount) {
           await client.query(
             'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
             [organizationId, body.empresa],
+          );
+        }
+
+        if (companyDocTypeId) {
+          await client.query(
+            `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, document_type_id) DO UPDATE SET document_number = EXCLUDED.document_number, updated_at = now()`,
+            [organizationId, companyDocTypeId, body.ruc]
           );
         }
 

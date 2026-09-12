@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
-import { Users, MessageSquareText, Activity, ShieldCheck } from 'lucide-react';
+import { Users, MessageSquareText, Activity, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 
 type StatItem = { status: string; total: number };
@@ -43,7 +43,15 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 font-sansation">
-      <h1 className="text-2xl font-semibold tracking-wide text-white/90">Dashboard</h1>
+      <div className="flex items-center justify-between pb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <LayoutDashboard className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Dashboard</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Resumen general</p>
+          </div>
+        </div>
+      </div>
       
       {/* Top Metrics */}
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
@@ -372,7 +372,13 @@ const Contactos: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 min-h-[calc(100vh-120px)] font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
-        <h1 className="text-2xl font-semibold tracking-wide text-white/90">Gestión de Contactos</h1>
+        <div className="flex items-center gap-3">
+          <Users className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Gestión de Contactos</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Bandeja de mensajes de contacto</p>
+          </div>
+        </div>
         <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
           <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
         </button>

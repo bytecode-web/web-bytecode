@@ -292,7 +292,7 @@ const AdminCotizador: React.FC = () => {
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div className="flex items-center gap-3">
-          <Calculator className="h-6 w-6 text-white/50" />
+          <Calculator className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Cotizador</h1>
             <p className="mt-1 text-xs uppercase tracking-widest text-white/40">Generacion dinamica de cotizaciones</p>
@@ -420,8 +420,8 @@ const AdminCotizador: React.FC = () => {
       </AnimatePresence>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-7xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl custom-scrollbar md:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+          <div className="w-full max-w-5xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
               <h2 className="text-lg font-semibold text-white/90">{editingQuoteId ? 'Editar Cotizacion' : 'Nueva Cotizacion'}</h2>
               <button

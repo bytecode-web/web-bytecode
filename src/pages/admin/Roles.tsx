@@ -65,6 +65,7 @@ const Roles: React.FC = () => {
   const [actionsMenu, setActionsMenu] = useState<ActionMenuState | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   const permissionsByModule = useMemo(() => {
     return permissions.reduce<Record<string, Permission[]>>((acc, permission) => {
@@ -78,7 +79,7 @@ const Roles: React.FC = () => {
     setLoading(true);
     try {
       const [rolesResult, permissionsResult] = await Promise.all([
-        apiRequest<{ data: Role[]; total: number }>(`/admin/roles?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`),
+        apiRequest<{ data: Role[]; total: number }>(`/admin/roles?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&status=${statusFilter}`),
         apiRequest<{ items: Permission[] }>('/admin/permissions'),
       ]);
       if (rolesResult.data.length === 0 && rolesResult.total > 0 && page > 1) { setPage(page - 1); return; }
@@ -93,8 +94,12 @@ const Roles: React.FC = () => {
   };
 
   useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  useEffect(() => {
     void loadData();
-  }, [page]);
+  }, [page, statusFilter]);
 
   useEffect(() => {
     const handleClickOutside = () => setActionsMenu(null);
@@ -184,17 +189,22 @@ const Roles: React.FC = () => {
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <ShieldCheck className="h-6 w-6 text-white/50" />
+          <ShieldCheck className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Roles</h1>
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Permisos por rol</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={loadData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
+            <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
+            <button onClick={() => setStatusFilter('active')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
+            <button onClick={() => setStatusFilter('inactive')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
+          </div>
+          <button onClick={loadData} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white h-[38px]">
             <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
           </button>
-          <button onClick={handleOpenCreate} className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90">
+          <button onClick={handleOpenCreate} className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90 h-[38px]">
             <Plus className="h-4 w-4" /> <span>Nuevo Rol</span>
           </button>
         </div>
@@ -214,7 +224,7 @@ const Roles: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-white/5 text-white/80">
               {roles.map((role) => (
-                <tr key={role.id} className="transition-colors hover:bg-white/[0.02]">
+                <tr key={role.id} className={`transition-colors hover:bg-white/[0.02] ${!role.is_active ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
                     <p className="font-medium text-white/90">{role.name}</p>
                     {role.description && <p className="mt-1 text-xs text-white/40 max-w-[320px] truncate">{role.description}</p>}
@@ -222,7 +232,7 @@ const Roles: React.FC = () => {
                   <td className="px-6 py-4 text-xs font-mono text-white/50">{role.code}</td>
                   <td className="px-6 py-4 text-center text-white/60">{role.permission_codes?.length ?? 0}</td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`rounded px-2 py-0.5 text-[10px] font-medium border ${role.is_active ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium border ${role.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                       {role.is_active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
@@ -270,8 +280,8 @@ const Roles: React.FC = () => {
       </AnimatePresence>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setIsModalOpen(false)}>
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Rol' : 'Nuevo Rol'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
@@ -316,14 +326,18 @@ const Roles: React.FC = () => {
                   </div>
 
                   {isEditing && (
-                    <label className="md:col-span-2 flex items-center gap-3 text-sm text-white/70">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(event) => setFormData({ ...formData, isActive: event.target.checked })}
-                        className="h-4 w-4 rounded border-white/20 bg-white/5 text-white focus:ring-white/20 focus:ring-offset-black"
-                      />
-                      Rol activo
+                    <label className="md:col-span-2 flex items-center gap-3 cursor-pointer select-none mt-2">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={formData.isActive}
+                          onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                        />
+                        <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                        <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isActive ? 'translate-x-4' : ''}`}></div>
+                      </div>
+                      <span className="text-sm text-white/80">Rol Activo</span>
                     </label>
                   )}
                 </div>

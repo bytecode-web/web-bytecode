@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2 } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -221,7 +221,13 @@ const Usuarios: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
-        <h1 className="text-2xl font-semibold tracking-wide text-white/90">Usuarios Administradores</h1>
+        <div className="flex items-center gap-3">
+          <UserCog className="h-6 w-6 text-[#06CFD6]" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-wide text-white/90">Usuarios Administradores</h1>
+            <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Control de accesos</p>
+          </div>
+        </div>
         <div className="flex gap-3 items-center">
           <div className="flex gap-1 bg-white/5 p-1 rounded-lg border border-white/10 mr-2">
             <button onClick={() => { setStatusFilter('all'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
@@ -261,7 +267,7 @@ const Usuarios: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`rounded px-2 py-0.5 text-[10px] font-medium border ${user.is_active ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium border ${user.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                       {user.is_active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
@@ -340,8 +346,8 @@ const Usuarios: React.FC = () => {
       </AnimatePresence>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setIsModalOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
@@ -401,14 +407,18 @@ const Usuarios: React.FC = () => {
               </div>
 
               {isEditing && (
-                <label className="flex items-center gap-3 text-sm text-white/70">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(event) => setFormData({ ...formData, isActive: event.target.checked })}
-                    className="h-4 w-4 rounded border-white/20 bg-white/5 text-white focus:ring-white/20 focus:ring-offset-black"
-                  />
-                  Usuario activo
+                <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={formData.isActive}
+                      onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${formData.isActive ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                    <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.isActive ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                  <span className="text-sm text-white/80">Usuario Activo</span>
                 </label>
               )}
 
