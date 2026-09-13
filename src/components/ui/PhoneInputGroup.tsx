@@ -82,7 +82,7 @@ const PhoneInputGroup: React.FC<PhoneInputProps> = ({ value, onChange, onCountry
         <input
           type="tel"
           name={value !== undefined ? undefined : "telefono"} // Avoid naming conflicts if passed loosely, rely on onChange
-          placeholder={isLoading ? 'Despertando servidor...' : `Ej: ${'9'.repeat(selectedCountry.maxLength)}`}
+          placeholder={isLoading ? 'Despertando servidor...' : (selectedCountry?.phone_format ? `Ej: ${selectedCountry.phone_format.replace(selectedCountry.dialCode, '').trim()}` : "Ej: 987654321")}
           className="flex-1 bg-transparent px-4 py-[0.6rem] text-[#333] placeholder-gray-400 focus:outline-none text-[18px] md:text-[20px] rounded-r-full"
           required
           maxLength={selectedCountry.maxLength}
