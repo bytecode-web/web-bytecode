@@ -196,7 +196,8 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                   ...countries.map(c => ({ 
                     value: c.id, 
                     label: c.name, 
-                    icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined 
+                    icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined,
+                    extraRight: c.dialCode ? <span className="text-white/40 text-[11px] font-mono whitespace-nowrap">{c.dialCode}</span> : undefined
                   }))
                 ]}
               />
@@ -208,9 +209,9 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 name="primary_phone"
                 value={formData.primary_phone}
                 onChange={(e) => setFormData({ ...formData, primary_phone: e.target.value })}
-                placeholder={selectedCountry?.phone_format || "+51 987654321"}
+                placeholder={selectedCountry?.maxLength ? '9'.repeat(selectedCountry.maxLength) : "987654321"}
                 maxLength={selectedCountry?.maxLength}
-                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
               />
             </label>
 

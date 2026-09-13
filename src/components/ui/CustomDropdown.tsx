@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export interface DropdownOption { value: string; label: string; icon?: React.ReactNode; }
+export interface DropdownOption { value: string; label: string; icon?: React.ReactNode; extraRight?: React.ReactNode; }
 export interface CustomDropdownProps { 
   value: string; 
   options: DropdownOption[]; 
@@ -42,9 +42,12 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ value, options, onChang
     <div className="relative w-full" ref={dropdownRef}>
       <input type="text" value={value} onChange={() => {}} required={required} disabled={disabled} className="absolute opacity-0 w-full h-full -z-10 pointer-events-none" tabIndex={-1} />
       <div onClick={() => { if (!disabled) setIsOpen(!isOpen); }} aria-disabled={disabled} className={`flex items-center justify-between w-full px-6 py-[0.6rem] shadow-sm transition-all ${triggerBg} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isOpen ? 'ring-2 ring-[#06CFD6]' : ''}`}>
-        <span className={`${triggerTextSize} ${triggerText} flex items-center gap-2 truncate`}>
-          {selectedOption?.icon}
-          <span className="truncate">{selectedLabel}</span>
+        <span className={`${triggerTextSize} ${triggerText} flex items-center justify-between w-full truncate pr-2`}>
+          <span className="flex items-center gap-2 truncate">
+            {selectedOption?.icon}
+            <span className="truncate">{selectedLabel}</span>
+          </span>
+          {selectedOption?.extraRight && <span className="flex-shrink-0 ml-3">{selectedOption.extraRight}</span>}
         </span>
         <svg className={`flex-shrink-0 w-4 h-4 transition-transform duration-200 ${isPublic ? 'text-gray-500' : 'text-white/50'} ${isOpen ? (menuPlacement === 'top' ? '-rotate-180' : 'rotate-180') : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -55,9 +58,12 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ value, options, onChang
           <motion.div initial={{ opacity: 0, y: menuPlacement === 'top' ? 10 : -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: menuPlacement === 'top' ? 10 : -10, scale: 0.95 }} transition={{ duration: 0.2 }} className={`absolute ${placementClass} w-full border shadow-xl rounded-xl overflow-hidden z-[100] ${menuBg}`}>
             <div className="py-2 max-h-[207.5px] overflow-y-auto custom-scrollbar">
               {options.map((option) => (
-                <div key={option.value} onClick={() => { onChange(option.value); setIsOpen(false); }} className={`flex items-center gap-2 px-6 cursor-pointer transition-colors ${optionTextSize} ${value === option.value ? (isPublic ? 'bg-[#06CFD6]/15 text-[#06CFD6] font-bold' : 'bg-[#06CFD6]/20 text-[#06CFD6]') : (isPublic ? 'text-gray-600 hover:bg-gray-200 hover:text-gray-900' : 'text-white/80 hover:bg-white/10 hover:text-white')}`}>
-                  {option.icon}
-                  <span className="truncate">{option.label}</span>
+                <div key={option.value} onClick={() => { onChange(option.value); setIsOpen(false); }} className={`flex items-center justify-between px-6 cursor-pointer transition-colors ${optionTextSize} ${value === option.value ? (isPublic ? 'bg-[#06CFD6]/15 text-[#06CFD6] font-bold' : 'bg-[#06CFD6]/20 text-[#06CFD6]') : (isPublic ? 'text-gray-600 hover:bg-gray-200 hover:text-gray-900' : 'text-white/80 hover:bg-white/10 hover:text-white')}`}>
+                  <div className="flex items-center gap-2 truncate">
+                    {option.icon}
+                    <span className="truncate">{option.label}</span>
+                  </div>
+                  {option.extraRight && <div className="flex-shrink-0 ml-3">{option.extraRight}</div>}
                 </div>
               ))}
             </div>

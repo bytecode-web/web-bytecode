@@ -372,7 +372,16 @@ export default function DirectorioAdmin() {
                           <span className="text-xs text-white/30 italic">N/A</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-white/60 text-xs font-mono">{cust.primary_phone || '-'}</td>
+                      <td className="px-6 py-4 text-white/60 text-xs font-mono">
+                        {cust.primary_phone ? (
+                          <>
+                            {cust.country_iso && (
+                              <span className="text-white/30 mr-1 text-[11px]">({countries.find(c => c.iso === cust.country_iso)?.dialCode})</span>
+                            )}
+                            {cust.primary_phone}
+                          </>
+                        ) : '-'}
+                      </td>
                       <td className="px-6 py-4">
                         {cust.organizations && cust.organizations.length > 0 ? (
                           <div className="flex items-center space-x-1.5 text-white/70">

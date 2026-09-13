@@ -308,14 +308,14 @@ router.post(
           dial_code: string | null;
         };
 
-        if (country.phone_max_length) {
-          // Extraemos el dial_code del principio y limpiamos espacios/símbolos extras para contar solo dígitos puros ingresados
-          let rawPhone = body.celular;
-          if (country.dial_code && rawPhone.startsWith(country.dial_code)) {
-             rawPhone = rawPhone.substring(country.dial_code.length);
-          }
-          rawPhone = rawPhone.replace(/\D/g, ''); // Deja solo los dígitos
+        let rawPhone = body.celular;
+        if (country.dial_code && rawPhone.startsWith(country.dial_code)) {
+           rawPhone = rawPhone.substring(country.dial_code.length);
+        }
+        rawPhone = rawPhone.replace(/\D/g, ''); // Deja solo los dígitos
+        body.celular = rawPhone; // Guardamos sin prefijo para DB
 
+        if (country.phone_max_length) {
           if (rawPhone.length !== Number(country.phone_max_length)) {
             throw new HttpError(400, `El celular debe tener ${country.phone_max_length} dígitos.`);
           }
@@ -641,7 +641,7 @@ router.post(
             customerId = existingDoc.rows[0].customer_id;
             await client.query(
               "UPDATE customers SET primary_email = $1, primary_phone = $2, first_name = $3, last_name = $4, country_id = $5, person_type = $6, updated_at = NOW() WHERE id = $7",
-              [body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.nombres, body.apellidos, body.countryId ?? null, personTypeVal, customerId]
+              [body.email.toLowerCase(), body.telefono, body.nombres, body.apellidos, body.countryId ?? null, personTypeVal, customerId]
             );
           } else {
             const customerRes = await client.query(
@@ -650,7 +650,7 @@ router.post(
               VALUES ($1, $2, $3, $4, $5, $6, $7)
               RETURNING id
               `,
-              [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
+              [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
             );
             customerId = customerRes.rows[0].id;
             
@@ -669,7 +669,7 @@ router.post(
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             `,
-            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
+            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
           );
           customerId = customerRes.rows[0].id;
         }
@@ -680,7 +680,7 @@ router.post(
           VALUES ($1, $2, $3, $4, $5, $6, $7)
           RETURNING id
           `,
-          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.apellidos, '', body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
+          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.apellidos, '', body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
         );
         customerId = customerRes.rows[0].id;
 
