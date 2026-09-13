@@ -156,6 +156,9 @@ export default function LocalizacionAdmin() {
                           d.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (d.country_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCountry = selectedCountryFilter === 'all' || d.country_id === selectedCountryFilter;
+    
+    if (statusFilter === 'active') return matchesSearch && matchesCountry && d.is_active;
+    if (statusFilter === 'inactive') return matchesSearch && matchesCountry && !d.is_active;
     return matchesSearch && matchesCountry;
   });
   const paginatedDocs = filteredDocs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -202,13 +205,11 @@ export default function LocalizacionAdmin() {
             <span>Tipos de Documento</span>
           </button>
         </div>
-        {activeTab === 'countries' && (
-          <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
-            <button onClick={() => { setStatusFilter('all'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
-            <button onClick={() => { setStatusFilter('active'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
-            <button onClick={() => { setStatusFilter('inactive'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
-          </div>
-        )}
+        <div className="flex space-x-1 bg-white/5 p-1 rounded-lg border border-white/10">
+          <button onClick={() => { setStatusFilter('all'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Todos</button>
+          <button onClick={() => { setStatusFilter('active'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'active' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Activos</button>
+          <button onClick={() => { setStatusFilter('inactive'); setPage(1); }} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${statusFilter === 'inactive' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/80'}`}>Inactivos</button>
+        </div>
       </div>
 
       <AdminPanel className="flex flex-col overflow-hidden">
@@ -323,15 +324,16 @@ export default function LocalizacionAdmin() {
                   <th className="px-6 py-4 font-medium">Documento</th>
                   <th className="px-6 py-4 font-medium">País</th>
                   <th className="px-6 py-4 font-medium text-center">Uso</th>
+                  <th className="px-6 py-4 font-medium text-center">Estado</th>
                   <th className="px-6 py-4 font-medium">Validación Regex</th>
                   <th className="px-6 py-4 font-medium text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/80">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[#06CFD6]" /></td></tr>
+                  <tr><td colSpan={6} className="px-6 py-12 text-center text-white/30"><Loader2 className="w-8 h-8 animate-spin mx-auto text-[#06CFD6]" /></td></tr>
                 ) : paginatedDocs.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-12 text-center text-white/30">No hay documentos que coincidan con la búsqueda.</td></tr>
+                  <tr><td colSpan={6} className="px-6 py-12 text-center text-white/30">No hay documentos que coincidan con la búsqueda.</td></tr>
                 ) : (
                   paginatedDocs.map((d: any) => (
                     <tr key={d.id} className="transition-colors hover:bg-white/[0.02]">
@@ -354,6 +356,11 @@ export default function LocalizacionAdmin() {
                         {d.is_company_document 
                           ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">B2B</span>
                           : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#06CFD6]/10 text-[#06CFD6] border border-[#06CFD6]/20">B2C</span>}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${d.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                          {d.is_active ? 'Activo' : 'Inactivo'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-white/40 font-mono text-xs">
                         {d.validation_regex ? `/${d.validation_regex}/` : 'N/A'}
