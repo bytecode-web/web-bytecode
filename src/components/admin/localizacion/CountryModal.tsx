@@ -30,7 +30,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
   const isValidRegex = useMemo(() => {
     if (!formData.phone_regex || !testValue) return false;
     try {
-      const regex = new RegExp(formData.phone_regex);
+      const regex = new RegExp(`^${formData.phone_regex}$`);
       return regex.test(testValue);
     } catch {
       return false;
@@ -44,7 +44,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
 
     try {
       if (formData.phone_regex) {
-        new RegExp(formData.phone_regex);
+        new RegExp(`^${formData.phone_regex}$`);
       }
     } catch (e) {
       const msg = 'La Expresión Regular ingresada es inválida';
@@ -57,7 +57,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
     try {
       const payload = {
         ...formData,
-        phone_max_length: formData.phone_max_length ? parseInt(formData.phone_max_length) : null,
+        phone_max_length: formData.phone_max_length ? parseInt(String(formData.phone_max_length)) : null,
       };
 
       if (isEditing) {
@@ -128,6 +128,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
                 <label className="block text-sm font-medium text-white/70 mb-1">Dial Code</label>
                 <input
                   type="text"
+                  required
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.dial_code}
                   onChange={e => setFormData({ ...formData, dial_code: e.target.value })}
@@ -141,6 +142,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
                 <label className="block text-sm font-medium text-white/70 mb-1">Formato Telefónico</label>
                 <input
                   type="text"
+                  required
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
                   value={formData.phone_format}
                   onChange={e => setFormData({ ...formData, phone_format: e.target.value })}
@@ -151,6 +153,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
                 <label className="block text-sm font-medium text-white/70 mb-1">Max Length</label>
                 <input
                   type="number"
+                  required
                   min="1"
                   max="20"
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
@@ -163,13 +166,19 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
 
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-1">Regex Telefónico (Opcional)</label>
+                <label className="block text-sm font-medium text-white/70 mb-1">
+                  Regex Telefónico
+                  <span className="block text-[11px] text-white/40 font-normal mt-0.5">
+                    No incluyas ^ o $ (se añaden automáticamente).
+                  </span>
+                </label>
                 <input
                   type="text"
+                  required
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
                   value={formData.phone_regex}
                   onChange={e => setFormData({ ...formData, phone_regex: e.target.value })}
-                  placeholder="Ej. ^9\d{8}$"
+                  placeholder="Ej. 9?\d{10}"
                 />
               </div>
 

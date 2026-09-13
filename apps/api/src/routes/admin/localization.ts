@@ -13,10 +13,10 @@ export const localizationRouter = Router();
 const countrySchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   iso2: z.string().length(2, 'El ISO2 debe tener exactamente 2 caracteres').toUpperCase(),
-  dial_code: z.string().max(10).optional().nullable(),
-  phone_max_length: z.number().int().min(1).max(20).optional().nullable(),
-  phone_regex: z.string().max(255).optional().nullable(),
-  phone_format: z.string().max(50).optional().nullable(),
+  dial_code: z.string().min(1, 'Requerido').max(10),
+  phone_max_length: z.number().int().min(1, 'Requerido').max(20),
+  phone_regex: z.string().min(1, 'Requerido').max(255),
+  phone_format: z.string().min(1, 'Requerido').max(50),
   is_active: z.boolean().default(true),
 });
 
