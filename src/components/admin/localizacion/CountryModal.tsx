@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
+import { useToastStore } from '../../../stores/toastStore';
 
 interface CountryModalProps {
   country?: any;
@@ -12,6 +13,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
   const isEditing = !!country;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const addToast = useToastStore((state) => state.addToast);
 
   const [formData, setFormData] = useState({
     name: country?.name || '',
@@ -35,13 +37,17 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
       };
 
       if (isEditing) {
-        await apiRequest(`/admin/localization/countries/${country.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await apiRequest(`/admin/localization/countries/${country.id}`, { method: 'PUT', json: payload });
+        addToast('País actualizado correctamente', 'success');
       } else {
-        await apiRequest('/admin/localization/countries', { method: 'POST', body: JSON.stringify(payload) });
+        await apiRequest('/admin/localization/countries', { method: 'POST', json: payload });
+        addToast('País creado correctamente', 'success');
       }
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Error al guardar el país');
+      const msg = err.message || 'Error al guardar el país';
+      setError(msg);
+      addToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -106,14 +112,39 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Formato Telefónico</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
+                  value={formData.phone_format}
+                  onChange={e => setFormData({ ...formData, phone_format: e.target.value })}
+                  placeholder="Ej. 91112345678"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Max Length</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
+                  value={formData.phone_max_length}
+                  onChange={e => setFormData({ ...formData, phone_max_length: e.target.value })}
+                  placeholder="Ej. 10"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-1">Formato Telefónico</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Regex Telefónico (Opcional)</label>
               <input
                 type="text"
                 className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
-                value={formData.phone_format}
-                onChange={e => setFormData({ ...formData, phone_format: e.target.value })}
-                placeholder="### ### ####"
+                value={formData.phone_regex}
+                onChange={e => setFormData({ ...formData, phone_regex: e.target.value })}
+                placeholder="Ej. ^9\d{8}$"
               />
             </div>
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
+import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
 
 interface DocumentTypeModalProps {
@@ -14,6 +15,7 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
   const isEditing = !!documentType;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const addToast = useToastStore((state) => state.addToast);
 
   const [formData, setFormData] = useState({
     country_id: documentType?.country_id || '',
@@ -67,13 +69,17 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
       };
 
       if (isEditing) {
-        await apiRequest(`/admin/localization/document-types/${documentType.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await apiRequest(`/admin/localization/document-types/${documentType.id}`, { method: 'PUT', json: payload });
+        addToast('Documento actualizado correctamente', 'success');
       } else {
-        await apiRequest('/admin/localization/document-types', { method: 'POST', body: JSON.stringify(payload) });
+        await apiRequest('/admin/localization/document-types', { method: 'POST', json: payload });
+        addToast('Documento creado correctamente', 'success');
       }
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Error al guardar el documento');
+      const msg = err.message || 'Error al guardar el documento';
+      setError(msg);
+      addToast(msg, 'error');
     } finally {
       setLoading(false);
     }
