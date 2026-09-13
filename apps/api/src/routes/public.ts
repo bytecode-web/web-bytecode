@@ -297,7 +297,7 @@ router.post(
       if (body.countryId) {
         const countryRes = await client.query(
           `
-          SELECT phone_max_length, dial_code
+          SELECT phone_max_length, dial_code, phone_regex
           FROM countries
           WHERE id = $1 AND is_active = true
           LIMIT 1
@@ -312,6 +312,7 @@ router.post(
         const country = countryRes.rows[0] as {
           phone_max_length: number | null;
           dial_code: string | null;
+          phone_regex: string | null;
         };
 
         let rawPhone = body.celular;
@@ -321,7 +322,12 @@ router.post(
         rawPhone = rawPhone.replace(/\D/g, ''); // Deja solo los dígitos
         body.celular = rawPhone; // Guardamos sin prefijo para DB
 
-        if (country.phone_max_length) {
+        if (country.phone_regex) {
+          const regex = new RegExp(`^${country.phone_regex}$`);
+          if (!regex.test(rawPhone)) {
+             throw new HttpError(400, 'El formato del celular no es válido.');
+          }
+        } else if (country.phone_max_length) {
           if (rawPhone.length !== Number(country.phone_max_length)) {
             throw new HttpError(400, `El celular debe tener ${country.phone_max_length} dígitos.`);
           }

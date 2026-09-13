@@ -181,6 +181,37 @@ const Contacto: React.FC = () => {
     }));
   }, [filteredDocs]);
 
+  const isFormValid = React.useMemo(() => {
+    if (isLoadingCatalogs) return false;
+    
+    // Validaciones comunes
+    const isBaseValid = 
+      formData.nombre.trim().length >= 2 &&
+      formData.apellido.trim().length >= 2 &&
+      formData.email.trim().includes('@') &&
+      formData.celular.trim().length >= 4 &&
+      formData.servicio &&
+      formData.mensaje.trim().length >= 10 &&
+      formData.aceptaTerminos;
+
+    if (!isBaseValid) return false;
+    if (taxIdError) return false;
+
+    // Validaciones específicas por tipo
+    if (personType === 'company') {
+      return (
+        formData.cargo.trim().length >= 2 &&
+        formData.empresa.trim().length >= 2 &&
+        formData.ruc.trim().length >= 4
+      );
+    } else {
+      return (
+        formData.documentType &&
+        formData.documentNumber.trim().length >= 4
+      );
+    }
+  }, [formData, personType, isLoadingCatalogs, taxIdError]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -472,8 +503,8 @@ const Contacto: React.FC = () => {
               text={isLoadingCatalogs ? "Conectando..." : "Conectar"}
               loadingText="Enviando..."
               successText="¡Conectado!"
-              disabled={isLoadingCatalogs}
-              className={`w-full text-white py-2 rounded-3xl text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-90 ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-[0_0_20px_rgba(6,207,214,0.3)]'}`}
+              disabled={isLoadingCatalogs || !isFormValid}
+              className={`w-full text-white py-2 rounded-3xl text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-none'}`}
             />
           </div>
         </motion.form>
