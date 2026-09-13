@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
 import { useToastStore } from '../../../stores/toastStore';
 
@@ -25,10 +25,34 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
     is_active: country ? country.is_active : true,
   });
 
+  const [testValue, setTestValue] = useState('');
+
+  const isValidRegex = useMemo(() => {
+    if (!formData.phone_regex || !testValue) return false;
+    try {
+      const regex = new RegExp(formData.phone_regex);
+      return regex.test(testValue);
+    } catch {
+      return false;
+    }
+  }, [formData.phone_regex, testValue]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    try {
+      if (formData.phone_regex) {
+        new RegExp(formData.phone_regex);
+      }
+    } catch (e) {
+      const msg = 'La Expresión Regular ingresada es inválida';
+      setError(msg);
+      addToast(msg, 'error');
+      setLoading(false);
+      return;
+    }
 
     try {
       const payload = {
@@ -137,15 +161,54 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-white/70 mb-1">Regex Telefónico (Opcional)</label>
-              <input
-                type="text"
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
-                value={formData.phone_regex}
-                onChange={e => setFormData({ ...formData, phone_regex: e.target.value })}
-                placeholder="Ej. ^9\d{8}$"
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Regex Telefónico (Opcional)</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
+                  value={formData.phone_regex}
+                  onChange={e => setFormData({ ...formData, phone_regex: e.target.value })}
+                  placeholder="Ej. ^9\d{8}$"
+                />
+              </div>
+
+              {formData.phone_regex && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                  <label className="block text-xs font-medium text-white/50 mb-2">
+                    Prueba en vivo (Live Tester)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={testValue}
+                      onChange={(e) => setTestValue(e.target.value)}
+                      placeholder="Ingresa un teléfono en crudo para probar..."
+                      className={`w-full px-4 py-2 pr-10 bg-black/20 border rounded-md text-sm outline-none transition-colors ${
+                        testValue
+                          ? isValidRegex
+                            ? 'border-emerald-500/30 text-emerald-100 focus:border-emerald-500/50'
+                            : 'border-rose-500/30 text-rose-100 focus:border-rose-500/50'
+                          : 'border-white/5 text-white/90 focus:border-[#06CFD6]/30'
+                      }`}
+                    />
+                    {testValue && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {isValidRegex ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {testValue && (
+                    <p className={`mt-2 text-[11px] ${isValidRegex ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
+                      {isValidRegex ? '¡El formato coincide!' : 'El formato no coincide con la expresión regular'}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
