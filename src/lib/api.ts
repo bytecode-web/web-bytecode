@@ -89,7 +89,17 @@ async function apiRequestInternal<T>(path: string, options: RequestOptions = {},
       }
     }
 
+    if (payload?.code === 'UNAUTHORIZED' || response.status === 401) {
+      if (!path.startsWith('/auth/')) {
+        window.location.href = '/admin/login';
+      }
+    }
+
     throw new ApiError(payload?.message ?? 'No se pudo completar la solicitud.', payload?.code, payload);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
   }
 
   const result = await response.json() as T;

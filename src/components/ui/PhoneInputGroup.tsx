@@ -42,8 +42,21 @@ const PhoneInputGroup: React.FC<PhoneInputProps> = ({ value, onChange, onCountry
     const val = e.target.value.replace(/\D/g, '');
     e.target.value = val;
     onChange(e);
-    if (selectedCountry && val.length > 0 && val.length !== selectedCountry.maxLength) setError(`El número debe tener ${selectedCountry.maxLength} dígitos`);
-    else setError('');
+    
+    if (selectedCountry && val.length > 0) {
+      // Usar Regex para validación dinámica si está configurado en el backend
+      if (selectedCountry.phone_regex) {
+        const regex = new RegExp(`^${selectedCountry.phone_regex}$`);
+        if (!regex.test(val)) setError(`El formato no es válido`);
+        else setError('');
+      } else {
+        // Fallback a longitud estricta
+        if (val.length !== selectedCountry.maxLength) setError(`El número debe tener ${selectedCountry.maxLength} dígitos`);
+        else setError('');
+      }
+    } else {
+      setError('');
+    }
   };
 
   const handleSelectCountry = (country: CountryData) => {
@@ -82,7 +95,7 @@ const PhoneInputGroup: React.FC<PhoneInputProps> = ({ value, onChange, onCountry
         <input
           type="tel"
           name={value !== undefined ? undefined : "telefono"} // Avoid naming conflicts if passed loosely, rely on onChange
-          placeholder={isLoading ? 'Despertando servidor...' : `Ej: ${'9'.repeat(selectedCountry.maxLength)}`}
+          placeholder={isLoading ? 'Despertando servidor...' : (selectedCountry?.phone_format ? `${selectedCountry.phone_format.replace(selectedCountry.dialCode, '').trim()}` : "Ej: 987654321")}
           className="flex-1 bg-transparent px-4 py-[0.6rem] text-[#333] placeholder-gray-400 focus:outline-none text-[18px] md:text-[20px] rounded-r-full"
           required
           maxLength={selectedCountry.maxLength}

@@ -156,14 +156,23 @@ const Contacto: React.FC = () => {
     setTaxIdError('');
   };
 
+  const filteredCountries = React.useMemo(() => {
+    return allCountries.filter(c => 
+      allDocumentTypes.some((d: any) => {
+        const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+        return dCountryId === c.id && d.isCompanyDocument === (personType === 'company');
+      })
+    );
+  }, [allCountries, allDocumentTypes, personType]);
+
   const filteredDocs = React.useMemo(() => {
     return allDocumentTypes.filter((dt: any) => {
-      if (dt.isCompanyDocument) return false;
       const dbCountryId = dt.countryId !== undefined ? dt.countryId : dt.country_id;
-      if (dbCountryId === null || dbCountryId === undefined) return true;
-      return String(dbCountryId).trim().toLowerCase() === String(selectedCountryData.id).trim().toLowerCase();
+      const matchesType = personType === 'company' ? dt.isCompanyDocument : !dt.isCompanyDocument;
+      if (dbCountryId === null || dbCountryId === undefined) return matchesType;
+      return matchesType && String(dbCountryId) === String(selectedCountryData?.id);
     });
-  }, [allDocumentTypes, selectedCountryData]);
+  }, [allDocumentTypes, selectedCountryData, personType]);
 
   const docDropdownOptions = React.useMemo(() => {
     return filteredDocs.map((doc: any) => ({
@@ -171,6 +180,37 @@ const Contacto: React.FC = () => {
       label: doc.name || doc.label
     }));
   }, [filteredDocs]);
+
+  const isFormValid = React.useMemo(() => {
+    if (isLoadingCatalogs) return false;
+    
+    // Validaciones comunes
+    const isBaseValid = 
+      formData.nombre.trim().length >= 2 &&
+      formData.apellido.trim().length >= 2 &&
+      formData.email.trim().includes('@') &&
+      formData.celular.trim().length >= 4 &&
+      formData.servicio &&
+      formData.mensaje.trim().length >= 10 &&
+      formData.aceptaTerminos;
+
+    if (!isBaseValid) return false;
+    if (taxIdError) return false;
+
+    // Validaciones específicas por tipo
+    if (personType === 'company') {
+      return (
+        formData.cargo.trim().length >= 2 &&
+        formData.empresa.trim().length >= 2 &&
+        formData.ruc.trim().length >= 4
+      );
+    } else {
+      return (
+        formData.documentType &&
+        formData.documentNumber.trim().length >= 4
+      );
+    }
+  }, [formData, personType, isLoadingCatalogs, taxIdError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,14 +368,14 @@ const Contacto: React.FC = () => {
             <Label text="Número de celular" />
             <PhoneInputGroup 
               value={formData.celular} 
-              onChange={(e: any) => {
-                const value = e?.target ? e.target.value : e;
+              onChange={(val: any) => {
+                const value = val?.target ? val.target.value : val; 
                 const onlyNumbers = value.replace(/\D/g, ''); 
                 setFormData({ ...formData, celular: onlyNumbers });
-              }}
-              onCountrySelect={handleCountrySelect}
-              countriesRegistry={allCountries}
-              isLoading={isLoadingCatalogs}
+              }} 
+              onCountrySelect={handleCountrySelect} 
+              countriesRegistry={filteredCountries} 
+              isLoading={isLoadingCatalogs} 
             />
           </div>
 
@@ -463,8 +503,8 @@ const Contacto: React.FC = () => {
               text={isLoadingCatalogs ? "Conectando..." : "Conectar"}
               loadingText="Enviando..."
               successText="¡Conectado!"
-              disabled={isLoadingCatalogs}
-              className={`w-full text-white py-2 rounded-3xl text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-90 ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-[0_0_20px_rgba(6,207,214,0.3)]'}`}
+              disabled={isLoadingCatalogs || !isFormValid}
+              className={`w-full text-white py-2 rounded-3xl text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-50 disabled:cursor-not-allowed transition-all ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-none'}`}
             />
           </div>
         </motion.form>

@@ -69,8 +69,13 @@ const AdminCMS: React.FC = () => {
 
   useEffect(() => {
     const handleClickOutside = () => setActionsMenu(null);
+    const handleScroll = () => setActionsMenu(null);
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, []);
 
   const handleOpenActions = (e: React.MouseEvent, id: string) => {
@@ -80,8 +85,8 @@ const AdminCMS: React.FC = () => {
     const placement = spaceBelow < 150 ? 'top' : 'bottom';
     setActionsMenu({
       id,
-      top: placement === 'bottom' ? rect.bottom + window.scrollY : rect.top + window.scrollY - 100,
-      left: rect.left + window.scrollX - 120,
+      top: placement === 'bottom' ? rect.bottom : rect.top - 100,
+      left: rect.left - 120,
       placement,
     });
   };
@@ -123,7 +128,7 @@ const AdminCMS: React.FC = () => {
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Database className="h-6 w-6 text-white/50" />
+          <Database className="h-6 w-6 text-[#06CFD6]" />
           <div>
             <h1 className="text-2xl font-semibold tracking-wide text-white/90">Gestor de Contenido (CMS)</h1>
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Administracion de paginas y SEO</p>
@@ -147,7 +152,7 @@ const AdminCMS: React.FC = () => {
                   <th className="px-6 py-4 font-medium">Meta descripcion</th>
                   <th className="px-6 py-4 font-medium">Estado</th>
                   <th className="px-6 py-4 font-medium">Ultima mod.</th>
-                  <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                  <th className="px-6 py-4 font-medium text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/80">
@@ -163,7 +168,7 @@ const AdminCMS: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-white/40 text-xs">{formatDate(page.updated_at)}</td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-center">
                       <button onClick={(e) => handleOpenActions(e, page.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
                         <MoreVertical className="h-4 w-4" />
                       </button>

@@ -65,9 +65,21 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
     }
   }, [isOpen, editingId, initialData]);
 
-  const selectedCountry = countries.find(c => c.id === formData.country_id);
+  const filteredCountries = React.useMemo(() => {
+    return countries.filter(c => 
+      documentTypes.some(d => 
+        (d.countryId === c.id || d.country_id === c.id) && 
+        d.isCompanyDocument === false
+      )
+    );
+  }, [countries, documentTypes]);
+
+  const selectedCountry = filteredCountries.find(c => c.id === formData.country_id);
   const selectedDocType = documentTypes.find(d => d.id === formData.document_type_id);
-  const filteredDocTypes = documentTypes.filter(d => !formData.country_id || d.countryId === formData.country_id);
+  const filteredDocTypes = documentTypes.filter(d => {
+    const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+    return (dCountryId === formData.country_id || dCountryId === null || dCountryId === undefined) && !d.isCompanyDocument;
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,9 +136,9 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm">
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <h2 className="text-lg font-semibold text-white/90">
             {editingId ? 'Editar Contacto' : 'Nuevo Contacto'}
@@ -193,10 +205,11 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 placeholder="Seleccionar..."
                 options={[
                   { value: '', label: 'Seleccionar...' },
-                  ...countries.map(c => ({ 
+                  ...filteredCountries.map(c => ({ 
                     value: c.id, 
                     label: c.name, 
-                    icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined 
+                    icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined,
+                    extraRight: c.dialCode ? <span className="text-white/40 text-[11px] font-mono whitespace-nowrap">{c.dialCode}</span> : undefined
                   }))
                 ]}
               />
@@ -208,9 +221,9 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 name="primary_phone"
                 value={formData.primary_phone}
                 onChange={(e) => setFormData({ ...formData, primary_phone: e.target.value })}
-                placeholder={selectedCountry?.phone_format || "+51 987654321"}
+                placeholder={selectedCountry?.phone_format ? selectedCountry.phone_format.replace(selectedCountry.dialCode, '').trim() : "987654321"}
                 maxLength={selectedCountry?.maxLength}
-                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
               />
             </label>
 

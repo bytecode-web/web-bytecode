@@ -27,7 +27,11 @@ const contactColumns = `
   cu.primary_email as email,
   cu.primary_phone as celular,
   COALESCE(o.legal_name, NULLIF(trim((regexp_match(c.message, 'Empresa:[[:space:]]*([^[:cntrl:]]+)'))[1]), ''), '') as empresa,
-  COALESCE(o.ruc, NULLIF(trim((regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1]), ''), '') as ruc,
+  COALESCE(
+    (SELECT document_number FROM organization_documents od WHERE od.organization_id = o.id AND od.is_active = true LIMIT 1),
+    NULLIF(trim((regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1]), ''), 
+    ''
+  ) as ruc,
   COALESCE(s.name, c.subject) as servicio,
   c.message,
   sc.code as status,

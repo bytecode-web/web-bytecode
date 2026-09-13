@@ -110,6 +110,7 @@ const complaintSchema = z.object({
   detalle: z.string().trim().min(10).max(3000),
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
+  countryId: z.string().uuid().optional().nullable(),
 });
 
 const createComplaintCode = () => {
@@ -141,9 +142,16 @@ const parseClaimedAmount = (value: string) => {
 let normalizedContactSchema: boolean | null = null;
 
 router.get('/catalog/countries', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", tax_id_regex, tax_id_format, phone_regex, phone_format FROM countries WHERE is_active = true ORDER BY name ASC');
+  // tax_id_regex y tax_id_format fueron removidos en la migración, los simulamos a null para el front viejo
+  const result = await pool.query(`
+    SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", phone_regex, phone_format 
+    FROM countries 
+    WHERE is_active = true 
+      AND EXISTS (SELECT 1 FROM document_types dt WHERE dt.country_id = countries.id AND dt.is_active = true)
+    ORDER BY name ASC
+  `);
   // Aseguramos iso2 en vez de iso por compatibilidad con el front
-  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2 }));
+  const mapped = result.rows.map(r => ({ ...r, iso: r.iso2, tax_id_regex: null, tax_id_format: null }));
   res.json({ items: mapped });
 }));
 
@@ -284,11 +292,12 @@ router.post(
 
     try {
       await client.query('BEGIN');
+      let companyDocTypeId: string | null = null;
 
       if (body.countryId) {
         const countryRes = await client.query(
           `
-          SELECT phone_max_length, dial_code
+          SELECT phone_max_length, dial_code, phone_regex
           FROM countries
           WHERE id = $1 AND is_active = true
           LIMIT 1
@@ -303,16 +312,22 @@ router.post(
         const country = countryRes.rows[0] as {
           phone_max_length: number | null;
           dial_code: string | null;
+          phone_regex: string | null;
         };
 
-        if (country.phone_max_length) {
-          // Extraemos el dial_code del principio y limpiamos espacios/símbolos extras para contar solo dígitos puros ingresados
-          let rawPhone = body.celular;
-          if (country.dial_code && rawPhone.startsWith(country.dial_code)) {
-             rawPhone = rawPhone.substring(country.dial_code.length);
-          }
-          rawPhone = rawPhone.replace(/\D/g, ''); // Deja solo los dígitos
+        let rawPhone = body.celular;
+        if (country.dial_code && rawPhone.startsWith(country.dial_code)) {
+           rawPhone = rawPhone.substring(country.dial_code.length);
+        }
+        rawPhone = rawPhone.replace(/\D/g, ''); // Deja solo los dígitos
+        body.celular = rawPhone; // Guardamos sin prefijo para DB
 
+        if (country.phone_regex) {
+          const regex = new RegExp(`^${country.phone_regex}$`);
+          if (!regex.test(rawPhone)) {
+             throw new HttpError(400, 'El formato del celular no es válido.');
+          }
+        } else if (country.phone_max_length) {
           if (rawPhone.length !== Number(country.phone_max_length)) {
             throw new HttpError(400, `El celular debe tener ${country.phone_max_length} dígitos.`);
           }
@@ -321,12 +336,13 @@ router.post(
         // Fetch validation regex from document_types based on personType
         if (body.personType === 'company') {
           const docTypeRes = await client.query(
-            `SELECT validation_regex, name FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1`,
+            `SELECT id, validation_regex, name FROM document_types WHERE country_id = $1 AND is_company_document = true LIMIT 1`,
             [body.countryId]
           );
           
           if ((docTypeRes.rowCount ?? 0) > 0) {
              const docType = docTypeRes.rows[0];
+             companyDocTypeId = docType.id;
              if (docType.validation_regex && body.ruc) {
                  const taxRegex = new RegExp(docType.validation_regex);
                  if (!taxRegex.test(body.ruc)) {
@@ -433,20 +449,32 @@ router.post(
 
       if (body.personType === 'company') {
         const existingOrganization = await client.query(
-          'SELECT id FROM organizations WHERE ruc = $1 AND deleted_at IS NULL LIMIT 1',
+          `SELECT o.id 
+           FROM organizations o
+           JOIN organization_documents od ON o.id = od.organization_id
+           WHERE od.document_number = $1 AND o.deleted_at IS NULL LIMIT 1`,
           [body.ruc],
         );
         const organizationId = existingOrganization.rowCount
           ? existingOrganization.rows[0].id
           : (await client.query(
-              'INSERT INTO organizations (legal_name, trade_name, ruc) VALUES ($1, $1, $2) RETURNING id',
-              [body.empresa, body.ruc],
+              'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
+              [body.empresa, body.countryId ?? null],
             )).rows[0].id;
 
         if (existingOrganization.rowCount) {
           await client.query(
             'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
             [organizationId, body.empresa],
+          );
+        }
+
+        if (companyDocTypeId) {
+          await client.query(
+            `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, document_type_id) DO UPDATE SET document_number = EXCLUDED.document_number, updated_at = now()`,
+            [organizationId, companyDocTypeId, body.ruc]
           );
         }
 
@@ -605,6 +633,8 @@ router.post(
       await client.query('BEGIN');
 
       let customerId: string;
+      const personTypeVal = body.personType === 'empresa' ? 'company_contact' : 'natural';
+      const isCompany = body.personType === 'empresa';
       
       const docTypeRes = await client.query(
         "SELECT id FROM document_types WHERE code = $1 LIMIT 1",
@@ -612,47 +642,104 @@ router.post(
       );
       const docTypeId = (docTypeRes.rowCount ?? 0) > 0 ? docTypeRes.rows[0].id : null;
 
-      if (docTypeId) {
-        const existingDoc = await client.query(
-          "SELECT customer_id FROM customer_documents WHERE document_type_id = $1 AND document_number = $2 AND deleted_at IS NULL LIMIT 1",
-          [docTypeId, body.numeroDoc]
-        );
-
-        if ((existingDoc.rowCount ?? 0) > 0) {
-          customerId = existingDoc.rows[0].customer_id;
-          await client.query(
-            "UPDATE customers SET primary_email = $1, primary_phone = $2, first_name = $3, last_name = $4, updated_at = NOW() WHERE id = $5",
-            [body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.nombres, body.apellidos, customerId]
+      if (!isCompany) {
+        if (docTypeId) {
+          const existingDoc = await client.query(
+            "SELECT customer_id FROM customer_documents WHERE document_type_id = $1 AND document_number = $2 AND deleted_at IS NULL LIMIT 1",
+            [docTypeId, body.numeroDoc]
           );
+
+          if ((existingDoc.rowCount ?? 0) > 0) {
+            customerId = existingDoc.rows[0].customer_id;
+            await client.query(
+              "UPDATE customers SET primary_email = $1, primary_phone = $2, first_name = $3, last_name = $4, country_id = $5, person_type = $6, updated_at = NOW() WHERE id = $7",
+              [body.email.toLowerCase(), body.telefono, body.nombres, body.apellidos, body.countryId ?? null, personTypeVal, customerId]
+            );
+          } else {
+            const customerRes = await client.query(
+              `
+              INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
+              RETURNING id
+              `,
+              [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
+            );
+            customerId = customerRes.rows[0].id;
+            
+            await client.query(
+              `INSERT INTO customer_documents (customer_id, document_type_id, document_number, is_primary)
+               VALUES ($1, $2, $3, true)
+               ON CONFLICT (document_type_id, document_number) WHERE deleted_at IS NULL
+               DO NOTHING`,
+              [customerId, docTypeId, body.numeroDoc]
+            );
+          }
         } else {
           const customerRes = await client.query(
             `
-            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             `,
-            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`]
+            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
           );
           customerId = customerRes.rows[0].id;
-          
-          await client.query(
-            `INSERT INTO customer_documents (customer_id, document_type_id, document_number, is_primary)
-             VALUES ($1, $2, $3, true)
-             ON CONFLICT (document_type_id, document_number) WHERE deleted_at IS NULL
-             DO NOTHING`,
-            [customerId, docTypeId, body.numeroDoc]
-          );
         }
       } else {
         const customerRes = await client.query(
           `
-          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone)
-          VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           RETURNING id
           `,
-          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`]
+          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.apellidos, '', body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
         );
         customerId = customerRes.rows[0].id;
+
+        const existingOrganization = await client.query(
+          `SELECT o.id 
+           FROM organizations o
+           JOIN organization_documents od ON o.id = od.organization_id
+           WHERE od.document_number = $1 AND o.deleted_at IS NULL LIMIT 1`,
+          [body.numeroDoc],
+        );
+        
+        const organizationId = existingOrganization.rowCount
+          ? existingOrganization.rows[0].id
+          : (await client.query(
+              'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
+              [body.nombres, body.countryId ?? null],
+            )).rows[0].id;
+
+        if (existingOrganization.rowCount) {
+          await client.query(
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
+            [organizationId, body.nombres],
+          );
+        }
+
+        if (docTypeId) {
+          await client.query(
+            `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, document_type_id) DO UPDATE SET document_number = EXCLUDED.document_number, updated_at = now()`,
+            [organizationId, docTypeId, body.numeroDoc]
+          );
+        }
+
+        await client.query(
+          `
+          INSERT INTO customer_organizations (customer_id, organization_id, position_title, is_primary)
+          VALUES ($1, $2, $3, true)
+          ON CONFLICT (customer_id, organization_id)
+          DO UPDATE SET
+            position_title = EXCLUDED.position_title,
+            is_primary = true,
+            deleted_at = NULL,
+            updated_at = now()
+          `,
+          [customerId, organizationId, 'Representante Legal'],
+        );
       }
 
       const statusRes = await client.query("SELECT id FROM status_catalog WHERE domain = 'complaint' AND code = 'registered' AND is_active = true LIMIT 1");
