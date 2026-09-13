@@ -6,6 +6,7 @@ import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 import CustomDropdown from '../../components/ui/CustomDropdown';
+import { useToastStore } from '../../stores/toastStore';
 
 // Components
 import CountryModal from '../../components/admin/localizacion/CountryModal';
@@ -20,6 +21,7 @@ interface AdminUser {
 
 export default function LocalizacionAdmin() {
   const { admin } = useOutletContext<{ admin: AdminUser }>();
+  const { addToast } = useToastStore();
   const canManage = admin.roles.includes('super_admin') || admin.permissions?.includes('admin.localizacion.manage') === true;
   
   const [activeTab, setActiveTab] = useState<'countries' | 'documents'>('countries');
@@ -90,11 +92,11 @@ export default function LocalizacionAdmin() {
     const rect = e.currentTarget.getBoundingClientRect();
     const dropdownHeight = 110;
     const padding = 16;
-    let top = rect.bottom + window.scrollY;
-    let left = rect.left - 100 + window.scrollX;
+    let top = rect.bottom;
+    let left = rect.left - 100;
     let placement: 'top' | 'bottom' = 'bottom';
-    if (top + dropdownHeight > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - dropdownHeight - padding;
+    if (top + dropdownHeight > window.innerHeight) {
+      top = rect.top - dropdownHeight - padding;
       placement = 'top';
     }
     setActionsMenu({ id, type, top, left, placement });
@@ -125,14 +127,16 @@ export default function LocalizacionAdmin() {
     try {
       if (confirmModal.type === 'country') {
         await apiRequest(`/admin/localization/countries/${confirmModal.id}`, { method: 'DELETE' });
+        addToast('País eliminado correctamente', 'success');
         fetchCountries();
       } else {
         await apiRequest(`/admin/localization/document-types/${confirmModal.id}`, { method: 'DELETE' });
+        addToast('Documento eliminado correctamente', 'success');
         fetchDocs();
       }
       setConfirmModal({ isOpen: false, id: null, type: null });
     } catch (err: any) {
-      alert(err.message || `Error eliminando el ${confirmModal.type === 'country' ? 'país' : 'documento'}`);
+      addToast(err.message || `Error eliminando el ${confirmModal.type === 'country' ? 'país' : 'documento'}`, 'error');
     }
   };
 
@@ -409,6 +413,8 @@ export default function LocalizacionAdmin() {
         onConfirm={handleConfirmDelete}
         title={`Eliminar ${confirmModal.type === 'country' ? 'País' : 'Documento'}`}
         message={`¿Estás seguro de que deseas eliminar este ${confirmModal.type === 'country' ? 'país' : 'documento'}? Esta acción no se puede deshacer.`}
+        type="danger"
+        confirmText="Eliminar"
       />
 
       <AnimatePresence>

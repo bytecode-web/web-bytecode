@@ -113,11 +113,11 @@ export default function DirectorioAdmin() {
     const rect = e.currentTarget.getBoundingClientRect();
     const dropdownHeight = 140;
     const padding = 16;
-    let top = rect.bottom + window.scrollY;
-    let left = rect.left - 100 + window.scrollX;
+    let top = rect.bottom;
+    let left = rect.left - 100;
     let placement: 'top' | 'bottom' = 'bottom';
-    if (top + dropdownHeight > window.innerHeight + window.scrollY) {
-      top = rect.top + window.scrollY - dropdownHeight - padding;
+    if (top + dropdownHeight > window.innerHeight) {
+      top = rect.top - dropdownHeight - padding;
       placement = 'top';
     }
     setActionsMenu({

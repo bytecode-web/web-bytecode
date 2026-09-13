@@ -184,8 +184,8 @@ const Roles: React.FC = () => {
     const placement = spaceBelow < 150 ? 'top' : 'bottom';
     setActionsMenu({
       id,
-      top: placement === 'bottom' ? rect.bottom + window.scrollY : rect.top + window.scrollY - 100,
-      left: rect.left + window.scrollX - 120,
+      top: placement === 'bottom' ? rect.bottom : rect.top - 100,
+      left: rect.left - 120,
       placement,
     });
   };
