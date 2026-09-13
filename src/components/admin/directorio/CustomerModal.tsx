@@ -209,7 +209,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 name="primary_phone"
                 value={formData.primary_phone}
                 onChange={(e) => setFormData({ ...formData, primary_phone: e.target.value })}
-                placeholder={selectedCountry?.maxLength ? '9'.repeat(selectedCountry.maxLength) : "987654321"}
+                placeholder={selectedCountry?.phone_format ? selectedCountry.phone_format.replace(selectedCountry.dialCode, '').trim() : "987654321"}
                 maxLength={selectedCountry?.maxLength}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition focus:border-white/30"
               />
