@@ -65,9 +65,18 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
     }
   }, [isOpen, editingId, initialData]);
 
-  const selectedCountry = countries.find(c => c.id === formData.country_id);
+  const filteredCountries = React.useMemo(() => {
+    return countries.filter(c => 
+      documentTypes.some(d => 
+        (d.countryId === c.id || d.country_id === c.id) && 
+        d.isCompanyDocument === false
+      )
+    );
+  }, [countries, documentTypes]);
+
+  const selectedCountry = filteredCountries.find(c => c.id === formData.country_id);
   const selectedDocType = documentTypes.find(d => d.id === formData.document_type_id);
-  const filteredDocTypes = documentTypes.filter(d => !formData.country_id || d.countryId === formData.country_id);
+  const filteredDocTypes = documentTypes.filter(d => (!formData.country_id || d.countryId === formData.country_id) && !d.isCompanyDocument);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +202,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 placeholder="Seleccionar..."
                 options={[
                   { value: '', label: 'Seleccionar...' },
-                  ...countries.map(c => ({ 
+                  ...filteredCountries.map(c => ({ 
                     value: c.id, 
                     label: c.name, 
                     icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined,

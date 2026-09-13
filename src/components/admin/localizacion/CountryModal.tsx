@@ -149,7 +149,7 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
                     className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all font-mono"
                     value={formData.phone_format}
                     onChange={e => setFormData({ ...formData, phone_format: e.target.value })}
-                    placeholder="Ej. 11 1234 5678"
+                    placeholder="Ej. 1112345678"
                   />
                 </div>
                 <div>
@@ -162,7 +162,6 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
                     className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                     value={formData.phone_max_length}
                     onChange={e => setFormData({ ...formData, phone_max_length: e.target.value })}
-                    placeholder="Ej. 11"
                   />
                 </div>
               </div>

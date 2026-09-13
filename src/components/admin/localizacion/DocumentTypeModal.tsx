@@ -158,7 +158,7 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.placeholder}
                   onChange={e => setFormData({ ...formData, placeholder: e.target.value })}
-                  placeholder="000.000.000-0"
+                  placeholder="Ej. 53129758"
                 />
               </div>
             </div>
@@ -196,7 +196,7 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
                   className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-[#06CFD6] font-mono placeholder-white/20 focus:outline-none focus:ring-2 focus:ring-[#06CFD6]/30 focus:border-[#06CFD6]/50 transition-all"
                   value={formData.validation_regex}
                   onChange={e => setFormData({ ...formData, validation_regex: e.target.value })}
-                  placeholder="[0-9]{8,15}"
+                  placeholder="Ej. \d{7,8}"
                 />
                 <p className="text-xs text-white/40 mt-1.5">No incluyas ^ o $ (se añaden automáticamente).</p>
               </div>

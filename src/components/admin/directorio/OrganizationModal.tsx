@@ -29,9 +29,18 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
   const [taxIdError, setTaxIdError] = useState('');
   const addToast = useToastStore((state) => state.addToast);
 
+  const filteredCountries = React.useMemo(() => {
+    return countries.filter(c => 
+      documentTypes.some(d => 
+        (d.countryId === c.id || d.country_id === c.id) && 
+        d.isCompanyDocument === true
+      )
+    );
+  }, [countries, documentTypes]);
+
   const filteredDocs = React.useMemo(() => {
     if (!formData.country_id) return [];
-    return documentTypes.filter(d => d.countryId === formData.country_id && d.isCompanyDocument);
+    return documentTypes.filter(d => (d.countryId === formData.country_id || d.country_id === formData.country_id) && d.isCompanyDocument);
   }, [documentTypes, formData.country_id]);
 
   const activeDoc = React.useMemo(() => {
@@ -184,10 +193,10 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
                 }}
                 placeholder="Seleccionar país"
                 options={[
-                  { value: '', label: 'Seleccionar país...' },
-                  ...countries.map(c => ({ 
+                  { value: '', label: 'Seleccionar...' },
+                  ...filteredCountries.map(c => ({ 
                     value: c.id, 
-                    label: c.name,
+                    label: c.name, 
                     icon: c.iso2 ? <img src={`https://flagcdn.com/w20/${c.iso2.toLowerCase()}.png`} alt="" className="w-5 h-auto object-contain rounded-sm" /> : undefined
                   }))
                 ]}

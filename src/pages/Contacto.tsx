@@ -156,14 +156,23 @@ const Contacto: React.FC = () => {
     setTaxIdError('');
   };
 
+  const filteredCountries = React.useMemo(() => {
+    return allCountries.filter(c => 
+      allDocumentTypes.some((d: any) => {
+        const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+        return dCountryId === c.id && d.isCompanyDocument === (personType === 'company');
+      })
+    );
+  }, [allCountries, allDocumentTypes, personType]);
+
   const filteredDocs = React.useMemo(() => {
     return allDocumentTypes.filter((dt: any) => {
-      if (dt.isCompanyDocument) return false;
       const dbCountryId = dt.countryId !== undefined ? dt.countryId : dt.country_id;
       if (dbCountryId === null || dbCountryId === undefined) return true;
-      return String(dbCountryId).trim().toLowerCase() === String(selectedCountryData.id).trim().toLowerCase();
+      if (personType === 'company') return dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
+      return !dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
     });
-  }, [allDocumentTypes, selectedCountryData]);
+  }, [allDocumentTypes, selectedCountryData, personType]);
 
   const docDropdownOptions = React.useMemo(() => {
     return filteredDocs.map((doc: any) => ({
@@ -328,14 +337,14 @@ const Contacto: React.FC = () => {
             <Label text="Número de celular" />
             <PhoneInputGroup 
               value={formData.celular} 
-              onChange={(e: any) => {
-                const value = e?.target ? e.target.value : e;
+              onChange={(val: any) => {
+                const value = val?.target ? val.target.value : val; 
                 const onlyNumbers = value.replace(/\D/g, ''); 
                 setFormData({ ...formData, celular: onlyNumbers });
-              }}
-              onCountrySelect={handleCountrySelect}
-              countriesRegistry={allCountries}
-              isLoading={isLoadingCatalogs}
+              }} 
+              onCountrySelect={handleCountrySelect} 
+              countriesRegistry={filteredCountries} 
+              isLoading={isLoadingCatalogs} 
             />
           </div>
 

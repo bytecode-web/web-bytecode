@@ -194,14 +194,23 @@ const LibroReclamaciones: React.FC = () => {
     setTaxIdError('');
   };
 
+  const filteredCountries = React.useMemo(() => {
+    return allCountries.filter(c => 
+      allDocumentTypes.some((d: any) => {
+        const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+        return dCountryId === c.id && d.isCompanyDocument === (formData.personType === 'empresa');
+      })
+    );
+  }, [allCountries, allDocumentTypes, formData.personType]);
+
   const filteredDocs = React.useMemo(() => {
     return allDocumentTypes.filter((dt: any) => {
-      if (dt.isCompanyDocument) return false;
       const dbCountryId = dt.countryId !== undefined ? dt.countryId : dt.country_id;
       if (dbCountryId === null || dbCountryId === undefined) return true;
-      return String(dbCountryId).trim().toLowerCase() === String(selectedCountryData.id).trim().toLowerCase();
+      if (formData.personType === 'empresa') return dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
+      return !dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
     });
-  }, [allDocumentTypes, selectedCountryData]);
+  }, [allDocumentTypes, selectedCountryData, formData.personType]);
 
   const docDropdownOptions = React.useMemo(() => {
     return filteredDocs.map((doc: any) => ({
@@ -347,7 +356,7 @@ const LibroReclamaciones: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="mb-2 md:mb-0">
                 <Label text="Número de celular" required />
-                <PhoneInputGroup value={formData.telefono} onChange={(e: any) => { const value = e?.target ? e.target.value : e; const onlyNumbers = value.replace(/\D/g, ''); setFormData({ ...formData, telefono: onlyNumbers }); }} onCountrySelect={handleCountrySelect} countriesRegistry={allCountries} isLoading={isLoadingCatalogs} />
+                <PhoneInputGroup value={formData.telefono} onChange={(e: any) => { const value = e?.target ? e.target.value : e; const onlyNumbers = value.replace(/\D/g, ''); setFormData({ ...formData, telefono: onlyNumbers }); }} onCountrySelect={handleCountrySelect} countriesRegistry={filteredCountries} isLoading={isLoadingCatalogs} />
               </div>
               <div><Label text="Correo Electrónico" required /><Input name="email" type="email" placeholder="ejemplo@correo.com" value={formData.email} onChange={handleChange} required maxLength={180}/></div>
             </div>
