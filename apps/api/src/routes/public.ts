@@ -143,7 +143,13 @@ let normalizedContactSchema: boolean | null = null;
 
 router.get('/catalog/countries', asyncHandler(async (_req: Request, res: Response) => {
   // tax_id_regex y tax_id_format fueron removidos en la migración, los simulamos a null para el front viejo
-  const result = await pool.query('SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", phone_regex, phone_format FROM countries WHERE is_active = true ORDER BY name ASC');
+  const result = await pool.query(`
+    SELECT id, iso2, name, dial_code as "dialCode", phone_max_length as "maxLength", phone_regex, phone_format 
+    FROM countries 
+    WHERE is_active = true 
+      AND EXISTS (SELECT 1 FROM document_types dt WHERE dt.country_id = countries.id AND dt.is_active = true)
+    ORDER BY name ASC
+  `);
   // Aseguramos iso2 en vez de iso por compatibilidad con el front
   const mapped = result.rows.map(r => ({ ...r, iso: r.iso2, tax_id_regex: null, tax_id_format: null }));
   res.json({ items: mapped });
