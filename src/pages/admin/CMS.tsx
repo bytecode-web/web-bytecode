@@ -69,8 +69,13 @@ const AdminCMS: React.FC = () => {
 
   useEffect(() => {
     const handleClickOutside = () => setActionsMenu(null);
+    const handleScroll = () => setActionsMenu(null);
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, []);
 
   const handleOpenActions = (e: React.MouseEvent, id: string) => {
@@ -147,7 +152,7 @@ const AdminCMS: React.FC = () => {
                   <th className="px-6 py-4 font-medium">Meta descripcion</th>
                   <th className="px-6 py-4 font-medium">Estado</th>
                   <th className="px-6 py-4 font-medium">Ultima mod.</th>
-                  <th className="px-6 py-4 font-medium text-right">Acciones</th>
+                  <th className="px-6 py-4 font-medium text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-white/80">
@@ -163,7 +168,7 @@ const AdminCMS: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-white/40 text-xs">{formatDate(page.updated_at)}</td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-center">
                       <button onClick={(e) => handleOpenActions(e, page.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
                         <MoreVertical className="h-4 w-4" />
                       </button>

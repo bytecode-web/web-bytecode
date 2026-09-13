@@ -98,6 +98,10 @@ async function apiRequestInternal<T>(path: string, options: RequestOptions = {},
     throw new ApiError(payload?.message ?? 'No se pudo completar la solicitud.', payload?.code, payload);
   }
 
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   const result = await response.json() as T;
 
   if (path === '/auth/login' || path === '/auth/logout') {

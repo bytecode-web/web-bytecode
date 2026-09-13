@@ -78,11 +78,16 @@ const Archivos: React.FC = () => {
         setActionsMenu(null);
       }
     };
+    const handleScroll = () => {
+      setActionsMenu(null);
+    };
     if (actionsMenu) {
       document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', handleScroll, true);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [actionsMenu]);
   const limit = 20;

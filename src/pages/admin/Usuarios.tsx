@@ -110,8 +110,13 @@ const Usuarios: React.FC = () => {
 
   useEffect(() => {
     const handleClickOutside = () => setActionsMenu(null);
+    const handleScroll = () => setActionsMenu(null);
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, []);
 
   const defaultRole = () => roles.find((role) => role.code !== 'super_admin')?.code ?? roles[0]?.code ?? '';

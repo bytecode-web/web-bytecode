@@ -39,8 +39,10 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
   }, [countries, documentTypes]);
 
   const filteredDocs = React.useMemo(() => {
-    if (!formData.country_id) return [];
-    return documentTypes.filter(d => (d.countryId === formData.country_id || d.country_id === formData.country_id) && d.isCompanyDocument);
+    return documentTypes.filter(d => {
+      const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+      return (dCountryId === formData.country_id || dCountryId === null || dCountryId === undefined) && d.isCompanyDocument;
+    });
   }, [documentTypes, formData.country_id]);
 
   const activeDoc = React.useMemo(() => {
@@ -213,6 +215,7 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
                       placeholder="Doc."
                       options={filteredDocs.map(d => ({ value: d.id, label: d.code, icon: null }))}
                       onChange={(val) => { setFormData(p => ({ ...p, document_type_id: val, document_number: '' })); setTaxIdError(''); }}
+                      disabled={true}
                     />
                  </div>
                  <div className="relative w-[65%]">

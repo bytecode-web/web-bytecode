@@ -10,6 +10,7 @@ import CustomDropdown from '../../components/ui/CustomDropdown';
 // Components
 import CountryModal from '../../components/admin/localizacion/CountryModal';
 import DocumentTypeModal from '../../components/admin/localizacion/DocumentTypeModal';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
 
 interface AdminUser {
   id: string;
@@ -29,6 +30,8 @@ export default function LocalizacionAdmin() {
   
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<any>(null);
+  
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, id: string | null, type: 'country' | 'doc' | null }>({ isOpen: false, id: null, type: null });
 
   const [countries, setCountries] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
@@ -104,31 +107,32 @@ export default function LocalizacionAdmin() {
         setActionsMenu(null);
       }
     };
+    const handleScroll = () => {
+      setActionsMenu(null);
+    };
     if (actionsMenu) {
       document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', handleScroll, true);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [actionsMenu]);
 
-  const handleDeleteCountry = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este país?')) return;
+  const handleConfirmDelete = async () => {
+    if (!confirmModal.id || !confirmModal.type) return;
     try {
-      await apiRequest(`/admin/localization/countries/${id}`, { method: 'DELETE' });
-      fetchCountries();
+      if (confirmModal.type === 'country') {
+        await apiRequest(`/admin/localization/countries/${confirmModal.id}`, { method: 'DELETE' });
+        fetchCountries();
+      } else {
+        await apiRequest(`/admin/localization/document-types/${confirmModal.id}`, { method: 'DELETE' });
+        fetchDocs();
+      }
+      setConfirmModal({ isOpen: false, id: null, type: null });
     } catch (err: any) {
-      alert(err.message || 'Error eliminando el país');
-    }
-  };
-
-  const handleDeleteDoc = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este documento?')) return;
-    try {
-      await apiRequest(`/admin/localization/document-types/${id}`, { method: 'DELETE' });
-      fetchDocs();
-    } catch (err: any) {
-      alert(err.message || 'Error eliminando el documento');
+      alert(err.message || `Error eliminando el ${confirmModal.type === 'country' ? 'país' : 'documento'}`);
     }
   };
 
@@ -378,22 +382,34 @@ export default function LocalizacionAdmin() {
         />
       </AdminPanel>
 
-      {isCountryModalOpen && (
-        <CountryModal
-          country={editingCountry}
-          onClose={() => setIsCountryModalOpen(false)}
-          onSuccess={() => { setIsCountryModalOpen(false); fetchCountries(); }}
-        />
-      )}
+      <AnimatePresence>
+        {isCountryModalOpen && (
+          <CountryModal
+            onClose={() => { setIsCountryModalOpen(false); setEditingCountry(null); }}
+            onSuccess={() => { setIsCountryModalOpen(false); loadData(); }}
+            country={editingCountry}
+          />
+        )}
+      </AnimatePresence>
 
-      {isDocModalOpen && (
-        <DocumentTypeModal
-          documentType={editingDoc}
-          countries={countries || []}
-          onClose={() => setIsDocModalOpen(false)}
-          onSuccess={() => { setIsDocModalOpen(false); fetchDocs(); }}
-        />
-      )}
+      <AnimatePresence>
+        {isDocModalOpen && (
+          <DocumentTypeModal
+            onClose={() => { setIsDocModalOpen(false); setEditingDoc(null); }}
+            onSuccess={() => { setIsDocModalOpen(false); loadData(); }}
+            documentType={editingDoc}
+            countries={countries}
+          />
+        )}
+      </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onCancel={() => setConfirmModal({ isOpen: false, id: null, type: null })}
+        onConfirm={handleConfirmDelete}
+        title={`Eliminar ${confirmModal.type === 'country' ? 'País' : 'Documento'}`}
+        message={`¿Estás seguro de que deseas eliminar este ${confirmModal.type === 'country' ? 'país' : 'documento'}? Esta acción no se puede deshacer.`}
+      />
 
       <AnimatePresence>
         {actionsMenu && (
@@ -433,11 +449,12 @@ export default function LocalizacionAdmin() {
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (actionsMenu.type === 'country') {
-                    handleDeleteCountry(actionsMenu.id);
+                    setConfirmModal({ isOpen: true, id: actionsMenu.id, type: 'country' });
                   } else {
-                    handleDeleteDoc(actionsMenu.id);
+                    setConfirmModal({ isOpen: true, id: actionsMenu.id, type: 'doc' });
                   }
                   setActionsMenu(null);
                 }}

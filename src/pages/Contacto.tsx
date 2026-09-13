@@ -168,9 +168,9 @@ const Contacto: React.FC = () => {
   const filteredDocs = React.useMemo(() => {
     return allDocumentTypes.filter((dt: any) => {
       const dbCountryId = dt.countryId !== undefined ? dt.countryId : dt.country_id;
-      if (dbCountryId === null || dbCountryId === undefined) return true;
-      if (personType === 'company') return dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
-      return !dt.isCompanyDocument && String(dbCountryId) === String(selectedCountryData?.id);
+      const matchesType = personType === 'company' ? dt.isCompanyDocument : !dt.isCompanyDocument;
+      if (dbCountryId === null || dbCountryId === undefined) return matchesType;
+      return matchesType && String(dbCountryId) === String(selectedCountryData?.id);
     });
   }, [allDocumentTypes, selectedCountryData, personType]);
 

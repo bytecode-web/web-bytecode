@@ -99,10 +99,29 @@ localizationRouter.delete(
   requireCsrf,
   asyncHandler(async (req: Request, res: Response) => {
     const id = z.string().uuid().parse(req.params.id);
-    const result = await pool.query('DELETE FROM countries WHERE id = $1 RETURNING id', [id]);
-    if (result.rowCount === 0) throw new HttpError(404, 'País no encontrado');
-    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete', entityType: 'countries', entity: { id }, req });
-    res.status(204).end();
+    
+    // Check si el país tiene documentos asociados
+    const checkDocs = await pool.query('SELECT 1 FROM document_types WHERE country_id = $1 LIMIT 1', [id]);
+    if ((checkDocs.rowCount ?? 0) > 0) {
+      throw new HttpError(409, 'No se puede eliminar el país porque tiene tipos de documentos asociados.');
+    }
+
+    // Check si el país tiene personas o empresas asociadas
+    const checkCust = await pool.query('SELECT 1 FROM customers WHERE country_id = $1 LIMIT 1', [id]);
+    const checkOrg = await pool.query('SELECT 1 FROM organizations WHERE country_id = $1 LIMIT 1', [id]);
+    if ((checkCust.rowCount ?? 0) > 0 || (checkOrg.rowCount ?? 0) > 0) {
+      throw new HttpError(409, 'No se puede eliminar el país porque tiene personas o empresas asociadas en el directorio.');
+    }
+
+    try {
+      const result = await pool.query('DELETE FROM countries WHERE id = $1 RETURNING id', [id]);
+      if (result.rowCount === 0) throw new HttpError(404, 'País no encontrado');
+      await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete', entityType: 'countries', entity: { id }, req });
+      res.status(204).end();
+    } catch (err: any) {
+      if (err.code === '23503') throw new HttpError(409, 'No se puede eliminar el país porque tiene documentos u organizaciones asociadas.');
+      throw err;
+    }
   })
 );
 
@@ -165,9 +184,14 @@ localizationRouter.delete(
   requireCsrf,
   asyncHandler(async (req: Request, res: Response) => {
     const id = z.string().uuid().parse(req.params.id);
-    const result = await pool.query('DELETE FROM document_types WHERE id = $1 RETURNING id', [id]);
-    if (result.rowCount === 0) throw new HttpError(404, 'Documento no encontrado');
-    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete', entityType: 'document_types', entity: { id }, req });
-    res.status(204).end();
+    try {
+      const result = await pool.query('DELETE FROM document_types WHERE id = $1 RETURNING id', [id]);
+      if (result.rowCount === 0) throw new HttpError(404, 'Documento no encontrado');
+      await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete', entityType: 'document_types', entity: { id }, req });
+      res.status(204).end();
+    } catch (err: any) {
+      if (err.code === '23503') throw new HttpError(409, 'No se puede eliminar el documento porque ya está asociado a clientes u organizaciones.');
+      throw err;
+    }
   })
 );
