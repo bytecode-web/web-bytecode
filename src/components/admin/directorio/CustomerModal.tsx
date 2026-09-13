@@ -76,7 +76,10 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
 
   const selectedCountry = filteredCountries.find(c => c.id === formData.country_id);
   const selectedDocType = documentTypes.find(d => d.id === formData.document_type_id);
-  const filteredDocTypes = documentTypes.filter(d => (!formData.country_id || d.countryId === formData.country_id) && !d.isCompanyDocument);
+  const filteredDocTypes = documentTypes.filter(d => {
+    const dCountryId = d.countryId !== undefined ? d.countryId : d.country_id;
+    return (dCountryId === formData.country_id || dCountryId === null || dCountryId === undefined) && !d.isCompanyDocument;
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
