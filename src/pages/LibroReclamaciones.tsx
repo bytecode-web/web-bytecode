@@ -36,6 +36,7 @@ const LibroReclamaciones: React.FC = () => {
     detalle: '',
     pedido: '',
     aceptaTerminos: false,
+    countryId: 'default',
   });
   
   const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
@@ -77,6 +78,12 @@ const LibroReclamaciones: React.FC = () => {
 
         setAllDocumentTypes(docTypesData);
         setAllCountries(countriesData);
+        
+        const peCountry = countriesData.find((c: CountryData) => c.iso === 'PE');
+        if (peCountry) {
+          setSelectedCountryData(peCountry);
+          setFormData(prev => ({ ...prev, countryId: peCountry.id }));
+        }
       } catch (error) {
         console.error('Error fetching catalogs:', error);
       } finally {
@@ -167,9 +174,10 @@ const LibroReclamaciones: React.FC = () => {
     );
     setFormData((prev) => ({
       ...prev,
+      countryId: country.id,
       prefijoTelefono: country.dialCode,
       numeroDoc: '',
-      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.name || '') : '',
+      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.code || '') : '',
     }));
     setTaxIdError('');
   };
@@ -180,7 +188,7 @@ const LibroReclamaciones: React.FC = () => {
       ...prev,
       personType: newType,
       numeroDoc: '',
-      tipoDoc: newType === 'empresa' ? (activeCompanyDoc?.name || '') : '',
+      tipoDoc: newType === 'empresa' ? (activeCompanyDoc?.code || '') : '',
     }));
     setSelectedDocData(null);
     setTaxIdError('');

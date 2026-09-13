@@ -110,6 +110,7 @@ const complaintSchema = z.object({
   detalle: z.string().trim().min(10).max(3000),
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
+  countryId: z.string().uuid().optional().nullable(),
 });
 
 const createComplaintCode = () => {
@@ -620,6 +621,8 @@ router.post(
       await client.query('BEGIN');
 
       let customerId: string;
+      const personTypeVal = body.personType === 'empresa' ? 'company_contact' : 'natural';
+      const isCompany = body.personType === 'empresa';
       
       const docTypeRes = await client.query(
         "SELECT id FROM document_types WHERE code = $1 LIMIT 1",
@@ -627,47 +630,104 @@ router.post(
       );
       const docTypeId = (docTypeRes.rowCount ?? 0) > 0 ? docTypeRes.rows[0].id : null;
 
-      if (docTypeId) {
-        const existingDoc = await client.query(
-          "SELECT customer_id FROM customer_documents WHERE document_type_id = $1 AND document_number = $2 AND deleted_at IS NULL LIMIT 1",
-          [docTypeId, body.numeroDoc]
-        );
-
-        if ((existingDoc.rowCount ?? 0) > 0) {
-          customerId = existingDoc.rows[0].customer_id;
-          await client.query(
-            "UPDATE customers SET primary_email = $1, primary_phone = $2, first_name = $3, last_name = $4, updated_at = NOW() WHERE id = $5",
-            [body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.nombres, body.apellidos, customerId]
+      if (!isCompany) {
+        if (docTypeId) {
+          const existingDoc = await client.query(
+            "SELECT customer_id FROM customer_documents WHERE document_type_id = $1 AND document_number = $2 AND deleted_at IS NULL LIMIT 1",
+            [docTypeId, body.numeroDoc]
           );
+
+          if ((existingDoc.rowCount ?? 0) > 0) {
+            customerId = existingDoc.rows[0].customer_id;
+            await client.query(
+              "UPDATE customers SET primary_email = $1, primary_phone = $2, first_name = $3, last_name = $4, country_id = $5, person_type = $6, updated_at = NOW() WHERE id = $7",
+              [body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.nombres, body.apellidos, body.countryId ?? null, personTypeVal, customerId]
+            );
+          } else {
+            const customerRes = await client.query(
+              `
+              INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
+              RETURNING id
+              `,
+              [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
+            );
+            customerId = customerRes.rows[0].id;
+            
+            await client.query(
+              `INSERT INTO customer_documents (customer_id, document_type_id, document_number, is_primary)
+               VALUES ($1, $2, $3, true)
+               ON CONFLICT (document_type_id, document_number) WHERE deleted_at IS NULL
+               DO NOTHING`,
+              [customerId, docTypeId, body.numeroDoc]
+            );
+          }
         } else {
           const customerRes = await client.query(
             `
-            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             `,
-            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`]
+            [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
           );
           customerId = customerRes.rows[0].id;
-          
-          await client.query(
-            `INSERT INTO customer_documents (customer_id, document_type_id, document_number, is_primary)
-             VALUES ($1, $2, $3, true)
-             ON CONFLICT (document_type_id, document_number) WHERE deleted_at IS NULL
-             DO NOTHING`,
-            [customerId, docTypeId, body.numeroDoc]
-          );
         }
       } else {
         const customerRes = await client.query(
           `
-          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone)
-          VALUES ($1, $2, $3, $4, $5)
+          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
           RETURNING id
           `,
-          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`]
+          [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.apellidos, '', body.email.toLowerCase(), `${body.prefijoTelefono} ${body.telefono}`, body.countryId ?? null, personTypeVal]
         );
         customerId = customerRes.rows[0].id;
+
+        const existingOrganization = await client.query(
+          `SELECT o.id 
+           FROM organizations o
+           JOIN organization_documents od ON o.id = od.organization_id
+           WHERE od.document_number = $1 AND o.deleted_at IS NULL LIMIT 1`,
+          [body.numeroDoc],
+        );
+        
+        const organizationId = existingOrganization.rowCount
+          ? existingOrganization.rows[0].id
+          : (await client.query(
+              'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
+              [body.nombres, body.countryId ?? null],
+            )).rows[0].id;
+
+        if (existingOrganization.rowCount) {
+          await client.query(
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
+            [organizationId, body.nombres],
+          );
+        }
+
+        if (docTypeId) {
+          await client.query(
+            `INSERT INTO organization_documents (organization_id, document_type_id, document_number)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (organization_id, document_type_id) DO UPDATE SET document_number = EXCLUDED.document_number, updated_at = now()`,
+            [organizationId, docTypeId, body.numeroDoc]
+          );
+        }
+
+        await client.query(
+          `
+          INSERT INTO customer_organizations (customer_id, organization_id, position_title, is_primary)
+          VALUES ($1, $2, $3, true)
+          ON CONFLICT (customer_id, organization_id)
+          DO UPDATE SET
+            position_title = EXCLUDED.position_title,
+            is_primary = true,
+            deleted_at = NULL,
+            updated_at = now()
+          `,
+          [customerId, organizationId, 'Representante Legal'],
+        );
       }
 
       const statusRes = await client.query("SELECT id FROM status_catalog WHERE domain = 'complaint' AND code = 'registered' AND is_active = true LIMIT 1");
