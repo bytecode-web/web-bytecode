@@ -24,7 +24,8 @@ projectEnvironmentsRouter.get(
   requirePermission('admin.proyectos.view'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const result = await pool.query(
+    const projectId = z.string().uuid().parse(req.params.id);
+    const result = await pool.query(
       `SELECT id, project_id, type, name, url, api_url, branch_name, commit_sha, status, error_details, audit_report, created_at
        FROM project_environments
        WHERE project_id = $1
@@ -42,7 +43,8 @@ projectEnvironmentsRouter.post(
   requirePermission('admin.proyectos.manage'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const body = projectEnvironmentSchema.parse(req.body);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const body = projectEnvironmentSchema.parse(req.body);
     const result = await pool.query(
       `INSERT INTO project_environments (project_id, type, name, url, api_url, status)
        SELECT id, $2, $3, $4, $5, 'verifying'
@@ -50,7 +52,7 @@ projectEnvironmentsRouter.post(
        WHERE id = $1 AND deleted_at IS NULL
        ON CONFLICT (project_id, type, name)
        DO UPDATE SET url = EXCLUDED.url, api_url = EXCLUDED.api_url, status = 'verifying', error_details = NULL
-       RETURNING id, project_id, type, name, url, api_url, status, error_details, created_at`,
+       RETURNING *, project_id, type, name, url, api_url, status, error_details, created_at`,
       [projectId, body.type, body.name, body.url, body.apiUrl || null],
     );
     if (!result.rowCount) throw new HttpError(404, 'Proyecto no encontrado');
@@ -66,19 +68,20 @@ projectEnvironmentsRouter.post(
   requirePermission('admin.proyectos.view'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const environmentId = z.string().uuid().parse(req.params.environment_id);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const environmentId = z.string().uuid().parse(req.params.environment_id);
     const result = await pool.query(
       `UPDATE project_environments
        SET status = 'verifying', error_details = NULL
        WHERE id = $1 AND project_id = $2
          AND type IN ('ephemeral', 'staging')
          AND status IN ('deployed_ui', 'active', 'ready', 'failed')
-       RETURNING id`,
+       RETURNING *`,
       [environmentId, projectId],
     );
     if (!result.rowCount) throw new HttpError(409, 'El entorno no está listo para iniciar la verificación.');
     triggerEnvironmentVerification(environmentId, projectId);
-    await auditService.logAdminAction({ userId: req.admin?.id, action: 'verify_environment', entityType: 'project_environments', entity: environmentId, req });
+    await auditService.logAdminAction({ userId: req.admin?.id, action: 'verify_environment', entityType: 'project_environments', entityId: environmentId, previousState: result.rows[0], req });
     res.status(202).json({ ok: true });
   }),
 );
@@ -89,13 +92,14 @@ projectEnvironmentsRouter.delete(
   requirePermission('admin.proyectos.manage'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const environmentId = z.string().uuid().parse(req.params.environment_id);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const environmentId = z.string().uuid().parse(req.params.environment_id);
     const result = await pool.query(
-      'DELETE FROM project_environments WHERE id = $1 AND project_id = $2 RETURNING id',
+      'DELETE FROM project_environments WHERE id = $1 AND project_id = $2 RETURNING *',
       [environmentId, projectId],
     );
     if (!result.rowCount) throw new HttpError(404, 'Entorno no encontrado');
-    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete_environment', entityType: 'project_environments', entity: environmentId, req });
+    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete_environment', entityType: 'project_environments', entityId: environmentId, previousState: result.rows[0], req });
     res.json({ ok: true });
   }),
 );

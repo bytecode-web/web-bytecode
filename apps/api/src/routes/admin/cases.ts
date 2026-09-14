@@ -660,7 +660,8 @@ casesRouter.get(
       userId: req.admin?.id,
       action: 'download_attachment',
       entityType: 'complaint',
-      entity: id,
+      entityId: id,
+      previousState: item,
       req
     });
     res.redirect(302, downloadUrl);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
-import { ClipboardList, RefreshCw, Eye, X } from 'lucide-react';
+import { ClipboardList, RefreshCw, Eye, X, ChevronDown, ChevronUp, Code } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 
 type AuditLog = {
@@ -26,7 +26,57 @@ type AuditLogsResponse = {
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 
-// ... (skip to component)
+const flattenDiffs = (before: any, after: any, prefix = ''): { key: string; oldVal: any; newVal: any }[] => {
+  const diffs: { key: string; oldVal: any; newVal: any }[] = [];
+  
+  if (before === after) return diffs;
+  
+  if (
+    typeof before !== 'object' || before === null || 
+    typeof after !== 'object' || after === null ||
+    Array.isArray(before) !== Array.isArray(after)
+  ) {
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      diffs.push({ key: prefix || 'Datos', oldVal: before, newVal: after });
+    }
+    return diffs;
+  }
+  
+  const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  
+  allKeys.forEach(k => {
+    // Ignorar campos de auditoría interna que siempre cambian
+    if (k === 'updated_at' || k === 'updated_by') return; 
+
+    const keyName = Array.isArray(before) ? `[${k}]` : k;
+    const newPrefix = prefix ? `${prefix}.${keyName}` : keyName;
+    
+    const vB = before[k];
+    const vA = after[k];
+    
+    if (typeof vB === 'object' && vB !== null && typeof vA === 'object' && vA !== null) {
+      diffs.push(...flattenDiffs(vB, vA, newPrefix));
+    } else {
+      if (vB !== vA) {
+        diffs.push({ key: newPrefix, oldVal: vB, newVal: vA });
+      }
+    }
+  });
+  
+  return diffs;
+};
+
+const computeDiffs = (details: any) => {
+  if (!details || typeof details !== 'object') return [];
+  const before = details.before;
+  const after = details.after;
+
+  // Filtrar eventos simples que solo loggean un ID (ej. download_attachment, deletes básicos)
+  if (!before && after && Object.keys(after).length === 1 && after.id) return [];
+  if (!after && before && Object.keys(before).length === 1 && before.id) return [];
+  
+  return flattenDiffs(before || {}, after || {});
+};
 
 const PAGE_SIZE = 9;
 
@@ -36,7 +86,14 @@ const Auditoria: React.FC = () => {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-    const [selectedDetails, setSelectedDetails] = useState<Record<string, any> | null>(null);
+  const [selectedDetails, setSelectedDetails] = useState<Record<string, any> | null>(null);
+  const [showRawJson, setShowRawJson] = useState(false);
+
+  useEffect(() => {
+    if (selectedDetails) {
+      setShowRawJson(false);
+    }
+  }, [selectedDetails]);
 
   const loadLogs = useCallback(async (targetPage: number) => {
     setLoading(true);
@@ -212,12 +269,61 @@ const Auditoria: React.FC = () => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-5 overflow-y-auto">
-              <pre className="bg-black/40 text-green-400 p-4 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed border border-white/5 shadow-inner">
-                <code>
-                  {JSON.stringify(selectedDetails, null, 2)}
-                </code>
-              </pre>
+            <div className="p-5 overflow-y-auto flex flex-col gap-4">
+              {(() => {
+                const diffs = computeDiffs(selectedDetails);
+                if (diffs.length > 0) {
+                  return (
+                    <div className="border border-white/10 rounded-lg overflow-hidden bg-black/20">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-white/[0.05] text-white/50 text-[10px] uppercase tracking-wider">
+                          <tr>
+                            <th className="px-4 py-2 font-medium">Campo</th>
+                            <th className="px-4 py-2 font-medium">Valor Anterior</th>
+                            <th className="px-4 py-2 font-medium">Nuevo Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {diffs.map((d) => (
+                            <tr key={d.key} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="px-4 py-3 font-mono text-xs text-white/80">{d.key}</td>
+                              <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.oldVal)}>
+                                <span className={`px-2 py-1 rounded inline-block truncate max-w-full ${d.oldVal === undefined ? 'text-white/30 italic' : 'bg-red-500/10 text-red-400 line-through'}`}>
+                                  {d.oldVal === undefined ? 'Añadido' : (typeof d.oldVal === 'string' ? d.oldVal : JSON.stringify(d.oldVal))}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.newVal)}>
+                                <span className={`px-2 py-1 rounded inline-block truncate max-w-full ${d.newVal === undefined ? 'text-white/30 italic' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                                  {d.newVal === undefined ? 'Eliminado' : (typeof d.newVal === 'string' ? d.newVal : JSON.stringify(d.newVal))}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              <div>
+                <button
+                  onClick={() => setShowRawJson(!showRawJson)}
+                  className="flex items-center gap-2 text-xs font-medium text-[#06CFD6]/70 hover:text-[#06CFD6] transition-colors px-1 py-1"
+                >
+                  <Code className="w-3.5 h-3.5" />
+                  {showRawJson ? 'Ocultar JSON Completo' : 'Ver Documento JSON Completo'}
+                  {showRawJson ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                {showRawJson && (
+                  <pre className="mt-3 bg-black/40 text-green-400 p-4 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed border border-white/5 shadow-inner">
+                    <code>
+                      {JSON.stringify(selectedDetails, null, 2)}
+                    </code>
+                  </pre>
+                )}
+              </div>
             </div>
             <div className="px-5 py-4 border-t border-white/10 bg-white/[0.02] flex justify-end">
               <button 

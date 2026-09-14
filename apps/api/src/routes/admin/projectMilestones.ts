@@ -29,7 +29,8 @@ projectMilestonesRouter.post(
   requirePermission('admin.proyectos.manage'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const body = milestoneCreateSchema.parse(req.body);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const body = milestoneCreateSchema.parse(req.body);
 
     const client = await pool.connect();
     try {
@@ -87,7 +88,8 @@ projectMilestonesRouter.get(
   requirePermission('admin.proyectos.view'),
   requireProjectOwnership,
   asyncHandler(async (req: Request, res: Response) => {
-    const id = z.string().uuid().parse(req.params.id);    const result = await pool.query(
+    const id = z.string().uuid().parse(req.params.id);
+    const result = await pool.query(
       `SELECT pm.id, pm.project_id, pm.title, pm.due_date, pm.payment_percentage, pm.quote_id,
               pm.completed_at, pm.created_at, pm.updated_at,
               sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
@@ -130,7 +132,8 @@ projectMilestonesRouter.patch(
   requireProjectOwnership,
   requireNonTerminalState('projects'),
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const milestoneId = z.string().uuid().parse(req.params.milestone_id);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const milestoneId = z.string().uuid().parse(req.params.milestone_id);
     const body = projectStatusSchema.parse(req.body);
     const oldStateRes = await pool.query('SELECT * FROM project_milestones WHERE id = $1', [milestoneId]);
     if (!oldStateRes.rowCount) throw new HttpError(404, 'Hito no encontrado.');
@@ -159,7 +162,8 @@ projectMilestonesRouter.delete(
   requireProjectOwnership,
   requireNonTerminalState('projects'),
   asyncHandler(async (req: Request, res: Response) => {
-    const projectId = z.string().uuid().parse(req.params.id);    const milestoneId = z.string().uuid().parse(req.params.milestone_id);
+    const projectId = z.string().uuid().parse(req.params.id);
+    const milestoneId = z.string().uuid().parse(req.params.milestone_id);
     
     const checkRes = await pool.query('SELECT title, (SELECT COUNT(*) FROM milestone_payments WHERE milestone_id = $1 AND status != \'rejected\') as count FROM project_milestones WHERE id = $1', [milestoneId]);
     
@@ -171,10 +175,10 @@ projectMilestonesRouter.delete(
       throw new HttpError(400, 'No se puede eliminar un hito que ya tiene pagos registrados.');
     }
     
-    const result = await pool.query('DELETE FROM project_milestones WHERE id = $1 AND project_id = $2 RETURNING id', [milestoneId, projectId]);
+    const result = await pool.query('DELETE FROM project_milestones WHERE id = $1 AND project_id = $2 RETURNING *', [milestoneId, projectId]);
     if (result.rowCount === 0) throw new HttpError(404, 'Hito no encontrado.');
     
-    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete_milestone', entityType: 'project_milestones', entity: milestoneId, req });
+    await auditService.logAdminAction({ userId: req.admin?.id, action: 'delete_milestone', entityType: 'project_milestones', entityId: milestoneId, previousState: result.rows[0], req });
     res.status(200).json({ success: true });
   }),
 );
