@@ -26,31 +26,56 @@ type AuditLogsResponse = {
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 
-const computeDiffs = (details: any) => {
-  if (!details || typeof details !== 'object') return [];
-  const before = details.before || {};
-  const after = details.after || {};
-  
-  if (typeof before !== 'object' || typeof after !== 'object') return [];
-  
-  const allKeys = Array.from(new Set([...Object.keys(before || {}), ...Object.keys(after || {})]));
+const flattenDiffs = (before: any, after: any, prefix = ''): { key: string; oldVal: any; newVal: any }[] => {
   const diffs: { key: string; oldVal: any; newVal: any }[] = [];
   
-  allKeys.forEach(key => {
-    // Si ambos son omitidos o indefinidos, no hay diff.
-    if (before[key] === undefined && after[key] === undefined) return;
-    const valBefore = JSON.stringify(before[key]);
-    const valAfter = JSON.stringify(after[key]);
-    if (valBefore !== valAfter) {
-      diffs.push({
-        key,
-        oldVal: before[key],
-        newVal: after[key]
-      });
+  if (before === after) return diffs;
+  
+  if (
+    typeof before !== 'object' || before === null || 
+    typeof after !== 'object' || after === null ||
+    Array.isArray(before) !== Array.isArray(after)
+  ) {
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      diffs.push({ key: prefix || 'Datos', oldVal: before, newVal: after });
+    }
+    return diffs;
+  }
+  
+  const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+  
+  allKeys.forEach(k => {
+    // Ignorar campos de auditoría interna que siempre cambian
+    if (k === 'updated_at' || k === 'updated_by') return; 
+
+    const keyName = Array.isArray(before) ? `[${k}]` : k;
+    const newPrefix = prefix ? `${prefix}.${keyName}` : keyName;
+    
+    const vB = before[k];
+    const vA = after[k];
+    
+    if (typeof vB === 'object' && vB !== null && typeof vA === 'object' && vA !== null) {
+      diffs.push(...flattenDiffs(vB, vA, newPrefix));
+    } else {
+      if (vB !== vA) {
+        diffs.push({ key: newPrefix, oldVal: vB, newVal: vA });
+      }
     }
   });
   
   return diffs;
+};
+
+const computeDiffs = (details: any) => {
+  if (!details || typeof details !== 'object') return [];
+  const before = details.before;
+  const after = details.after;
+
+  // Filtrar eventos simples que solo loggean un ID (ej. download_attachment, deletes básicos)
+  if (!before && after && Object.keys(after).length === 1 && after.id) return [];
+  if (!after && before && Object.keys(before).length === 1 && before.id) return [];
+  
+  return flattenDiffs(before || {}, after || {});
 };
 
 const PAGE_SIZE = 9;
