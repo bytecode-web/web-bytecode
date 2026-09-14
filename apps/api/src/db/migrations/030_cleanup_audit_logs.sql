@@ -9,14 +9,19 @@ DROP COLUMN IF EXISTS after_data;
 -- 3. Crear funcion para limitar a 450 registros
 CREATE OR REPLACE FUNCTION public.trg_limit_audit_logs()
 RETURNS TRIGGER AS $$
+DECLARE
+  oldest_record_to_keep_ts timestamp with time zone;
 BEGIN
-  -- Borra los registros mas viejos si exceden los 450
-  DELETE FROM public.admin_audit_logs
-  WHERE id NOT IN (
-    SELECT id FROM public.admin_audit_logs
-    ORDER BY created_at DESC
-    LIMIT 450
-  );
+  SELECT created_at INTO oldest_record_to_keep_ts
+  FROM public.admin_audit_logs
+  ORDER BY created_at DESC
+  OFFSET 450
+  LIMIT 1;
+
+  IF FOUND THEN
+    DELETE FROM public.admin_audit_logs
+    WHERE created_at < oldest_record_to_keep_ts;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

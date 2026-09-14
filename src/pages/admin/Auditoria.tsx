@@ -259,12 +259,12 @@ const Auditoria: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                          {diffs.map((d, i) => (
-                            <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                          {diffs.map((d) => (
+                            <tr key={d.key} className="hover:bg-white/[0.02] transition-colors">
                               <td className="px-4 py-3 font-mono text-xs text-white/80">{d.key}</td>
                               <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.oldVal)}>
                                 <span className={`px-2 py-1 rounded inline-block truncate max-w-full ${d.oldVal === undefined ? 'text-white/30 italic' : 'bg-red-500/10 text-red-400 line-through'}`}>
-                                  {d.oldVal === undefined ? 'N/A' : (typeof d.oldVal === 'string' ? d.oldVal : JSON.stringify(d.oldVal))}
+                                  {d.oldVal === undefined ? 'Añadido' : (typeof d.oldVal === 'string' ? d.oldVal : JSON.stringify(d.oldVal))}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.newVal)}>
