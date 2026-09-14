@@ -10,6 +10,10 @@ import CustomDropdown from '../../components/ui/CustomDropdown';
 
 const PAGE_SIZE = 9;
 
+const CONTENT_MODULES: Record<string, string> = {
+  'portafolio': '/admin/portafolio'
+  // Añade aqui nuevos modulos especializados a medida que crecen
+};
 type CMSPage = {
   id: string;
   slug: string;
@@ -207,17 +211,22 @@ const AdminCMS: React.FC = () => {
               >
                 <Edit2 className="h-4 w-4" /> Editar
               </button>
-              {pages.find((page) => page.id === actionsMenu.id)?.slug === 'portafolio' && (
-                <button
-                  onClick={() => {
-                    navigate('/admin/portafolio');
-                    setActionsMenu(null);
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <Settings2 className="h-4 w-4" /> Gestionar Contenido
-                </button>
-              )}
+              {(() => {
+                const pageSlug = pages.find((page) => page.id === actionsMenu.id)?.slug;
+                const manageUrl = pageSlug ? CONTENT_MODULES[pageSlug] : null;
+                
+                return manageUrl ? (
+                  <button
+                    onClick={() => {
+                      navigate(manageUrl);
+                      setActionsMenu(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <Settings2 className="h-4 w-4" /> Gestionar Contenido
+                  </button>
+                ) : null;
+              })()}
             </div>
           </motion.div>
         )}
