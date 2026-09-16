@@ -1,6 +1,6 @@
 # 🌌 Bytecode - Software de Siguiente Nivel
 
-![Bytecode Banner](/public/designs/logo_base.svg)
+![Bytecode Banner](/public/vectors/designs/variante_logo_color1.svg)
 
 Bienvenido al repositorio oficial del sitio web de **Bytecode**, una landing page de vanguardia diseñada para reflejar la innovación, calidad y visión tecnológica de nuestra marca. Este proyecto no es solo un sitio web; es una experiencia digital interactiva construida con las tecnologías más modernas del ecosistema web.
 
