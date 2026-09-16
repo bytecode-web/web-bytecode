@@ -41,18 +41,29 @@ const AdminPerfil: React.FC = () => {
 
   useEffect(() => {
     void fetchSessions();
-    
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+    let interval: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      interval = setInterval(() => {
         void fetchSessions(false);
-      }
-    }, 5000);
+      }, 5000);
+    };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         void fetchSessions(false);
+        // Reinicia el intervalo al volver para mantener la cadencia exacta de 5s
+        clearInterval(interval);
+        startPolling();
+      } else {
+        // Pausa el reloj nativo si la pestaña no es visible
+        clearInterval(interval);
       }
     };
+
+    if (document.visibilityState === 'visible') {
+      startPolling();
+    }
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
