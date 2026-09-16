@@ -41,10 +41,25 @@ const AdminPerfil: React.FC = () => {
 
   useEffect(() => {
     void fetchSessions();
+    
     const interval = setInterval(() => {
-      void fetchSessions(false);
+      if (document.visibilityState === 'visible') {
+        void fetchSessions(false);
+      }
     }, 5000);
-    return () => clearInterval(interval);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchSessions(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchSessions]);
 
   const handleRevoke = async (sessionId: string) => {
