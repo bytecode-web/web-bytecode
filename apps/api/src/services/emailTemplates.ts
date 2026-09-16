@@ -186,3 +186,29 @@ export function buildAdminVerification(name: string, verifyUrl: string): string 
   `;
   return masterLayout(content);
 }
+
+export function buildNewDeviceAlert(name: string, os: string, browser: string, ip: string, time: string, profileUrl: string): string {
+  const content = `
+    <h2 style="color: #ffffff; margin-top: 0; text-align: center;">Alerta de Seguridad</h2>
+    <p>¡Hola <span class="highlight">${escapeHtml(name)}</span>!</p>
+    <p>Hemos detectado un nuevo inicio de sesión en tu cuenta de Bytecode desde un dispositivo o ubicación no reconocida recientemente.</p>
+
+    <div class="card">
+      <table width="100%">
+        <tr><td style="color: #94a3b8; padding: 4px 0; width: 100px;">Sistema:</td><td style="color: #ffffff;">${escapeHtml(os)}</td></tr>
+        <tr><td style="color: #94a3b8; padding: 4px 0;">Navegador:</td><td style="color: #ffffff;">${escapeHtml(browser)}</td></tr>
+        <tr><td style="color: #94a3b8; padding: 4px 0;">Dirección IP:</td><td style="color: #ffffff;">${escapeHtml(ip)}</td></tr>
+        <tr><td style="color: #94a3b8; padding: 4px 0;">Hora (UTC):</td><td style="color: #ffffff;">${escapeHtml(time)}</td></tr>
+      </table>
+    </div>
+
+    <p>Si fuiste tú, puedes ignorar este correo de manera segura. El dispositivo quedará registrado como confiable para futuras sesiones.</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${escapeHtml(profileUrl)}" class="button" style="background-color: #ef4444; color: #ffffff;">Revisar mis dispositivos</a>
+    </div>
+
+    <p style="font-size: 12px; color: #64748b; text-align: center;">Si no fuiste tú, por favor revoca el acceso del dispositivo y cambia tu contraseña inmediatamente.</p>
+  `;
+  return masterLayout(content);
+}
