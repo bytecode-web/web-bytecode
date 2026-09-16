@@ -59,7 +59,6 @@ fileAssetsRouter.get(
         fa.created_at,
         (SELECT array_agg(complaint_id) FROM complaint_evidences WHERE file_asset_id = fa.id) AS complaint_ids,
         (SELECT array_agg(portfolio_item_id) FROM portfolio_item_assets WHERE file_asset_id = fa.id) AS portfolio_item_ids,
-        (SELECT array_agg(id) FROM banners WHERE file_asset_id = fa.id) AS banner_ids,
         (SELECT json_agg(json_build_object('project_id', pm.project_id, 'milestone_id', mp.milestone_id)) 
          FROM milestone_payments mp 
          JOIN project_milestones pm ON pm.id = mp.milestone_id 
@@ -95,11 +94,6 @@ fileAssetsRouter.get(
       if (row.portfolio_item_ids && row.portfolio_item_ids.length > 0) {
         row.portfolio_item_ids.forEach((pId: string) => {
           origins.push({ label: 'Portada de Portafolio', url: `/admin/portafolio?id=${pId}`, module: 'portfolio', recordId: pId });
-        });
-      } 
-      if (row.banner_ids && row.banner_ids.length > 0) {
-        row.banner_ids.forEach((bId: string) => {
-          origins.push({ label: 'Banner Web', url: `/admin/cms`, module: 'banner', recordId: bId });
         });
       } 
       if (row.payment_projects && row.payment_projects.length > 0) {
@@ -172,9 +166,6 @@ fileAssetsRouter.delete(
       // 3. Pagos
       await client.query('UPDATE milestone_payments SET receipt_file_id = NULL WHERE receipt_file_id = $1', [assetId]);
       
-      // 4. Banners
-      await client.query('DELETE FROM banners WHERE file_asset_id = $1', [assetId]);
-
       // 5. Borrado físico del registro (ahora que ya no hay fkey violations)
       await client.query('DELETE FROM file_assets WHERE id = $1', [assetId]);
       
@@ -228,8 +219,6 @@ fileAssetsRouter.delete(
         await client.query('ALTER TABLE complaint_evidences ENABLE TRIGGER ALL');
       } else if (module === 'portfolio') {
         await client.query('DELETE FROM portfolio_item_assets WHERE file_asset_id = $1 AND portfolio_item_id = $2', [assetId, recordId]);
-      } else if (module === 'banner') {
-        await client.query('UPDATE banners SET file_asset_id = NULL WHERE file_asset_id = $1 AND id = $2', [assetId, recordId]);
       } else if (module === 'milestone_payment') {
         await client.query('UPDATE milestone_payments SET receipt_file_id = NULL WHERE receipt_file_id = $1 AND milestone_id = $2', [assetId, recordId]);
       }
@@ -240,8 +229,6 @@ fileAssetsRouter.delete(
           SELECT 1 FROM complaint_evidences WHERE file_asset_id = $1
           UNION ALL
           SELECT 1 FROM portfolio_item_assets WHERE file_asset_id = $1
-          UNION ALL
-          SELECT 1 FROM banners WHERE file_asset_id = $1
           UNION ALL
           SELECT 1 FROM milestone_payments WHERE receipt_file_id = $1
         ) as sub

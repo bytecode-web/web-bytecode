@@ -690,8 +690,6 @@ contentRouter.post(
           `SELECT COUNT(*) FROM (
             SELECT file_asset_id FROM complaint_evidences WHERE file_asset_id = $1
             UNION ALL
-            SELECT file_asset_id FROM banners WHERE file_asset_id = $1
-            UNION ALL
             SELECT receipt_file_id FROM milestone_payments WHERE receipt_file_id = $1
             UNION ALL
             SELECT file_asset_id FROM portfolio_item_assets WHERE file_asset_id = $1
