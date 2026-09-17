@@ -275,7 +275,7 @@ const userCreateSchema = z.object({
   name: z.string().min(2),
   password: z.string().min(8),
   role: z.string(),
-  expiresAt: z.string().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
 });
 
 const userUpdateSchema = z.object({
@@ -283,7 +283,7 @@ const userUpdateSchema = z.object({
   password: z.string().min(8).optional(),
   role: z.string().optional(),
   isActive: z.boolean().optional(),
-  expiresAt: z.string().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
 });
 
 usersRouter.get(

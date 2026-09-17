@@ -138,7 +138,10 @@ const Usuarios: React.FC = () => {
       password: '',
       role: user.role,
       isActive: user.is_active,
-      expiresAt: user.expires_at ? new Date(user.expires_at).toISOString().slice(0, 16) : '',
+      expiresAt: user.expires_at ? (() => {
+        const d = new Date(user.expires_at);
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      })() : '',
     });
     setIsModalOpen(true);
   };
@@ -153,7 +156,7 @@ const Usuarios: React.FC = () => {
           name: formData.name,
           role: formData.role,
           isActive: formData.isActive,
-          expiresAt: formData.expiresAt || null,
+          expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
         };
 
         if (formData.password.trim()) {
@@ -172,7 +175,7 @@ const Usuarios: React.FC = () => {
             name: formData.name,
             password: formData.password,
             role: formData.role,
-            expiresAt: formData.expiresAt || null,
+            expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
           },
         });
       }
@@ -438,7 +441,7 @@ const Usuarios: React.FC = () => {
 
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
-                  <span>Expiracin de la Cuenta</span>
+                  <span>Expiración de la Cuenta</span>
                   <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>
                 </label>
                 <input
