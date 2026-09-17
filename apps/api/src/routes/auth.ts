@@ -123,6 +123,17 @@ router.post(
     const ONE_HOUR_MS = 60 * 60 * 1000;
     const expiresAt = new Date(Date.now() + ONE_HOUR_MS);
 
+    // Phase 2: Device Recognition (Security Alert)
+    const deviceCheck = await pool.query(
+      `SELECT 1 FROM admin_sessions 
+       WHERE admin_user_id = $1 
+       AND (ip_address = $2 OR user_agent = $3)
+       AND created_at > NOW() - INTERVAL '6 months'
+       LIMIT 1`,
+      [admin.id, ipAddress, userAgent]
+    );
+    const isNewDevice = deviceCheck.rowCount === 0;
+
     // Database Insertion
     await pool.query(
       `
@@ -131,6 +142,27 @@ router.post(
       `,
       [admin.id, tokenHash, ipAddress, userAgent, expiresAt]
     );
+
+    // Trigger Email asynchronously
+    if (isNewDevice) {
+      import('ua-parser-js').then(({ UAParser }) => {
+        const parser = new UAParser(rawUa);
+        const browserInfo = parser.getBrowser();
+        const osInfo = parser.getOS();
+        const osName = `${osInfo.name || 'Desconocido'} ${osInfo.version || ''}`.trim();
+        const browserName = `${browserInfo.name || 'Desconocido'} ${browserInfo.version || ''}`.trim();
+        const timeStr = new Date().toLocaleString('es-PE', { timeZone: 'UTC' });
+        const frontendUrl = process.env.FRONTEND_URL || 'https://www.bytecode.com.pe';
+        const profileUrl = `${frontendUrl}/admin`; // The actual routing can be handled in FE or redirect
+
+        import('../services/emailTemplates.js').then(({ buildNewDeviceAlert }) => {
+          const emailHtml = buildNewDeviceAlert(admin.name, osName, browserName, ipAddress || 'Desconocida', timeStr, profileUrl);
+          import('../services/email.js').then(({ notifyCustomer }) => {
+            notifyCustomer(admin.email, 'Alerta de Seguridad - Bytecode', emailHtml, 'system').catch(console.error);
+          });
+        });
+      }).catch(console.error);
+    }
 
     // Secure Cookies
     res.cookie(COOKIE_NAME, plainToken, {
