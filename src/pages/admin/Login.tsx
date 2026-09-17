@@ -4,6 +4,7 @@ import ToastContainer from '../../components/ui/ToastContainer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '../../lib/api';
 import { Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Login: React.FC = () => {
   const { addToast } = useToastStore();
@@ -77,10 +78,20 @@ const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5"
                 tabIndex={-1}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={showPassword ? 'eye-off' : 'eye'}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </motion.div>
+                </AnimatePresence>
               </button>
             </div>
           </div>
