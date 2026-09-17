@@ -34,7 +34,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       SELECT 
         s.id AS session_id,
         s.expires_at,
-        u.id, u.email, u.name, u.is_active,
+        u.id, u.email, u.name, u.is_active, u.expires_at AS account_expires_at,
         COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::varchar[]) as roles,
         COALESCE((
           SELECT array_agg(DISTINCT p.code)
@@ -64,6 +64,11 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     if (!row.is_active) {
       clearAdminCookie(res);
       throw new HttpError(401, 'Usuario inactivo.');
+    }
+
+    if (row.account_expires_at && new Date(row.account_expires_at) < new Date()) {
+      clearAdminCookie(res);
+      throw new HttpError(403, 'Su cuenta ha expirado. Contacte a un administrador.');
     }
 
     const timeRemaining = new Date(row.expires_at).getTime() - Date.now();

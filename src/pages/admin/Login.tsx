@@ -3,6 +3,7 @@ import { useToastStore } from '../../stores/toastStore';
 import ToastContainer from '../../components/ui/ToastContainer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '../../lib/api';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Login: React.FC = () => {
   const { addToast } = useToastStore();
@@ -11,6 +12,7 @@ const Login: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -64,13 +66,23 @@ const Login: React.FC = () => {
           </div>
           <div className="mb-2">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Contraseña</label>
-            <input
-              type="password"
-              value={credentials.password}
-              onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={credentials.password}
+                onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-sm text-white/90 outline-none focus:border-white/30 transition-colors pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </div>
         <button disabled={loginLoading} className="mt-8 w-full rounded-lg bg-white py-3 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-50">

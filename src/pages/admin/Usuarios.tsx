@@ -18,10 +18,10 @@ type AdminUserRow = {
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+  expires_at?: string | null;
 };
 
 type RoleOption = {
-  id: string;
   code: string;
   name: string;
   is_active: boolean;
@@ -41,6 +41,7 @@ const emptyForm = {
   password: '',
   role: '',
   isActive: true,
+  expiresAt: '',
 };
 
 const Usuarios: React.FC = () => {
@@ -136,6 +137,7 @@ const Usuarios: React.FC = () => {
       password: '',
       role: user.role,
       isActive: user.is_active,
+      expiresAt: user.expires_at ? new Date(user.expires_at).toISOString().slice(0, 16) : '',
     });
     setIsModalOpen(true);
   };
@@ -150,6 +152,7 @@ const Usuarios: React.FC = () => {
           name: formData.name,
           role: formData.role,
           isActive: formData.isActive,
+          expiresAt: formData.expiresAt || null,
         };
 
         if (formData.password.trim()) {
@@ -168,6 +171,7 @@ const Usuarios: React.FC = () => {
             name: formData.name,
             password: formData.password,
             role: formData.role,
+            expiresAt: formData.expiresAt || null,
           },
         });
       }
@@ -387,7 +391,7 @@ const Usuarios: React.FC = () => {
 
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
-                  <span>{isEditing ? 'Nueva Contrasena' : 'Contrasena Temporal'}</span>
+                  <span>{isEditing ? 'Nueva Contraseña' : 'Contraseña Temporal'}</span>
                   {isEditing && <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>}
                 </label>
                 <input
@@ -408,6 +412,19 @@ const Usuarios: React.FC = () => {
                   placeholder="Seleccionar rol..."
                   onChange={(value) => setFormData({ ...formData, role: value })}
                   options={roleOptions}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
+                  <span>Expiracin de la Cuenta</span>
+                  <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.expiresAt}
+                  onChange={(event) => setFormData({ ...formData, expiresAt: event.target.value })}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors [&::-webkit-calendar-picker-indicator]:invert"
                 />
               </div>
 
