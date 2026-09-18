@@ -28,7 +28,7 @@ router.post(
     const body = loginSchema.parse(req.body);
     const result = await pool.query(
       `
-      SELECT u.id, u.email, u.name, u.password_hash, u.is_verified, u.force_password_change, u.verification_token,
+      SELECT u.id, u.email, u.name, u.password_hash, u.is_verified, u.force_password_change, u.verification_token, u.expires_at, u.failed_login_count, u.locked_until,
       COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::varchar[]) as roles,
       COALESCE((
         SELECT array_agg(DISTINCT p.code)
@@ -56,8 +56,26 @@ router.post(
     }
 
     const admin = result.rows[0];
+
+    if (admin.expires_at && new Date(admin.expires_at) < new Date()) {
+      throw new HttpError(403, 'Su cuenta ha pasado el tiempo de expiración. Contacte a un administrador.');
+    }
+
+    if (admin.locked_until && new Date(admin.locked_until) > new Date()) {
+      const remainingMinutes = Math.ceil((new Date(admin.locked_until).getTime() - Date.now()) / 60000);
+      throw new HttpError(423, `Cuenta bloqueada temporalmente. Intente en ${remainingMinutes} minutos.`);
+    }
+
     const validPassword = await bcrypt.compare(body.password, admin.password_hash);
     if (!validPassword) {
+      const newFailedCount = (admin.failed_login_count || 0) + 1;
+      let queryStr = 'UPDATE admin_users SET failed_login_count = $1 WHERE id = $2';
+      
+      if (newFailedCount >= 5) {
+         queryStr = "UPDATE admin_users SET failed_login_count = $1, locked_until = NOW() + INTERVAL '15 minutes' WHERE id = $2";
+      }
+      await pool.query(queryStr, [newFailedCount, admin.id]);
+
       await auditService.logAdminAction({
         userId: admin.id,
         action: 'login_failed',
@@ -66,6 +84,11 @@ router.post(
         req
       });
       throw new HttpError(401, 'Credenciales inválidas.');
+    }
+
+    // Si fue exitoso y tenía intentos fallidos:
+    if (admin.failed_login_count > 0 || admin.locked_until) {
+      await pool.query('UPDATE admin_users SET failed_login_count = 0, locked_until = NULL WHERE id = $1', [admin.id]);
     }
 
     // Task 1.2: Check if verified
@@ -87,7 +110,7 @@ router.post(
       const emailHtml = buildAdminVerification(admin.name, verifyUrl);
 
       const { notifyCustomer } = await import('../services/email.js');
-      await notifyCustomer(admin.email, 'Verificación de Cuenta Administrativa - Bytecode', emailHtml, 'system');
+      notifyCustomer(admin.email, 'Verificación de Cuenta Administrativa - Bytecode', emailHtml, 'system').catch(console.error);
 
       return res.status(403).json({
         status: 'error',

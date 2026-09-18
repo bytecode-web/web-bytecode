@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog, Eye, EyeOff } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -18,10 +18,10 @@ type AdminUserRow = {
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+  expires_at?: string | null;
 };
 
 type RoleOption = {
-  id: string;
   code: string;
   name: string;
   is_active: boolean;
@@ -41,6 +41,7 @@ const emptyForm = {
   password: '',
   role: '',
   isActive: true,
+  expiresAt: '',
 };
 
 const Usuarios: React.FC = () => {
@@ -56,6 +57,7 @@ const Usuarios: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const roleOptions = roles.map((role) => ({ value: role.code, label: role.name }));
 
@@ -136,6 +138,10 @@ const Usuarios: React.FC = () => {
       password: '',
       role: user.role,
       isActive: user.is_active,
+      expiresAt: user.expires_at ? (() => {
+        const d = new Date(user.expires_at);
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      })() : '',
     });
     setIsModalOpen(true);
   };
@@ -150,6 +156,7 @@ const Usuarios: React.FC = () => {
           name: formData.name,
           role: formData.role,
           isActive: formData.isActive,
+          expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
         };
 
         if (formData.password.trim()) {
@@ -168,6 +175,7 @@ const Usuarios: React.FC = () => {
             name: formData.name,
             password: formData.password,
             role: formData.role,
+            expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
           },
         });
       }
@@ -387,18 +395,38 @@ const Usuarios: React.FC = () => {
 
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
-                  <span>{isEditing ? 'Nueva Contrasena' : 'Contrasena Temporal'}</span>
+                  <span>{isEditing ? 'Nueva Contraseña' : 'Contraseña Temporal'}</span>
                   {isEditing && <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>}
                 </label>
-                <input
-                  type="password"
-                  required={!isEditing}
-                  minLength={8}
-                  placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : ''}
-                  value={formData.password}
-                  onChange={(event) => setFormData({ ...formData, password: event.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required={!isEditing}
+                    minLength={8}
+                    placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : ''}
+                    value={formData.password}
+                    onChange={(event) => setFormData({ ...formData, password: event.target.value })}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors placeholder:text-white/20 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5"
+                    tabIndex={-1}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.div
+                        key={showPassword ? 'eye-off' : 'eye'}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </motion.div>
+                    </AnimatePresence>
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -408,6 +436,19 @@ const Usuarios: React.FC = () => {
                   placeholder="Seleccionar rol..."
                   onChange={(value) => setFormData({ ...formData, role: value })}
                   options={roleOptions}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
+                  <span>Expiración de la Cuenta</span>
+                  <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.expiresAt}
+                  onChange={(event) => setFormData({ ...formData, expiresAt: event.target.value })}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors [&::-webkit-calendar-picker-indicator]:invert"
                 />
               </div>
 

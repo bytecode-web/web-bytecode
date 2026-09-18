@@ -3,6 +3,8 @@ import { useToastStore } from '../../stores/toastStore';
 import ToastContainer from '../../components/ui/ToastContainer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest, ApiError } from '../../lib/api';
+import { Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Login: React.FC = () => {
   const { addToast } = useToastStore();
@@ -11,6 +13,7 @@ const Login: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -64,13 +67,33 @@ const Login: React.FC = () => {
           </div>
           <div className="mb-2">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Contraseña</label>
-            <input
-              type="password"
-              value={credentials.password}
-              onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={credentials.password}
+                onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-sm text-white/90 outline-none focus:border-white/30 transition-colors pr-10"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5"
+                tabIndex={-1}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={showPassword ? 'eye-off' : 'eye'}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </motion.div>
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
         </div>
         <button disabled={loginLoading} className="mt-8 w-full rounded-lg bg-white py-3 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-50">
