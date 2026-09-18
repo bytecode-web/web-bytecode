@@ -29,10 +29,12 @@ export async function getTransporter() {
 
   if (!isEmailEnabled) return null;
 
+  const isSecure = config.secure !== undefined ? Boolean(config.secure) : Number(config.port) === 465;
+
   return nodemailer.createTransport({
     host: config.host,
-    port: config.port,
-    secure: config.secure,
+    port: Number(config.port),
+    secure: isSecure,
     auth: {
       user: config.user,
       pass: config.pass,
