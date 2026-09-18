@@ -307,7 +307,8 @@ usersRouter.get(
           (array_remove(array_agg(r.code), NULL))[1] as role,
           array_remove(array_agg(r.code), NULL) as roles,
           u.created_at,
-          u.last_login_at
+          u.last_login_at,
+          u.expires_at
         FROM admin_users u
         LEFT JOIN admin_user_roles aur ON u.id = aur.admin_user_id
         LEFT JOIN roles r ON aur.role_id = r.id
