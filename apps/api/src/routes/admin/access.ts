@@ -270,12 +270,17 @@ accessRouter.get(
 
 // --- User Management Endpoints ---
 
+const isFutureDate = (val: string | null | undefined) => {
+  if (!val) return true;
+  return new Date(val).getTime() > Date.now();
+};
+
 const userCreateSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
   password: z.string().min(8),
   role: z.string(),
-  expiresAt: z.string().datetime().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional().refine(isFutureDate, { message: "La fecha de expiracion debe mayor a la fecha actual." }),
 });
 
 const userUpdateSchema = z.object({
@@ -283,7 +288,7 @@ const userUpdateSchema = z.object({
   password: z.string().min(8).optional(),
   role: z.string().optional(),
   isActive: z.boolean().optional(),
-  expiresAt: z.string().datetime().nullable().optional(),
+  expiresAt: z.string().datetime().nullable().optional().refine(isFutureDate, { message: "La fecha de expiracion debe mayor a la fecha actual." }),
 });
 
 usersRouter.get(
