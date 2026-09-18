@@ -110,7 +110,7 @@ router.post(
       const emailHtml = buildAdminVerification(admin.name, verifyUrl);
 
       const { notifyCustomer } = await import('../services/email.js');
-      await notifyCustomer(admin.email, 'Verificación de Cuenta Administrativa - Bytecode', emailHtml, 'system');
+      notifyCustomer(admin.email, 'Verificación de Cuenta Administrativa - Bytecode', emailHtml, 'system').catch(console.error);
 
       return res.status(403).json({
         status: 'error',
