@@ -109,7 +109,7 @@ const ProjectEnvironmentsHub: React.FC<{ projectId: string; isAdmin?: boolean }>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if(e.target === e.currentTarget) setModalOpen(false); }}>
-            <form onSubmit={save} onMouseDown={e => e.stopPropagation()} className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl">
+            <form onSubmit={save} className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl">
               <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4"><h3 className="font-semibold text-white/90">Añadir Entorno</h3><button type="button" onClick={() => setModalOpen(false)} className="p-2 text-white/45"><X className="h-5 w-5" /></button></div>
               <div className="grid gap-4">
                 <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Tipo</span><CustomDropdown value={form.type} onChange={changeType} placeholder="Seleccionar tipo..." options={[{ value: 'production', label: 'Producción' }, { value: 'staging', label: 'Staging' }]} /></div>

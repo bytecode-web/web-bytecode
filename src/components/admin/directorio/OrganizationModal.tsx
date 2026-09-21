@@ -144,7 +144,7 @@ export default function OrganizationModal({ isOpen, onClose, onSuccess, editingI
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
           <h2 className="text-lg font-semibold text-white/90">
             {editingId ? 'Editar Empresa' : 'Nueva Empresa'}
