@@ -229,3 +229,12 @@ export function buildOtpEmail(name: string, otpCode: string): string {
   `;
   return masterLayout(content);
 }
+
+export function buildSimpleEmail(name: string, title: string, message: string): string {
+  const content = `
+    <h2 style="color: #ffffff; margin-top: 0; text-align: center;">${escapeHtml(title)}</h2>
+    <p>¡Hola <span class="highlight">${escapeHtml(name)}</span>!</p>
+    <p>${escapeHtml(message)}</p>
+  `;
+  return masterLayout(content);
+}

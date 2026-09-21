@@ -468,8 +468,62 @@ router.post('/me/sessions/:sessionId/revoke', requireCsrf, requireAdmin, asyncHa
 
   await pool.query(`UPDATE admin_sessions SET revoked_at = NOW() WHERE id = $1`, [params.sessionId]);
   await auditService.logAdminAction({ userId: req.admin?.id, action: 'revoke_own_session', entityType: 'admin_sessions', entity: params.sessionId, req });
-  
+
   res.json({ ok: true, message: 'Sesión revocada exitosamente.' });
+}));
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'La contraseña actual es requerida'),
+  newPassword: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres')
+});
+
+router.post('/me/password', requireCsrf, loginLimiter, requireAdmin, asyncHandler(async (req: Request, res: Response) => {
+  const body = changePasswordSchema.parse(req.body);
+
+  const result = await pool.query(
+    'SELECT password_hash, email, name FROM admin_users WHERE id = $1 AND is_active = true AND deleted_at IS NULL',
+    [req.admin!.id]
+  );
+
+  if (result.rowCount === 0) {
+    throw new HttpError(401, 'Usuario no válido.');
+  }
+
+  const admin = result.rows[0];
+  const isValid = await bcrypt.compare(body.currentPassword, admin.password_hash);
+  if (!isValid) {
+    await auditService.logAdminAction({ userId: req.admin?.id, action: 'change_password_failed', entityType: 'admin_users', entity: req.admin!.id, req });
+    throw new HttpError(401, 'La contraseña actual es incorrecta.');
+  }
+
+  const newHash = await bcrypt.hash(body.newPassword, 12);
+  
+  await pool.query(
+    'UPDATE admin_users SET password_hash = $1, updated_at = now() WHERE id = $2',
+    [newHash, req.admin!.id]
+  );
+
+  if (req.sessionId) {
+    await pool.query(
+      'UPDATE admin_sessions SET revoked_at = now() WHERE admin_user_id = $1 AND id != $2 AND revoked_at IS NULL',
+      [req.admin!.id, req.sessionId]
+    );
+  }
+
+  await auditService.logAdminAction({ userId: req.admin?.id, action: 'change_password', entityType: 'admin_users', entity: req.admin!.id, req });
+
+  import('../services/emailTemplates.js').then(({ buildSimpleEmail }) => {
+    import('../services/email.js').then(({ notifyCustomer }) => {
+      const emailHtml = buildSimpleEmail(
+        admin.name, 
+        'Tu contraseña ha sido cambiada', 
+        'Te informamos que tu contraseña ha sido actualizada exitosamente. Si no fuiste tú, por favor contacta al administrador del sistema de inmediato.'
+      );
+      notifyCustomer(admin.email, 'Alerta de Seguridad: Contraseña Actualizada', emailHtml, 'system').catch(console.error);
+    });
+  });
+
+  res.json({ ok: true, message: 'Contraseña actualizada correctamente. Las demás sesiones han sido cerradas.' });
 }));
 
 router.get('/sessions', requireAdmin, requirePermission('admin.seguridad.view'), asyncHandler(async (req: Request, res: Response) => {

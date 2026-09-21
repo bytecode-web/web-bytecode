@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
-import { Monitor, Smartphone, Tablet, Trash2, UserCircle, Clock } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, Trash2, UserCircle, Clock, ShieldCheck } from 'lucide-react';
 import AdminPanel from '../../components/admin/AdminPanel';
 
 interface Session {
@@ -25,12 +25,17 @@ const AdminPerfil: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const fetchSessions = useCallback(async (showSpinner = false) => {
     if (showSpinner) setIsRefreshing(true);
     try {
       const data = await apiRequest<{ sessions: Session[] }>('/auth/me/sessions');
-      setSessions(data.sessions);    } catch (err) {
+      setSessions(data.sessions);
+    } catch (err) {
       if (showSpinner) addToast(err instanceof Error ? err.message : 'Error al actualizar sesiones', 'error');
       else addToast(err instanceof Error ? err.message : 'Error al cargar sesiones', 'error');
     } finally {
@@ -38,6 +43,36 @@ const AdminPerfil: React.FC = () => {
       setLoading(false);
     }
   }, [addToast]);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      addToast('Las contraseñas nuevas no coinciden.', 'error');
+      return;
+    }
+    if (newPassword.length < 8) {
+      addToast('La nueva contraseña debe tener al menos 8 caracteres.', 'error');
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    try {
+      const res = await apiRequest<{message: string}>('/auth/me/password', {
+        method: 'POST',
+        json: { currentPassword, newPassword }
+      });
+      addToast(res.message || 'Contraseña actualizada correctamente.', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      // Refresh sessions to show others are revoked
+      fetchSessions(true);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al cambiar contraseña', 'error');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   useEffect(() => {
     void fetchSessions();
@@ -128,8 +163,60 @@ const AdminPerfil: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AnimatePresence>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <AdminPanel className="p-6">
+            <h2 className="text-lg font-medium text-white/90 mb-4 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-[#06CFD6]" /> Seguridad
+            </h2>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/60">Contraseña Actual</label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white outline-none focus:border-white/30 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/60">Nueva Contraseña</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white outline-none focus:border-white/30 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-white/60">Confirmar Nueva Contraseña</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white outline-none focus:border-white/30 transition-colors"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="w-full rounded-lg bg-[#06CFD6] px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#06CFD6]/90 disabled:opacity-50 mt-2"
+              >
+                {isChangingPassword ? 'Actualizando...' : 'Cambiar Contraseña'}
+              </button>
+            </form>
+          </AdminPanel>
+        </div>
+
+        <div className="lg:col-span-2">
+          <h2 className="text-lg font-medium text-white/90 mb-4 flex items-center gap-2">
+             Sesiones Activas
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <AnimatePresence>
           {sessions.map((session) => (
             <motion.div
               key={session.id}
@@ -190,7 +277,9 @@ const AdminPerfil: React.FC = () => {
               </AdminPanel>
             </motion.div>
           ))}
-        </AnimatePresence>
+          </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
   );
