@@ -19,6 +19,7 @@ type AdminUserRow = {
   created_at: string;
   last_login_at: string | null;
   expires_at?: string | null;
+  email_otp_enabled?: boolean;
 };
 
 type RoleOption = {
@@ -42,6 +43,7 @@ const emptyForm = {
   role: '',
   isActive: true,
   expiresAt: '',
+  email_otp_enabled: false,
 };
 
 const Usuarios: React.FC = () => {
@@ -131,18 +133,19 @@ const Usuarios: React.FC = () => {
 
   const handleOpenEdit = (user: AdminUserRow) => {
     setIsEditing(true);
-    setFormData({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      password: '',
-      role: user.role,
-      isActive: user.is_active,
-      expiresAt: user.expires_at ? (() => {
-        const d = new Date(user.expires_at);
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      })() : '',
-    });
+      setFormData({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        password: '',
+        role: user.role,
+        isActive: user.is_active,
+        expiresAt: user.expires_at ? (() => {
+          const d = new Date(user.expires_at);
+          return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        })() : '',
+        email_otp_enabled: !!user.email_otp_enabled,
+      });
     setIsModalOpen(true);
   };
 
@@ -157,6 +160,7 @@ const Usuarios: React.FC = () => {
           role: formData.role,
           isActive: formData.isActive,
           expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+          email_otp_enabled: formData.email_otp_enabled,
         };
 
         if (formData.password.trim()) {
@@ -176,6 +180,7 @@ const Usuarios: React.FC = () => {
             password: formData.password,
             role: formData.role,
             expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+            email_otp_enabled: formData.email_otp_enabled,
           },
         });
       }
@@ -451,6 +456,20 @@ const Usuarios: React.FC = () => {
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors [&::-webkit-calendar-picker-indicator]:invert"
                 />
               </div>
+
+              <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={formData.email_otp_enabled}
+                    onChange={e => setFormData({ ...formData, email_otp_enabled: e.target.checked })}
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${formData.email_otp_enabled ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.email_otp_enabled ? 'translate-x-4' : ''}`}></div>
+                </div>
+                <span className="text-sm text-white/80">Requerir MFA por Correo</span>
+              </label>
 
               {isEditing && (
                 <label className="flex items-center gap-3 cursor-pointer select-none mt-2">

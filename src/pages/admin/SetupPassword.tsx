@@ -3,6 +3,8 @@ import { useToastStore } from '../../stores/toastStore';
 import ToastContainer from '../../components/ui/ToastContainer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../../lib/api';
+import { Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const SetupPassword: React.FC = () => {
   const { addToast } = useToastStore();
@@ -11,7 +13,11 @@ const SetupPassword: React.FC = () => {
   const userId = searchParams.get('userId');
 
   const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   
   const [formData, setFormData] = useState({
     currentPassword: '',
@@ -100,36 +106,63 @@ const SetupPassword: React.FC = () => {
         <div className="flex flex-col gap-4">
           <div>
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Contraseña Temporal</label>
-            <input
-              type="password"
-              value={formData.currentPassword}
-              onChange={(e) => setFormData(prev => ({ ...prev, currentPassword: e.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showCurrent ? "text" : "password"}
+                value={formData.currentPassword}
+                onChange={(e) => setFormData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 pr-10"
+                required
+              />
+              <button type="button" onClick={() => setShowCurrent(!showCurrent)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5" tabIndex={-1}>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div key={showCurrent ? 'off' : 'on'} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                    {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </motion.div>
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
           <div className="mt-2">
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Nueva Contraseña</label>
-            <input
-              type="password"
-              value={formData.newPassword}
-              onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30"
-              placeholder="Mínimo 8 caracteres"
-              required
-              minLength={8}
-            />
+            <div className="relative">
+              <input
+                type={showNew ? "text" : "password"}
+                value={formData.newPassword}
+                onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 pr-10"
+                placeholder="Mínimo 8 caracteres"
+                required
+                minLength={8}
+              />
+              <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5" tabIndex={-1}>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div key={showNew ? 'off' : 'on'} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                    {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </motion.div>
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Confirmar Contraseña</label>
-            <input
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30"
-              required
-              minLength={8}
-            />
+            <div className="relative">
+              <input
+                type={showConfirm ? "text" : "password"}
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 pr-10"
+                required
+                minLength={8}
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5" tabIndex={-1}>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div key={showConfirm ? 'off' : 'on'} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }}>
+                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </motion.div>
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
         </div>
         

@@ -212,3 +212,20 @@ export function buildNewDeviceAlert(name: string, os: string, browser: string, i
   `;
   return masterLayout(content);
 }
+
+export function buildOtpEmail(name: string, otpCode: string): string {
+  const content = `
+    <h2 style="color: #ffffff; margin-top: 0; text-align: center;">Código de Verificación</h2>
+    <p>¡Hola <span class="highlight">${escapeHtml(name)}</span>!</p>
+    <p>Para completar tu inicio de sesión en Bytecode, por favor ingresa el siguiente código de 6 dígitos. Este código expirará en 10 minutos.</p>
+
+    <div style="text-align: center; margin: 40px 0;">
+      <div style="display: inline-block; background-color: rgba(6, 207, 214, 0.1); border: 2px dashed #06CFD6; padding: 15px 30px; border-radius: 8px; font-size: 32px; font-weight: bold; color: #06CFD6; letter-spacing: 8px;">
+        ${escapeHtml(otpCode)}
+      </div>
+    </div>
+
+    <p style="font-size: 12px; color: #64748b; text-align: center;">Si no intentaste iniciar sesión, cambia tu contraseña de inmediato, ya que alguien conoce tus credenciales.</p>
+  `;
+  return masterLayout(content);
+}

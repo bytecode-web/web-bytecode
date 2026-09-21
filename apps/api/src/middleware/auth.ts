@@ -34,7 +34,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       SELECT 
         s.id AS session_id,
         s.expires_at,
-        u.id, u.email, u.name, u.is_active, u.expires_at AS account_expires_at,
+        u.id, u.email, u.name, u.is_active, u.expires_at AS account_expires_at, u.email_otp_enabled,
         COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::varchar[]) as roles,
         COALESCE((
           SELECT array_agg(DISTINCT p.code)
@@ -83,6 +83,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
       name: row.name,
       roles: row.roles,
       permissions: row.permissions,
+      email_otp_enabled: row.email_otp_enabled,
     };
     req.sessionId = row.session_id;
 

@@ -4,6 +4,7 @@ export interface AdminUser {
   name: string;
   roles: string[];
   permissions: string[];
+  email_otp_enabled?: boolean;
 }
 
 export interface Country {

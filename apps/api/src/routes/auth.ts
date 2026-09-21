@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -28,7 +29,7 @@ router.post(
     const body = loginSchema.parse(req.body);
     const result = await pool.query(
       `
-      SELECT u.id, u.email, u.name, u.password_hash, u.is_verified, u.force_password_change, u.verification_token, u.expires_at, u.failed_login_count, u.locked_until,
+      SELECT u.id, u.email, u.name, u.password_hash, u.is_verified, u.force_password_change, u.verification_token, u.expires_at, u.failed_login_count, u.locked_until, u.email_otp_enabled,
       COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::varchar[]) as roles,
       COALESCE((
         SELECT array_agg(DISTINCT p.code)
@@ -129,100 +130,222 @@ router.post(
       });
     }
 
-    await pool.query('UPDATE admin_users SET last_login_at = now(), updated_at = now() WHERE id = $1', [admin.id]);
+    // Task 1.4: Check Email OTP
+    if (admin.email_otp_enabled === true) {
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      
+      await pool.query(
+        'UPDATE admin_users SET login_otp_code = $1, login_otp_expires_at = $2, updated_at = now() WHERE id = $3',
+        [otpCode, expiresAt, admin.id]
+      );
 
-    // Phase 1: Secure Session Management
-    const plainToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(plainToken).digest('hex');
-    
-    // Extract Metadata
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ipAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : req.socket.remoteAddress || req.ip;
-    const rawUa = req.headers['user-agent'] || '';
-    const chPlatform = req.headers['sec-ch-ua-platform'];
-    const chPlatformVersion = req.headers['sec-ch-ua-platform-version'];
-    const userAgent = JSON.stringify({ raw: rawUa, platform: chPlatform, platformVersion: chPlatformVersion });
-    
-    const ONE_HOUR_MS = 60 * 60 * 1000;
-    const expiresAt = new Date(Date.now() + ONE_HOUR_MS);
-
-    // Phase 2: Device Recognition (Security Alert)
-    const deviceCheck = await pool.query(
-      `SELECT 1 FROM admin_sessions 
-       WHERE admin_user_id = $1 
-       AND (ip_address = $2 OR user_agent = $3)
-       AND created_at > NOW() - INTERVAL '6 months'
-       LIMIT 1`,
-      [admin.id, ipAddress, userAgent]
-    );
-    const isNewDevice = deviceCheck.rowCount === 0;
-
-    // Database Insertion
-    await pool.query(
-      `
-      INSERT INTO admin_sessions (admin_user_id, token_hash, ip_address, user_agent, expires_at)
-      VALUES ($1, $2, $3, $4, $5)
-      `,
-      [admin.id, tokenHash, ipAddress, userAgent, expiresAt]
-    );
-
-    // Trigger Email asynchronously
-    if (isNewDevice) {
-      import('ua-parser-js').then(({ UAParser }) => {
-        const parser = new UAParser(rawUa);
-        const browserInfo = parser.getBrowser();
-        const osInfo = parser.getOS();
-        const osName = `${osInfo.name || 'Desconocido'} ${osInfo.version || ''}`.trim();
-        const browserName = `${browserInfo.name || 'Desconocido'} ${browserInfo.version || ''}`.trim();
-        const timeStr = new Date().toLocaleString('es-PE', { timeZone: 'UTC' });
-        const frontendUrl = process.env.FRONTEND_URL || 'https://www.bytecode.com.pe';
-        const profileUrl = `${frontendUrl}/admin`; // The actual routing can be handled in FE or redirect
-
-        import('../services/emailTemplates.js').then(({ buildNewDeviceAlert }) => {
-          const emailHtml = buildNewDeviceAlert(admin.name, osName, browserName, ipAddress || 'Desconocida', timeStr, profileUrl);
-          import('../services/email.js').then(({ notifyCustomer }) => {
-            notifyCustomer(admin.email, 'Alerta de Seguridad - Bytecode', emailHtml, 'system').catch(console.error);
-          });
+      import('../services/emailTemplates.js').then(({ buildOtpEmail }) => {
+        import('../services/email.js').then(({ notifyCustomer }) => {
+          notifyCustomer(admin.email, 'Código de Acceso - Bytecode', buildOtpEmail(admin.name, otpCode), 'system').catch(console.error);
         });
-      }).catch(console.error);
+      });
+
+      const tempToken = jwt.sign({ sub: admin.id, type: 'otp_auth' }, env.jwtSecret, { expiresIn: '10m' });
+
+      return res.status(200).json({
+        ok: true,
+        mfaRequired: true,
+        tempToken
+      });
     }
-
-    // Secure Cookies
-    res.cookie(COOKIE_NAME, plainToken, {
-      httpOnly: true,
-      secure: COOKIE_SECURE,
-      sameSite: COOKIE_SAME_SITE,
-      maxAge: ONE_HOUR_MS,
-      path: '/',
-    });
-    
-    // Maintain CSRF compatibility cookie
-    res.cookie('bc_csrf', crypto.randomUUID(), {
-      httpOnly: false,
-      secure: COOKIE_SECURE,
-      sameSite: COOKIE_SAME_SITE,
-      maxAge: ONE_HOUR_MS,
-      path: '/',
-    });
-
-    const publicAdmin = {
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      roles: admin.roles,
-      permissions: admin.permissions,
-    };
-
-    await auditService.logAdminAction({
-      userId: admin.id,
-      action: 'login',
-      entityType: 'admin_sessions',
-      entity: publicAdmin,
-      req
-    });
-    res.json({ admin: publicAdmin });
-  }),
+    await generateAdminSession(admin, req, res);
+  })
 );
+
+async function generateAdminSession(admin: any, req: Request, res: Response) {
+  await pool.query('UPDATE admin_users SET last_login_at = now(), updated_at = now() WHERE id = $1', [admin.id]);
+
+  // Phase 1: Secure Session Management
+  const plainToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(plainToken).digest('hex');
+  
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : req.socket.remoteAddress || req.ip;
+  const rawUa = req.headers['user-agent'] || '';
+  const chPlatform = req.headers['sec-ch-ua-platform'];
+  const chPlatformVersion = req.headers['sec-ch-ua-platform-version'];
+  const userAgent = JSON.stringify({ raw: rawUa, platform: chPlatform, platformVersion: chPlatformVersion });
+  
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + ONE_HOUR_MS);
+
+  // Phase 2: Device Recognition (Security Alert)
+  const deviceCheck = await pool.query(
+    `SELECT 1 FROM admin_sessions 
+     WHERE admin_user_id = $1 
+     AND (ip_address = $2 OR user_agent = $3)
+     AND created_at > NOW() - INTERVAL '6 months'
+     LIMIT 1`,
+    [admin.id, ipAddress, userAgent]
+  );
+  const isNewDevice = deviceCheck.rowCount === 0;
+
+  // Database Insertion
+  await pool.query(
+    `
+    INSERT INTO admin_sessions (admin_user_id, token_hash, ip_address, user_agent, expires_at)
+    VALUES ($1, $2, $3, $4, $5)
+    `,
+    [admin.id, tokenHash, ipAddress, userAgent, expiresAt]
+  );
+
+  // Trigger Email asynchronously
+  if (isNewDevice) {
+    import('ua-parser-js').then(({ UAParser }) => {
+      const parser = new UAParser(rawUa);
+      const browserInfo = parser.getBrowser();
+      const osInfo = parser.getOS();
+      const osName = `${osInfo.name || 'Desconocido'} ${osInfo.version || ''}`.trim();
+      const browserName = `${browserInfo.name || 'Desconocido'} ${browserInfo.version || ''}`.trim();
+      const timeStr = new Date().toLocaleString('es-PE', { timeZone: 'UTC' });
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.bytecode.com.pe';
+      const profileUrl = `${frontendUrl}/admin`; 
+
+      import('../services/emailTemplates.js').then(({ buildNewDeviceAlert }) => {
+        const emailHtml = buildNewDeviceAlert(admin.name, osName, browserName, ipAddress || 'Desconocida', timeStr, profileUrl);
+        import('../services/email.js').then(({ notifyCustomer }) => {
+          notifyCustomer(admin.email, 'Alerta de Seguridad - Bytecode', emailHtml, 'system').catch(console.error);
+        });
+      });
+    }).catch(console.error);
+  }
+
+  // Secure Cookies
+  res.cookie(COOKIE_NAME, plainToken, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAME_SITE,
+    maxAge: ONE_HOUR_MS,
+    path: '/',
+  });
+  
+  res.cookie('bc_csrf', crypto.randomUUID(), {
+    httpOnly: false,
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAME_SITE,
+    maxAge: ONE_HOUR_MS,
+    path: '/',
+  });
+
+  const publicAdmin = {
+    id: admin.id,
+    email: admin.email,
+    name: admin.name,
+    roles: admin.roles,
+    permissions: admin.permissions,
+  };
+
+  await auditService.logAdminAction({
+    userId: admin.id,
+    action: 'login',
+    entityType: 'admin_sessions',
+    entity: publicAdmin,
+    req
+  });
+  res.json({ admin: publicAdmin });
+}
+
+router.post('/verify-login-otp', requireCsrf, loginLimiter, asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    tempToken: z.string(),
+    otpCode: z.string().length(6)
+  });
+  const body = schema.parse(req.body);
+
+  let payload;
+  try {
+    payload = jwt.verify(body.tempToken, env.jwtSecret) as { sub: string, type: string };
+  } catch (err) {
+    throw new HttpError(401, 'Sesión expirada o token inválido.');
+  }
+
+  if (payload.type !== 'otp_auth') {
+    throw new HttpError(401, 'Token de origen inválido.');
+  }
+
+  const result = await pool.query(
+    `SELECT u.id, u.email, u.name, u.password_hash, u.is_verified, u.force_password_change, u.verification_token, u.expires_at, u.failed_login_count, u.locked_until, u.email_otp_enabled, u.login_otp_code, u.login_otp_expires_at,
+      COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), ARRAY[]::varchar[]) as roles,
+      COALESCE((
+        SELECT array_agg(DISTINCT p.code)
+        FROM permissions p
+        JOIN role_permissions rp ON p.id = rp.permission_id
+        WHERE rp.role_id IN (SELECT role_id FROM admin_user_roles WHERE admin_user_id = u.id)
+      ), ARRAY[]::varchar[]) as permissions
+     FROM admin_users u 
+     LEFT JOIN admin_user_roles aur ON u.id = aur.admin_user_id
+     LEFT JOIN roles r ON aur.role_id = r.id
+     WHERE u.id = $1 AND u.is_active = true AND u.deleted_at IS NULL
+     GROUP BY u.id`,
+    [payload.sub]
+  );
+
+  if (result.rowCount === 0) {
+    throw new HttpError(401, 'Usuario no encontrado.');
+  }
+
+  const admin = result.rows[0];
+
+  if (!admin.login_otp_code || admin.login_otp_code !== body.otpCode) {
+    throw new HttpError(400, 'El código ingresado es incorrecto.');
+  }
+
+  if (new Date() > new Date(admin.login_otp_expires_at)) {
+    throw new HttpError(400, 'El código ha expirado. Vuelva a iniciar sesión.');
+  }
+
+  // Clear OTP
+  await pool.query('UPDATE admin_users SET login_otp_code = NULL, login_otp_expires_at = NULL WHERE id = $1', [admin.id]);
+
+  await generateAdminSession(admin, req, res);
+}));
+
+router.post('/resend-otp', requireCsrf, loginLimiter, asyncHandler(async (req: Request, res: Response) => {
+  const schema = z.object({
+    tempToken: z.string()
+  });
+  const body = schema.parse(req.body);
+
+  let payload;
+  try {
+    payload = jwt.verify(body.tempToken, env.jwtSecret) as { sub: string, type: string };
+  } catch (err) {
+    throw new HttpError(401, 'Sesión expirada o token inválido.');
+  }
+
+  if (payload.type !== 'otp_auth') {
+    throw new HttpError(401, 'Token de origen inválido.');
+  }
+
+  const result = await pool.query('SELECT id, email, name, email_otp_enabled FROM admin_users WHERE id = $1 AND is_active = true AND deleted_at IS NULL', [payload.sub]);
+  if (result.rowCount === 0) throw new HttpError(401, 'Usuario no encontrado.');
+  const admin = result.rows[0];
+
+  if (!admin.email_otp_enabled) throw new HttpError(400, 'MFA no está activado para este usuario.');
+
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  
+  await pool.query(
+    'UPDATE admin_users SET login_otp_code = $1, login_otp_expires_at = $2, updated_at = now() WHERE id = $3',
+    [otpCode, expiresAt, admin.id]
+  );
+
+  import('../services/emailTemplates.js').then(({ buildOtpEmail }) => {
+    import('../services/email.js').then(({ notifyCustomer }) => {
+      notifyCustomer(admin.email, 'Nuevo Código de Acceso - Bytecode', buildOtpEmail(admin.name, otpCode), 'system').catch(console.error);
+    });
+  });
+
+  res.json({ ok: true, message: 'Se ha reenviado un nuevo código a tu correo.' });
+}));
+
 
 router.get('/csrf', (req: Request, res: Response) => {
   let token = req.cookies?.bc_csrf;
