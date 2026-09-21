@@ -373,13 +373,14 @@ const Usuarios: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5" autoComplete="off">
               {!isEditing && (
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-white/60 uppercase tracking-wider">Correo Electronico</label>
+                  <label className="mb-1.5 block text-xs font-medium text-white/60 uppercase tracking-wider">Correo Electrónico</label>
                   <input
                     type="email"
                     required
+                    autoComplete="off"
                     value={formData.email}
                     onChange={(event) => setFormData({ ...formData, email: event.target.value })}
                     className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
@@ -392,6 +393,7 @@ const Usuarios: React.FC = () => {
                 <input
                   type="text"
                   required
+                  autoComplete="off"
                   value={formData.name}
                   onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
@@ -407,6 +409,7 @@ const Usuarios: React.FC = () => {
                   <input
                     type={showPassword ? "text" : "password"}
                     required={!isEditing}
+                    autoComplete="new-password"
                     minLength={8}
                     placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : ''}
                     value={formData.password}
