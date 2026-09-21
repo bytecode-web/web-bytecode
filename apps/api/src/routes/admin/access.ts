@@ -270,11 +270,18 @@ accessRouter.get(
 
 // --- User Management Endpoints ---
 
+const isFutureDate = (val: string | null | undefined) => {
+  if (!val) return true;
+  return new Date(val).getTime() > Date.now();
+};
+
 const userCreateSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
   password: z.string().min(8),
   role: z.string(),
+  expiresAt: z.string().datetime().nullable().optional().refine(isFutureDate, { message: "La fecha de expiracion debe mayor a la fecha actual." }),
+  email_otp_enabled: z.boolean().default(false),
 });
 
 const userUpdateSchema = z.object({
@@ -282,6 +289,8 @@ const userUpdateSchema = z.object({
   password: z.string().min(8).optional(),
   role: z.string().optional(),
   isActive: z.boolean().optional(),
+  expiresAt: z.string().datetime().nullable().optional().refine(isFutureDate, { message: "La fecha de expiracion debe mayor a la fecha actual." }),
+  email_otp_enabled: z.boolean().optional(),
 });
 
 usersRouter.get(
@@ -305,7 +314,9 @@ usersRouter.get(
           (array_remove(array_agg(r.code), NULL))[1] as role,
           array_remove(array_agg(r.code), NULL) as roles,
           u.created_at,
-          u.last_login_at
+          u.last_login_at,
+          u.expires_at,
+          u.email_otp_enabled
         FROM admin_users u
         LEFT JOIN admin_user_roles aur ON u.id = aur.admin_user_id
         LEFT JOIN roles r ON aur.role_id = r.id
@@ -342,9 +353,9 @@ usersRouter.post(
       const roleId = roleResult.rows[0].id;
 
       const result = await client.query(
-        `INSERT INTO admin_users (email, name, password_hash, created_by, is_verified, force_password_change)
-         VALUES ($1, $2, $3, $4, false, true) RETURNING id, email, name, is_active, created_at`,
-        [body.email.toLowerCase(), body.name, passwordHash, req.admin?.id]
+        `INSERT INTO admin_users (email, name, password_hash, created_by, is_verified, force_password_change, expires_at, email_otp_enabled)
+         VALUES ($1, $2, $3, $4, false, true, $5, $6) RETURNING id, email, name, is_active, created_at, expires_at, email_otp_enabled`,
+        [body.email.toLowerCase(), body.name, passwordHash, req.admin?.id, body.expiresAt || null, body.email_otp_enabled]
       );
 
       await client.query(
@@ -423,11 +434,13 @@ usersRouter.patch(
           SET name = COALESCE($2, name),
               is_active = COALESCE($3, is_active),
               password_hash = COALESCE($5, password_hash),
+              expires_at = CASE WHEN $6::boolean = true THEN $7 ELSE expires_at END,
+              email_otp_enabled = CASE WHEN $8::boolean = true THEN $9 ELSE email_otp_enabled END,
               updated_at = now(),
               updated_by = $4
           WHERE id = $1
-          RETURNING id, email, name, is_active, updated_at`,
-        [id, body.name ?? null, body.isActive ?? null, req.admin?.id, passwordHash]
+          RETURNING id, email, name, is_active, updated_at, expires_at, email_otp_enabled`,
+        [id, body.name ?? null, body.isActive ?? null, req.admin?.id, passwordHash, body.expiresAt !== undefined, body.expiresAt ?? null, body.email_otp_enabled !== undefined, body.email_otp_enabled ?? null]
       );
 
       await client.query('COMMIT');

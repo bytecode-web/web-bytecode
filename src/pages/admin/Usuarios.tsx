@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog, Eye, EyeOff } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -18,10 +18,11 @@ type AdminUserRow = {
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+  expires_at?: string | null;
+  email_otp_enabled?: boolean;
 };
 
 type RoleOption = {
-  id: string;
   code: string;
   name: string;
   is_active: boolean;
@@ -41,6 +42,8 @@ const emptyForm = {
   password: '',
   role: '',
   isActive: true,
+  expiresAt: '',
+  email_otp_enabled: false,
 };
 
 const Usuarios: React.FC = () => {
@@ -56,6 +59,7 @@ const Usuarios: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [confirmModal, setConfirmModal] = useState<Omit<ConfirmModalProps, 'isOpen' | 'onCancel'> | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const roleOptions = roles.map((role) => ({ value: role.code, label: role.name }));
 
@@ -129,14 +133,19 @@ const Usuarios: React.FC = () => {
 
   const handleOpenEdit = (user: AdminUserRow) => {
     setIsEditing(true);
-    setFormData({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      password: '',
-      role: user.role,
-      isActive: user.is_active,
-    });
+      setFormData({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        password: '',
+        role: user.role,
+        isActive: user.is_active,
+        expiresAt: user.expires_at ? (() => {
+          const d = new Date(user.expires_at);
+          return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        })() : '',
+        email_otp_enabled: !!user.email_otp_enabled,
+      });
     setIsModalOpen(true);
   };
 
@@ -150,6 +159,8 @@ const Usuarios: React.FC = () => {
           name: formData.name,
           role: formData.role,
           isActive: formData.isActive,
+          expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+          email_otp_enabled: formData.email_otp_enabled,
         };
 
         if (formData.password.trim()) {
@@ -168,6 +179,8 @@ const Usuarios: React.FC = () => {
             name: formData.name,
             password: formData.password,
             role: formData.role,
+            expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : null,
+            email_otp_enabled: formData.email_otp_enabled,
           },
         });
       }
@@ -351,8 +364,8 @@ const Usuarios: React.FC = () => {
       </AnimatePresence>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setIsModalOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
+          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
@@ -360,13 +373,14 @@ const Usuarios: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5" autoComplete="off">
               {!isEditing && (
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-white/60 uppercase tracking-wider">Correo Electronico</label>
+                  <label className="mb-1.5 block text-xs font-medium text-white/60 uppercase tracking-wider">Correo Electrónico</label>
                   <input
                     type="email"
                     required
+                    autoComplete="off"
                     value={formData.email}
                     onChange={(event) => setFormData({ ...formData, email: event.target.value })}
                     className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
@@ -379,6 +393,7 @@ const Usuarios: React.FC = () => {
                 <input
                   type="text"
                   required
+                  autoComplete="off"
                   value={formData.name}
                   onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors"
@@ -387,18 +402,39 @@ const Usuarios: React.FC = () => {
 
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
-                  <span>{isEditing ? 'Nueva Contrasena' : 'Contrasena Temporal'}</span>
+                  <span>{isEditing ? 'Nueva Contraseña' : 'Contraseña Temporal'}</span>
                   {isEditing && <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>}
                 </label>
-                <input
-                  type="password"
-                  required={!isEditing}
-                  minLength={8}
-                  placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : ''}
-                  value={formData.password}
-                  onChange={(event) => setFormData({ ...formData, password: event.target.value })}
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required={!isEditing}
+                    autoComplete="new-password"
+                    minLength={8}
+                    placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : ''}
+                    value={formData.password}
+                    onChange={(event) => setFormData({ ...formData, password: event.target.value })}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors placeholder:text-white/20 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5"
+                    tabIndex={-1}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.div
+                        key={showPassword ? 'eye-off' : 'eye'}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </motion.div>
+                    </AnimatePresence>
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -410,6 +446,33 @@ const Usuarios: React.FC = () => {
                   options={roleOptions}
                 />
               </div>
+
+              <div>
+                <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-white/60 uppercase tracking-wider">
+                  <span>Expiración de la Cuenta</span>
+                  <span className="text-[10px] text-white/40 normal-case">(Opcional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.expiresAt}
+                  onChange={(event) => setFormData({ ...formData, expiresAt: event.target.value })}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors [&::-webkit-calendar-picker-indicator]:invert"
+                />
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer select-none mt-2">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={formData.email_otp_enabled}
+                    onChange={e => setFormData({ ...formData, email_otp_enabled: e.target.checked })}
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${formData.email_otp_enabled ? 'bg-[#06CFD6]' : 'bg-white/10'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.email_otp_enabled ? 'translate-x-4' : ''}`}></div>
+                </div>
+                <span className="text-sm text-white/80">Requerir MFA por Correo</span>
+              </label>
 
               {isEditing && (
                 <label className="flex items-center gap-3 cursor-pointer select-none mt-2">

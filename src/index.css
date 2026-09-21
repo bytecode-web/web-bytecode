@@ -16,6 +16,19 @@
     background: #060c1d;
     min-height: 100vh;
   }
+
+  /* Ocultar el ojo nativo de contraseñas (Edge/IE) */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
+
+  /* Ocultar iconos de autocompletado (Chrome/Safari) */
+  input::-webkit-credentials-auto-fill-button {
+    visibility: hidden;
+    display: none !important;
+    pointer-events: none;
+  }
 }
 
 @layer components {

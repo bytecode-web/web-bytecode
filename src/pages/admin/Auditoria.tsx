@@ -258,7 +258,7 @@ const Auditoria: React.FC = () => {
 
       {/* Details Modal */}
       {selectedDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onMouseDown={(e) => { if(e.target === e.currentTarget) setSelectedDetails(null); }}>
           <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-white/[0.02]">
               <h3 className="text-lg font-medium text-white/90 font-sansation tracking-wide">Detalles de Auditoría</h3>

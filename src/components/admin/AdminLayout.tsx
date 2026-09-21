@@ -13,6 +13,7 @@ export type AdminUser = {
   name: string;
   roles: string[];
   permissions?: string[];
+  email_otp_enabled?: boolean;
 };
 
 const AdminLayout: React.FC = () => {
