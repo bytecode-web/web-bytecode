@@ -86,11 +86,11 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onClick={onClose} />
+    <div className="fixed inset-0 z-50 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} />
 
-        <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-2xl transition-all">
+        <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-2xl transition-all" onMouseDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-medium text-white/90">
               {isEditing ? 'Editar Tipo de Documento' : 'Nuevo Tipo de Documento'}
