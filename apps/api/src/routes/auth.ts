@@ -20,7 +20,10 @@ const router = Router();
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  timezone: z.string().optional(),
 });
+
+// ... (se salta el resto pero necesito reemplazar ambos, así que mejor reemplazo dos veces o uso un nodo js)
 
 router.post(
   '/login',
@@ -146,7 +149,7 @@ router.post(
         });
       });
 
-      const tempToken = jwt.sign({ sub: admin.id, type: 'otp_auth' }, env.jwtSecret, { expiresIn: '10m' });
+      const tempToken = jwt.sign({ sub: admin.id, type: 'otp_auth' }, env.jwtSecret, { expiresIn: '30m' });
 
       return res.status(200).json({
         ok: true,
@@ -154,11 +157,11 @@ router.post(
         tempToken
       });
     }
-    await generateAdminSession(admin, req, res);
+    await generateAdminSession(admin, req, res, body.timezone);
   })
 );
 
-async function generateAdminSession(admin: any, req: Request, res: Response) {
+async function generateAdminSession(admin: any, req: Request, res: Response, providedTimezone?: string) {
   await pool.query('UPDATE admin_users SET last_login_at = now(), updated_at = now() WHERE id = $1', [admin.id]);
 
   // Phase 1: Secure Session Management
@@ -203,7 +206,8 @@ async function generateAdminSession(admin: any, req: Request, res: Response) {
       const osInfo = parser.getOS();
       const osName = `${osInfo.name || 'Desconocido'} ${osInfo.version || ''}`.trim();
       const browserName = `${browserInfo.name || 'Desconocido'} ${browserInfo.version || ''}`.trim();
-      const timeStr = new Date().toLocaleString('es-PE', { timeZone: 'UTC' });
+      const resolvedTz = providedTimezone || 'UTC';
+      const timeStr = new Date().toLocaleString('es-PE', { timeZone: resolvedTz }) + ` (${resolvedTz})`;
       const frontendUrl = process.env.FRONTEND_URL || 'https://www.bytecode.com.pe';
       const profileUrl = `${frontendUrl}/admin`; 
 
@@ -254,7 +258,8 @@ async function generateAdminSession(admin: any, req: Request, res: Response) {
 router.post('/verify-login-otp', requireCsrf, loginLimiter, asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
     tempToken: z.string(),
-    otpCode: z.string().length(6)
+    otpCode: z.string().length(6),
+    timezone: z.string().optional()
   });
   const body = schema.parse(req.body);
 
@@ -303,7 +308,7 @@ router.post('/verify-login-otp', requireCsrf, loginLimiter, asyncHandler(async (
   // Clear OTP
   await pool.query('UPDATE admin_users SET login_otp_code = NULL, login_otp_expires_at = NULL WHERE id = $1', [admin.id]);
 
-  await generateAdminSession(admin, req, res);
+  await generateAdminSession(admin, req, res, body.timezone);
 }));
 
 router.post('/resend-otp', requireCsrf, loginLimiter, asyncHandler(async (req: Request, res: Response) => {

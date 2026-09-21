@@ -37,7 +37,7 @@ const Login: React.FC = () => {
     try {
       const res = await apiRequest<any>('/auth/login', {
         method: 'POST',
-        json: credentials,
+        json: { ...credentials, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
       });
 
       if (res.mfaRequired) {
@@ -72,11 +72,15 @@ const Login: React.FC = () => {
     try {
       await apiRequest('/auth/verify-login-otp', {
         method: 'POST',
-        json: { tempToken, otpCode },
+        json: { tempToken, otpCode, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
       });
       navigate(searchParams.get('redirect') || '/admin/dashboard', { replace: true });
-    } catch (requestError) {
+    } catch (requestError: any) {
       addToast(requestError instanceof Error ? requestError.message : 'Código inválido.', 'error');
+      if (requestError?.message?.includes('expirada')) {
+        setMfaStep(false);
+        setOtpCode('');
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -91,8 +95,12 @@ const Login: React.FC = () => {
       });
       setResendCooldown(60);
       addToast('Nuevo código enviado', 'success');
-    } catch (requestError) {
+    } catch (requestError: any) {
       addToast(requestError instanceof Error ? requestError.message : 'No se pudo reenviar.', 'error');
+      if (requestError?.message?.includes('expirada')) {
+        setMfaStep(false);
+        setOtpCode('');
+      }
     }
   };
 

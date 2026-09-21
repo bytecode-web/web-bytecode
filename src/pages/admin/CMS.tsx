@@ -233,8 +233,8 @@ const AdminCMS: React.FC = () => {
       </AnimatePresence>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
+          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl" onMouseDown={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">
                 Editar sección / metadatos: <span className="font-mono text-white/50 text-sm">/{formData.slug}</span>

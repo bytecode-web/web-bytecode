@@ -488,11 +488,11 @@ const ProyectoDetalle: React.FC = () => {
 
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {editOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setEditOpen(false)}>
-            <form onSubmit={handleUpdate} onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}}>
+            <form onSubmit={handleUpdate} onMouseDown={(e)=>e.stopPropagation()} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
               <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
                 <div><h2 className="text-lg font-semibold text-white/90">Editar proyecto</h2><p className="mt-1 text-xs text-white/35">Información general y cotización asociada.</p></div>
-                <button type="button" onClick={() => setEditOpen(false)} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
+                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
               </div>
               <div className="grid gap-5">
                 <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required minLength={2} value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
@@ -501,15 +501,15 @@ const ProyectoDetalle: React.FC = () => {
                 <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Descripción</span><textarea rows={4} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
                 <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Repositorio GitHub</span><input type="url" value={editForm.githubRepo} onChange={(event) => setEditForm({ ...editForm, githubRepo: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
               </div>
-              <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onClick={() => setEditOpen(false)} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={saving} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{saving ? 'Guardando...' : 'Guardar cambios'}</button></div>
+              <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={saving} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{saving ? 'Guardando...' : 'Guardar cambios'}</button></div>
             </form>
           </div>
         )}
       </RoleGuard>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {paymentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }}>
-            <form onSubmit={handlePaymentSubmit} onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); } }}>
+            <form onSubmit={handlePaymentSubmit} onMouseDown={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
               <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
                 <div><h2 className="text-lg font-semibold text-white/90">Registrar Pago</h2></div>
                 <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
@@ -543,8 +543,8 @@ const ProyectoDetalle: React.FC = () => {
       </RoleGuard>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {addMilestoneOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }}>
-            <form onSubmit={handleAddMilestoneSubmit} onClick={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); } }}>
+            <form onSubmit={handleAddMilestoneSubmit} onMouseDown={(e) => e.stopPropagation()} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
               <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
                 <div><h2 className="text-lg font-semibold text-white/90">Añadir Hito</h2></div>
                 <button type="button" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
@@ -664,14 +664,14 @@ const ProyectoDetalle: React.FC = () => {
       </RoleGuard>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {milestoneDetailsOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={handleCloseMilestoneModal}>
-            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}}>
+            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8" onMouseDown={(e)=>e.stopPropagation()}>
               <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-white/90">Desglose de Pagos</h2>
                   <p className="mt-1 text-xs text-white/40">{milestoneDetailsOpen.title}</p>
                 </div>
-                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
+                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <div className="max-h-[50vh] overflow-y-auto pr-1">
                 <div className="grid gap-3">
@@ -708,7 +708,7 @@ const ProyectoDetalle: React.FC = () => {
                 </div>
               </div>
               <div className="mt-6 flex justify-end border-t border-white/5 pt-5">
-                <button type="button" onClick={handleCloseMilestoneModal} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
+                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
               </div>
             </div>
           </div>

@@ -198,7 +198,7 @@ export function buildNewDeviceAlert(name: string, os: string, browser: string, i
         <tr><td style="color: #94a3b8; padding: 4px 0; width: 100px;">Sistema:</td><td style="color: #ffffff;">${escapeHtml(os)}</td></tr>
         <tr><td style="color: #94a3b8; padding: 4px 0;">Navegador:</td><td style="color: #ffffff;">${escapeHtml(browser)}</td></tr>
         <tr><td style="color: #94a3b8; padding: 4px 0;">Dirección IP:</td><td style="color: #ffffff;">${escapeHtml(ip)}</td></tr>
-        <tr><td style="color: #94a3b8; padding: 4px 0;">Hora (UTC):</td><td style="color: #ffffff;">${escapeHtml(time)}</td></tr>
+        <tr><td style="color: #94a3b8; padding: 4px 0;">Hora Local:</td><td style="color: #ffffff;">${escapeHtml(time)}</td></tr>
       </table>
     </div>
 
