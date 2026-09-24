@@ -877,4 +877,10 @@ router.post(
     }
   }),
 );
+
+router.get('/catalog/channels', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query('SELECT id, code, name, icon_name, color_hex FROM channel_catalog WHERE is_active = true ORDER BY sort_order ASC, name ASC');
+  res.json({ items: result.rows });
+}));
+
 export default router;
