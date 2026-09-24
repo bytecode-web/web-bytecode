@@ -36,11 +36,12 @@ const contactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
 `;
 
 const contactJoins = `
-  JOIN customers cu ON c.customer_id = cu.id
+  JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
   LEFT JOIN organizations o ON c.organization_id = o.id
@@ -64,11 +65,12 @@ const legacyContactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
 `;
 
 const legacyContactJoins = `
-  JOIN customers cu ON c.customer_id = cu.id
+  JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
 `;
@@ -113,7 +115,8 @@ const complaintColumns = `
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
-  c.assigned_to, c.created_at, c.updated_at
+  c.assigned_to, c.created_at, c.updated_at,
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
 `;
 
 const buildWhere = (status?: string, search?: string, fields: string[] = []) => {
@@ -456,7 +459,7 @@ casesRouter.get(
       `
       SELECT c.id, c.complaint_code as code, c.assigned_to, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
       FROM complaints c
-      JOIN customers cu ON c.customer_id = cu.id
+      JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
@@ -472,7 +475,7 @@ casesRouter.get(
       `SELECT count(*)::int AS total FROM (
          SELECT DISTINCT c.id
          FROM complaints c
-         JOIN customers cu ON c.customer_id = cu.id
+         JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
          LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
@@ -505,7 +508,7 @@ casesRouter.get(
     const result = await pool.query(
       `SELECT ${complaintColumns} 
       FROM complaints c
-      JOIN customers cu ON c.customer_id = cu.id
+      JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
@@ -599,7 +602,7 @@ casesRouter.patch(
       const updated = await client.query(
         `SELECT ${complaintColumns}
          FROM complaints c
-         JOIN customers cu ON c.customer_id = cu.id
+         JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
@@ -734,7 +737,7 @@ casesRouter.post(
       const updated = await client.query(
         `SELECT ${complaintColumns} 
         FROM complaints c
-        JOIN customers cu ON c.customer_id = cu.id
+        JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
         JOIN status_catalog sc ON c.status_id = sc.id
         LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
         JOIN complaint_types ct ON c.complaint_type_id = ct.id

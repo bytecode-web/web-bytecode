@@ -697,7 +697,7 @@ contentRouter.post(
           [oldFile.id]
         );
 
-        if (parseInt(otherReferences.rows[0].count, 10) === 0) {
+        if (parseInt(otherReferences.rows[0].count, 10) === 0 && oldFile.id !== newFileAssetId) {
           await client.query("DELETE FROM file_assets WHERE id = $1", [oldFile.id]);
           if (oldFile.storage_provider === 'cloudinary') {
              await deleteCloudinaryAsset(oldFile.storage_key, 'image').catch(() => {});

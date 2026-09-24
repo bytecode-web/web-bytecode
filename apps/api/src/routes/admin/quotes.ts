@@ -176,7 +176,7 @@ quotesRouter.get(
         emailOrgFilter = ` AND q.organization_id = $2`;
       }
       const result = await pool.query(
-        `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.acquisition_channel AS "acquisitionChannel", q.valid_until,
+        `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.valid_until,
                 q.payment_policy, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
                 q.created_at, cu.first_name, cu.last_name, cu.primary_email,
                 COALESCE(items.items, '[]'::json) AS items
@@ -236,7 +236,7 @@ quotesRouter.get(
     }
 
     const [result, countResult] = await Promise.all([pool.query(
-      `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.acquisition_channel AS "acquisitionChannel", q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
+      `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
               q.created_at, cu.first_name, cu.primary_email
        FROM quotes q
        JOIN status_catalog sc ON q.status_id = sc.id
@@ -269,7 +269,7 @@ quotesRouter.get(
     }
 
     const quoteResult = await pool.query(
-      `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.acquisition_channel AS "acquisitionChannel", q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
+      `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
               q.payment_policy, q.created_at,
               cu.first_name, cu.primary_email
        FROM quotes q
@@ -301,7 +301,7 @@ const createQuoteSchema = z.object({
   organizationId: z.string().uuid().nullable().optional(),
   customerName: z.string().min(1),
   customerEmail: z.string().email(),
-  acquisitionChannel: z.enum(['web_form', 'whatsapp', 'linkedin', 'email', 'phone', 'referral', 'other']).default('web_form').optional(),
+  
   currencyCode: z.enum(['PEN', 'USD', 'EUR']).default('PEN').optional(),
   items: z.array(z.object({
     catalog_item_id: z.string().uuid(),
@@ -464,11 +464,10 @@ quotesRouter.post(
           `UPDATE quotes
            SET customer_id = $1, organization_id = $2, payment_policy = $3,
                status_id = COALESCE($5, status_id), updated_at = now(),
-               acquisition_channel = COALESCE($6, acquisition_channel),
-               currency_code = COALESCE($7, currency_code)
+               currency_code = COALESCE($6, currency_code)
            WHERE id = $4 AND deleted_at IS NULL
            RETURNING id`,
-          [customerId, organizationId, paymentPolicyParts.join('') || null, body.editingQuoteId, newStatusId ?? null, body.acquisitionChannel ?? 'web_form', currencyCode],
+          [customerId, organizationId, paymentPolicyParts.join('') || null, body.editingQuoteId, newStatusId ?? null, currencyCode],
         );
         if (!quoteRes.rowCount || quoteRes.rowCount === 0) throw new HttpError(404, 'Cotizacion no encontrada');
         quoteId = quoteRes.rows[0].id;
@@ -517,12 +516,12 @@ quotesRouter.post(
         await client.query('DELETE FROM quote_items WHERE quote_id = $1', [quoteId]);
       } else {
         const quoteRes = await client.query(
-          `INSERT INTO quotes (quote_code, customer_id, organization_id, status_id, total_amount, valid_until, payment_policy, created_by, acquisition_channel, currency_code)
-           SELECT $1, $2, $3, sc.id, 0, current_date + interval '30 days', $4, $5, $7, $8
+          `INSERT INTO quotes (quote_code, customer_id, organization_id, status_id, total_amount, valid_until, payment_policy, created_by, currency_code)
+           SELECT $1, $2, $3, sc.id, 0, current_date + interval '30 days', $4, $5, $7
            FROM status_catalog sc
            WHERE sc.domain = 'quote' AND sc.code = $6 AND sc.is_active = true
            RETURNING id, status_id as initial_status_id, quote_code`,
-          [createBusinessCode('QT'), customerId, organizationId, paymentPolicyParts.join('') || null, req.admin?.id, body.status ?? 'draft', body.acquisitionChannel ?? 'web_form', currencyCode]
+          [createBusinessCode('QT'), customerId, organizationId, paymentPolicyParts.join('') || null, req.admin?.id, body.status ?? 'draft', currencyCode]
         );
         if (!quoteRes.rowCount) throw new HttpError(400, 'Estado de cotizacion invalido');
         quoteId = quoteRes.rows[0].id;

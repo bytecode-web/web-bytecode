@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
 import AnimatedSubmitButton from '../../ui/AnimatedSubmitButton';
 import { apiRequest } from '../../../lib/api';
+import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 
 interface Props {
   isOpen: boolean;
@@ -16,6 +18,17 @@ interface Props {
   organizations: any[];
 }
 
+const channelIconMap: Record<string, any> = {
+  web: IconWorld,
+  whatsapp: IconBrandWhatsapp,
+  email: IconMail,
+  linkedin: IconBrandLinkedin,
+  phone: IconPhone,
+  facebook: IconBrandFacebook,
+  instagram: IconBrandInstagram,
+  admin: IconShield
+};
+
 export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, initialData, countries, documentTypes, organizations }: Props) {
   const [formData, setFormData] = useState({
     first_name: '',
@@ -25,11 +38,21 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
     person_type: 'natural',
     country_id: '',
     document_type_id: '',
-    document_number: '',
+    document_number: '', source_channel_id: '',
     organization_id: '',
     position_title: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [channels, setChannels] = useState<any[]>([]);
+
+  useEffect(() => {
+    if(isOpen) {
+      apiRequest('/catalog/channels').then((res: any) => {
+        if(res && res.items) setChannels(res.items);
+      }).catch(() => {});
+    }
+  }, [isOpen]);
+  
   const addToast = useToastStore((state) => state.addToast);
 
   useEffect(() => {
@@ -45,6 +68,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           country_id: initialData.country_id || '', 
           document_type_id: initialData.document_type_id || '', 
           document_number: initialData.document_number || '',
+      source_channel_id: initialData.source_channel_id || '',
           organization_id: firstOrg ? firstOrg.id : '',
           position_title: firstOrg ? firstOrg.position : '',
         });
@@ -57,7 +81,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           person_type: 'natural',
           country_id: '',
           document_type_id: '',
-          document_number: '',
+          document_number: '', source_channel_id: '',
           organization_id: '',
           position_title: '',
         });
@@ -199,7 +223,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                     country_id: val || '', 
                     primary_phone: '', 
                     document_type_id: '', 
-                    document_number: '' 
+                    document_number: '', source_channel_id: '' 
                   });
                 }}
                 placeholder="Seleccionar..."
@@ -240,9 +264,29 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
               />
             </div>
 
+            <div className="grid gap-1.5">
+              <span className="text-xs uppercase tracking-wider text-white/40">Canal de Adquisición</span>
+              <CustomDropdown
+                value={formData.source_channel_id}
+                onChange={(val) => setFormData({ ...formData, source_channel_id: val || '' })}
+                placeholder="Seleccionar canal..."
+                options={[
+                  { value: '', label: 'Sin especificar' },
+                  ...channels.map(c => {
+                      const IconComp = channelIconMap[c.code] || (Icons as any)[c.icon_name || 'Globe'];
+                    return { 
+                      value: c.id, 
+                      label: c.name,
+                      icon: IconComp ? <IconComp size={16} color={c.color_hex || '#888'} /> : null
+                    };
+                  })
+                ]}
+              />
+            </div>
+
             {formData.person_type === 'company_contact' && (
               <>
-                <div className="grid gap-1.5">
+                <div className="grid gap-1.5 min-w-0">
                   <span className="text-xs uppercase tracking-wider text-white/40">Empresa (B2B)</span>
                   <CustomDropdown
                     value={formData.organization_id}
@@ -268,7 +312,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
             )}
 
             <div className="md:col-span-2 grid gap-5 md:grid-cols-2 p-4 border border-white/5 rounded-xl bg-white/[0.01]">
-              <div className="grid gap-1.5">
+              <div className="grid gap-1.5 min-w-0">
                 <span className="text-xs uppercase tracking-wider text-white/40">Tipo de Documento</span>
                 <CustomDropdown
                   value={formData.document_type_id}

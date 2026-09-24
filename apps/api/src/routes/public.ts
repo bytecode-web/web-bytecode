@@ -393,8 +393,8 @@ router.post(
           } else {
             const customerRes = await client.query(
               `
-              INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT id FROM channel_catalog WHERE code = 'web'))
               RETURNING id
               `,
               [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombre, body.apellido, personTypeVal, body.email.toLowerCase(), body.celular, body.countryId ?? null, body.aceptaTerminos, body.aceptaMarketing]
@@ -412,8 +412,8 @@ router.post(
         } else {
           const customerRes = await client.query(
             `
-            INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT id FROM channel_catalog WHERE code = 'web'))
             RETURNING id
             `,
             [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombre, body.apellido, personTypeVal, body.email.toLowerCase(), body.celular, body.countryId ?? null, body.aceptaTerminos, body.aceptaMarketing]
@@ -423,8 +423,8 @@ router.post(
       } else {
         const customerRes = await client.query(
           `
-          INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, consent_terms, consent_marketing, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT id FROM channel_catalog WHERE code = 'web'))
           RETURNING id
           `,
           [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombre, body.apellido, personTypeVal, body.email.toLowerCase(), body.celular, body.countryId ?? null, body.aceptaTerminos, body.aceptaMarketing]
@@ -495,9 +495,9 @@ router.post(
         result = await client.query(
           `
           INSERT INTO contact_cases (
-            case_code, customer_id, organization_id, service_id, status_id, subject, message, internal_notes, priority_id
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM priority_catalog WHERE code = 'normal'))
+              case_code, customer_id, organization_id, service_id, status_id, subject, message, internal_notes, priority_id, source_channel_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
           RETURNING id, created_at
           `,
           [
@@ -515,9 +515,9 @@ router.post(
         result = await client.query(
           `
           INSERT INTO contact_cases (
-            case_code, customer_id, service_id, status_id, subject, message, internal_notes, priority_id
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM priority_catalog WHERE code = 'normal'))
+              case_code, customer_id, service_id, status_id, subject, message, internal_notes, priority_id, source_channel_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
           RETURNING id, created_at
           `,
           [
@@ -658,8 +658,8 @@ router.post(
           } else {
             const customerRes = await client.query(
               `
-              INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
+              INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM channel_catalog WHERE code = 'web'))
               RETURNING id
               `,
               [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
@@ -677,8 +677,8 @@ router.post(
         } else {
           const customerRes = await client.query(
             `
-            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM channel_catalog WHERE code = 'web'))
             RETURNING id
             `,
             [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.nombres, body.apellidos, body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
@@ -688,8 +688,8 @@ router.post(
       } else {
         const customerRes = await client.query(
           `
-          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO customers (customer_code, first_name, last_name, primary_email, primary_phone, country_id, person_type, source_channel_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM channel_catalog WHERE code = 'web'))
           RETURNING id
           `,
           [`CUS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`, body.apellidos, '', body.email.toLowerCase(), body.telefono, body.countryId ?? null, personTypeVal]
@@ -777,10 +777,10 @@ router.post(
       const result = await client.query(
         `
         INSERT INTO complaints (
-          complaint_code, customer_id, complaint_type_id, status_id, 
-          legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id
-        )
-        VALUES ($1, $2, $3, $4, $5, now(), now() + interval '15 days', '', (SELECT id FROM priority_catalog WHERE code = 'normal'))
+            complaint_code, customer_id, complaint_type_id, status_id, 
+            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id
+          )
+          VALUES ($1, $2, $3, $4, $5, now(), now() + interval '15 days', '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
         RETURNING id, complaint_code, created_at
         `,
         [code, customerId, complaintTypeId, statusId, body.aceptaTerminos],
@@ -877,4 +877,10 @@ router.post(
     }
   }),
 );
+
+router.get('/catalog/channels', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query('SELECT id, code, name, icon_name, color_hex FROM channel_catalog WHERE is_active = true ORDER BY sort_order ASC, name ASC');
+  res.json({ items: result.rows });
+}));
+
 export default router;

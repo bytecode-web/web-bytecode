@@ -101,6 +101,7 @@ directoryRouter.get(
         c.primary_phone,
         c.created_at,
         c.country_id,
+        c.source_channel_id,
         cou.iso2 AS country_iso,
         cou.name AS country_name,
         cd.document_type_id,
@@ -121,7 +122,8 @@ directoryRouter.get(
       LEFT JOIN organizations o ON co.organization_id = o.id AND o.deleted_at IS NULL
       WHERE (c.first_name ILIKE $3 OR c.last_name ILIKE $3 OR c.primary_email ILIKE $3)
       ${statusFilter}
-      GROUP BY c.id, c.country_id, cou.iso2, cou.name, cd.document_type_id, dt.name, cd.document_number
+      GROUP BY c.id, c.country_id,
+        c.source_channel_id, cou.iso2, cou.name, cd.document_type_id, dt.name, cd.document_number
       ORDER BY c.created_at DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset, search]);
@@ -146,6 +148,7 @@ const customerSchema = z.object({
   primary_email: z.string().email('Email inválido').max(150),
   primary_phone: z.string().max(50).optional().nullable(),
   person_type: z.enum(['natural', 'company_contact']).default('natural'),
+  source_channel_id: z.string().uuid().optional().nullable(),
   country_id: z.string().uuid('ID de país inválido').optional().nullable(),
   document_type_id: z.string().uuid('ID de documento inválido').optional().nullable(),
   document_number: z.string().max(50).optional().nullable(),
@@ -365,9 +368,9 @@ directoryRouter.post(
       const customerCode = `CUS-${randomBytes(4).toString('hex').toUpperCase()}`;
 
       const customerRes = await client.query(
-        `INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [customerCode, body.first_name, body.last_name, body.person_type, body.primary_email.toLowerCase(), body.primary_phone, body.country_id]
+        `INSERT INTO customers (customer_code, first_name, last_name, person_type, primary_email, primary_phone, country_id, source_channel_id) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [customerCode, body.first_name, body.last_name, body.person_type, body.primary_email.toLowerCase(), body.primary_phone, body.country_id, body.source_channel_id || null]
       );
       const customerId = customerRes.rows[0].id;
 
@@ -416,9 +419,9 @@ directoryRouter.put(
       
       const updateRes = await client.query(
         `UPDATE customers 
-         SET first_name = $1, last_name = $2, person_type = $3, primary_email = $4, primary_phone = $5, country_id = $6, updated_at = NOW() 
-         WHERE id = $7 AND deleted_at IS NULL RETURNING *`,
-        [body.first_name, body.last_name, body.person_type, body.primary_email.toLowerCase(), body.primary_phone, body.country_id, id]
+         SET first_name = $1, last_name = $2, person_type = $3, primary_email = $4, primary_phone = $5, country_id = $6, source_channel_id = $7, updated_at = NOW() 
+         WHERE id = $8 AND deleted_at IS NULL RETURNING *`,
+        [body.first_name, body.last_name, body.person_type, body.primary_email.toLowerCase(), body.primary_phone, body.country_id, body.source_channel_id || null, id]
       );
       
       if (updateRes.rowCount === 0) {
