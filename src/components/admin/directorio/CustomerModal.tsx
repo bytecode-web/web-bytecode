@@ -316,7 +316,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 <span className="text-xs uppercase tracking-wider text-white/40">Tipo de Documento</span>
                 <CustomDropdown
                   value={formData.document_type_id}
-                  onChange={(val) => setFormData({ ...formData, document_type_id: val || '', document_number: '', source_channel_id: '' })}
+                  onChange={(val) => setFormData({ ...formData, document_type_id: val || '', document_number: '' })}
                   placeholder="Ej. DNI"
                   disabled={!formData.country_id}
                   options={[
