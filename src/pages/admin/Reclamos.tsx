@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone } from 'lucide-react';
@@ -72,6 +73,16 @@ const priorityBadge = (code: string, name: string) => {
   return <span className={"h-fit rounded-md px-2 py-0.5 text-[10px] whitespace-nowrap " + color}>{name || 'Normal'}</span>;
 };
 
+const channelIconMap: Record<string, { icon: any, color: string }> = {
+  web: { icon: IconWorld, color: '#3b82f6' },
+  whatsapp: { icon: IconBrandWhatsapp, color: '#25D366' },
+  email: { icon: IconMail, color: '#ef4444' },
+  linkedin: { icon: IconBrandLinkedin, color: '#0a66c2' },
+  phone: { icon: IconPhone, color: '#8b5cf6' },
+  facebook: { icon: IconBrandFacebook, color: '#1877f2' },
+  instagram: { icon: IconBrandInstagram, color: '#e1306c' },
+  admin: { icon: IconShield, color: '#64748b' }
+};
 
 // ... (skip to the component rendering)
 
@@ -241,6 +252,19 @@ const Reclamos: React.FC = () => {
         <div className="p-6 lg:p-8 flex flex-col gap-8">
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
             <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
+            <div className="flex items-center gap-3">
+              {detail.source_channel && (
+              <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
+                {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
+                {String(detail.source_channel)}
+              </span>
+            )}
+              {detail.code && (
+                <span className="text-sm font-mono text-white/50">
+                  #{String(detail.code)}
+                </span>
+              )}
+            </div>
             {detail.attachment_original_name && selectedId && (
               <button
                 onClick={() => forceDownload(apiUrl(`/admin/complaints/${selectedId}/attachment`), String(detail.attachment_original_name))}
