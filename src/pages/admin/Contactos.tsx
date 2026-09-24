@@ -251,14 +251,9 @@ const Contactos: React.FC = () => {
             <h2 className="text-xl font-semibold text-white/90">Detalle del Contacto</h2>
             <div className="flex items-center gap-3">
               {detail.source_channel && (
-              <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
-                {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
-                {String(detail.source_channel)}
-              </span>
-            )}
-              {detail.case_code && (
-                <span className="text-sm font-mono text-white/50">
-                  #{String(detail.case_code)}
+                <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
+                  {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
+                  {String(detail.source_channel)}
                 </span>
               )}
             </div>
