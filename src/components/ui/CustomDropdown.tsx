@@ -42,9 +42,9 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ value, options, onChang
     <div className="relative w-full" ref={dropdownRef}>
       <input type="text" value={value} onChange={() => {}} required={required} disabled={disabled} className="absolute opacity-0 w-full h-full -z-10 pointer-events-none" tabIndex={-1} />
       <div onClick={() => { if (!disabled) setIsOpen(!isOpen); }} aria-disabled={disabled} className={`flex items-center justify-between w-full px-6 py-[0.6rem] shadow-sm transition-all ${triggerBg} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isOpen ? 'ring-2 ring-[#06CFD6]' : ''}`}>
-        <span className={`${triggerTextSize} ${triggerText} flex items-center justify-between w-full truncate pr-2`}>
-          <span className="flex items-center gap-2 truncate">
-            {selectedOption?.icon}
+        <span className={`${triggerTextSize} ${triggerText} flex items-center justify-between w-full min-w-0 pr-2`}>
+          <span className="flex items-center gap-2 min-w-0 flex-1 truncate">
+            {selectedOption?.icon && <span className="flex-shrink-0 flex items-center">{selectedOption.icon}</span>}
             <span className="truncate">{selectedLabel}</span>
           </span>
           {selectedOption?.extraRight && <span className="flex-shrink-0 ml-3">{selectedOption.extraRight}</span>}
