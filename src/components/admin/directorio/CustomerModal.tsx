@@ -5,6 +5,7 @@ import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
 import AnimatedSubmitButton from '../../ui/AnimatedSubmitButton';
 import { apiRequest } from '../../../lib/api';
+import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 
 interface Props {
   isOpen: boolean;
@@ -16,6 +17,17 @@ interface Props {
   documentTypes: any[];
   organizations: any[];
 }
+
+const channelIconMap: Record<string, any> = {
+  web: IconWorld,
+  whatsapp: IconBrandWhatsapp,
+  email: IconMail,
+  linkedin: IconBrandLinkedin,
+  phone: IconPhone,
+  facebook: IconBrandFacebook,
+  instagram: IconBrandInstagram,
+  admin: IconShield
+};
 
 export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, initialData, countries, documentTypes, organizations }: Props) {
   const [formData, setFormData] = useState({
@@ -261,7 +273,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 options={[
                   { value: '', label: 'Sin especificar' },
                   ...channels.map(c => {
-                    const IconComp = (Icons as any)[c.icon_name || 'Globe'];
+                      const IconComp = channelIconMap[c.code] || (Icons as any)[c.icon_name || 'Globe'];
                     return { 
                       value: c.id, 
                       label: c.name,
