@@ -286,7 +286,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
 
             {formData.person_type === 'company_contact' && (
               <>
-                <div className="grid gap-1.5">
+                <div className="grid gap-1.5 min-w-0">
                   <span className="text-xs uppercase tracking-wider text-white/40">Empresa (B2B)</span>
                   <CustomDropdown
                     value={formData.organization_id}
@@ -312,7 +312,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
             )}
 
             <div className="md:col-span-2 grid gap-5 md:grid-cols-2 p-4 border border-white/5 rounded-xl bg-white/[0.01]">
-              <div className="grid gap-1.5">
+              <div className="grid gap-1.5 min-w-0">
                 <span className="text-xs uppercase tracking-wider text-white/40">Tipo de Documento</span>
                 <CustomDropdown
                   value={formData.document_type_id}

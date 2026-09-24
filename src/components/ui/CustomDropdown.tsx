@@ -39,9 +39,9 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ value, options, onChang
   const placementClass = menuPlacement === 'top' ? 'bottom-full left-0 mb-2' : 'top-full left-0 mt-2';
 
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className="relative w-full min-w-0" ref={dropdownRef}>
       <input type="text" value={value} onChange={() => {}} required={required} disabled={disabled} className="absolute opacity-0 w-full h-full -z-10 pointer-events-none" tabIndex={-1} />
-      <div onClick={() => { if (!disabled) setIsOpen(!isOpen); }} aria-disabled={disabled} className={`flex items-center justify-between w-full px-6 py-[0.6rem] shadow-sm transition-all ${triggerBg} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isOpen ? 'ring-2 ring-[#06CFD6]' : ''}`}>
+      <div onClick={() => { if (!disabled) setIsOpen(!isOpen); }} aria-disabled={disabled} className={`flex items-center justify-between w-full min-w-0 px-6 py-[0.6rem] shadow-sm transition-all ${triggerBg} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${isOpen ? 'ring-2 ring-[#06CFD6]' : ''}`}>
         <span className={`${triggerTextSize} ${triggerText} flex items-center justify-between w-full min-w-0 pr-2`}>
           <span className="flex items-center gap-2 min-w-0 flex-1 truncate">
             {selectedOption?.icon && <span className="flex-shrink-0 flex items-center">{selectedOption.icon}</span>}
