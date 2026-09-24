@@ -256,12 +256,12 @@ const Contactos: React.FC = () => {
                   {String(detail.source_channel)}
                 </span>
               )}
+              {detail.case_code && (
+                <span className="text-sm font-mono text-white/50">
+                  #{String(detail.case_code)}
+                </span>
+              )}
             </div>
-            {detail.case_code && (
-              <span className="text-sm font-mono text-white/50">
-                #{String(detail.case_code)}
-              </span>
-            )}
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
