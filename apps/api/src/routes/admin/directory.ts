@@ -101,6 +101,7 @@ directoryRouter.get(
         c.primary_phone,
         c.created_at,
         c.country_id,
+        c.source_channel_id,
         cou.iso2 AS country_iso,
         cou.name AS country_name,
         cd.document_type_id,
@@ -121,7 +122,8 @@ directoryRouter.get(
       LEFT JOIN organizations o ON co.organization_id = o.id AND o.deleted_at IS NULL
       WHERE (c.first_name ILIKE $3 OR c.last_name ILIKE $3 OR c.primary_email ILIKE $3)
       ${statusFilter}
-      GROUP BY c.id, c.country_id, cou.iso2, cou.name, cd.document_type_id, dt.name, cd.document_number
+      GROUP BY c.id, c.country_id,
+        c.source_channel_id, cou.iso2, cou.name, cd.document_type_id, dt.name, cd.document_number
       ORDER BY c.created_at DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset, search]);
