@@ -47,13 +47,11 @@ import ShineBorder from '../ui/shine-border';
 type DynamicQuoterProps = {
   isReadOnly?: boolean;
   organizationId?: string | null;
-  acquisitionChannel?: string;
   currencyCode?: string;
   exchangeRates?: { USD: number; EUR: number; PEN: number };
   organizations?: Array<{ id: string; name: string; ruc?: string; tax_name?: string }>;
   customers?: Array<{ id: string; email: string; name: string; organization_ids: string[] }>;
   onOrganizationChange?: (value: string | null) => void;
-  onAcquisitionChannelChange?: (value: string) => void;
   onCurrencyCodeChange?: (value: string) => void;
   initialCatalog: PricingCatalogItem[];
   customerName: string;
@@ -208,13 +206,11 @@ const DynamicQuoter = ({
   onGenerate,
   isReadOnly = false,
   organizationId,
-  acquisitionChannel,
   currencyCode = 'PEN',
   exchangeRates,
   organizations = [],
   customers = [],
   onOrganizationChange,
-  onAcquisitionChannelChange,
   onCurrencyCodeChange,
 }: DynamicQuoterProps) => {
   const currCode = currencyCode || 'PEN';
@@ -331,24 +327,7 @@ const DynamicQuoter = ({
           })()}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wider text-white/55">Canal de Adquisicion</span>
-          <CustomDropdown
-            value={acquisitionChannel ?? 'web_form'}
-            onChange={(val) => onAcquisitionChannelChange?.(val)}
-            placeholder="Seleccionar canal..."
-            disabled={isReadOnly}
-            options={[
-              { value: 'web_form', label: 'Formulario Web / Landing' },
-              { value: 'whatsapp', label: 'WhatsApp Corporativo' },
-              { value: 'linkedin', label: 'LinkedIn Prospeccion' },
-              { value: 'email', label: 'Correo Directo / Outbound' },
-              { value: 'phone', label: 'Llamada Telefonica' },
-              { value: 'referral', label: 'Referido / Alianza' },
-              { value: 'other', label: 'Otro Canal' },
-            ]}
-          />
-        </div>
+        
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Moneda / Divisa</span>
           <CustomDropdown

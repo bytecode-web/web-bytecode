@@ -146,6 +146,7 @@ const customerSchema = z.object({
   primary_email: z.string().email('Email inválido').max(150),
   primary_phone: z.string().max(50).optional().nullable(),
   person_type: z.enum(['natural', 'company_contact']).default('natural'),
+  source_channel_id: z.string().uuid().optional().nullable(),
   country_id: z.string().uuid('ID de país inválido').optional().nullable(),
   document_type_id: z.string().uuid('ID de documento inválido').optional().nullable(),
   document_number: z.string().max(50).optional().nullable(),

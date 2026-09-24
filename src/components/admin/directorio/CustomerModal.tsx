@@ -25,11 +25,21 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
     person_type: 'natural',
     country_id: '',
     document_type_id: '',
-    document_number: '',
+    document_number: '', source_channel_id: '',
     organization_id: '',
     position_title: '',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [channels, setChannels] = useState<any[]>([]);
+
+  useEffect(() => {
+    if(isOpen) {
+      apiRequest('/catalog/channels').then((res: any) => {
+        if(res && res.items) setChannels(res.items);
+      }).catch(() => {});
+    }
+  }, [isOpen]);
+  
   const addToast = useToastStore((state) => state.addToast);
 
   useEffect(() => {
@@ -45,6 +55,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           country_id: initialData.country_id || '', 
           document_type_id: initialData.document_type_id || '', 
           document_number: initialData.document_number || '',
+      source_channel_id: initialData.source_channel_id || '',
           organization_id: firstOrg ? firstOrg.id : '',
           position_title: firstOrg ? firstOrg.position : '',
         });
@@ -57,7 +68,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           person_type: 'natural',
           country_id: '',
           document_type_id: '',
-          document_number: '',
+          document_number: '', source_channel_id: '',
           organization_id: '',
           position_title: '',
         });
@@ -199,7 +210,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                     country_id: val || '', 
                     primary_phone: '', 
                     document_type_id: '', 
-                    document_number: '' 
+                    document_number: '', source_channel_id: '' 
                   });
                 }}
                 placeholder="Seleccionar..."
@@ -240,6 +251,19 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
               />
             </div>
 
+            <div className="grid gap-1.5">
+              <span className="text-xs uppercase tracking-wider text-white/40">Canal de Adquisición</span>
+              <CustomDropdown
+                value={formData.source_channel_id}
+                onChange={(val) => setFormData({ ...formData, source_channel_id: val || '' })}
+                placeholder="Seleccionar canal..."
+                options={[
+                  { value: '', label: 'Sin especificar' },
+                  ...channels.map(c => ({ value: c.id, label: c.name }))
+                ]}
+              />
+            </div>
+
             {formData.person_type === 'company_contact' && (
               <>
                 <div className="grid gap-1.5">
@@ -272,7 +296,7 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 <span className="text-xs uppercase tracking-wider text-white/40">Tipo de Documento</span>
                 <CustomDropdown
                   value={formData.document_type_id}
-                  onChange={(val) => setFormData({ ...formData, document_type_id: val || '', document_number: '' })}
+                  onChange={(val) => setFormData({ ...formData, document_type_id: val || '', document_number: '', source_channel_id: '' })}
                   placeholder="Ej. DNI"
                   disabled={!formData.country_id}
                   options={[

@@ -21,7 +21,6 @@ export interface Quote {
   quote_code: string;
   total_amount: string;
   currency_code?: string;
-  acquisitionChannel?: string;
   organization_id?: string | null;
   status: string;
   isTerminal?: boolean;
@@ -58,7 +57,6 @@ const AdminCotizador: React.FC = () => {
     customerEmail: '',
     notes: '',
     organizationId: null as string | null,
-    acquisitionChannel: 'web_form',
     currencyCode: 'PEN',
     status: 'draft',
     isTerminal: false,
@@ -134,7 +132,7 @@ const AdminCotizador: React.FC = () => {
   const openNewQuote = () => {
     setCatalogInStore(catalog);
     resetQuoter();
-    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, acquisitionChannel: 'web_form', currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
+    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
     setStatusHistory([]);
     setIsModalOpen(true);
   };
@@ -159,7 +157,6 @@ const AdminCotizador: React.FC = () => {
         customerEmail: detail.quote.primary_email || '',
         notes: detail.quote.payment_policy || '',
         organizationId: detail.quote.organization_id ?? null,
-        acquisitionChannel: detail.quote.acquisitionChannel ?? 'web_form',
         currencyCode: detail.quote.currency_code ?? 'PEN',
         status: detail.quote.status,
         isTerminal: Boolean(detail.quote.isTerminal),
@@ -213,7 +210,6 @@ const AdminCotizador: React.FC = () => {
         json: {
           editingQuoteId: payload.editingQuoteId,
           organizationId: formData.organizationId || null,
-          acquisitionChannel: formData.acquisitionChannel || 'web_form',
           currencyCode: formData.currencyCode || 'PEN',
           customerName: formData.customerName,
           customerEmail: formData.customerEmail,
@@ -234,7 +230,7 @@ const AdminCotizador: React.FC = () => {
         },
       });
       setIsModalOpen(false);
-      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, acquisitionChannel: 'web_form', currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
+      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
       resetQuoter();
       await loadData();
     addToast('Operación completada con éxito', 'success');
@@ -443,7 +439,6 @@ const AdminCotizador: React.FC = () => {
               customerEmail={formData.customerEmail}
               notes={formData.notes}
               organizationId={formData.organizationId}
-              acquisitionChannel={formData.acquisitionChannel}
               currencyCode={formData.currencyCode}
               exchangeRates={exchangeRates}
               organizations={organizations}
@@ -471,7 +466,6 @@ const AdminCotizador: React.FC = () => {
               onCustomerEmailChange={(customerEmail) => setFormData((prev) => ({ ...prev, customerEmail }))}
               onNotesChange={(nextNotes) => setFormData((prev) => ({ ...prev, notes: nextNotes }))}
               onOrganizationChange={(organizationId) => setFormData((prev) => ({ ...prev, organizationId }))}
-              onAcquisitionChannelChange={(acquisitionChannel) => setFormData((prev) => ({ ...prev, acquisitionChannel }))}
               onCurrencyCodeChange={(currencyCode) => setFormData((prev) => ({ ...prev, currencyCode }))}
               onCancel={() => {
                 resetQuoter();
