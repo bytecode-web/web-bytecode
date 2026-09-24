@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
 import AnimatedSubmitButton from '../../ui/AnimatedSubmitButton';
@@ -259,7 +260,14 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
                 placeholder="Seleccionar canal..."
                 options={[
                   { value: '', label: 'Sin especificar' },
-                  ...channels.map(c => ({ value: c.id, label: c.name }))
+                  ...channels.map(c => {
+                    const IconComp = (Icons as any)[c.icon_name || 'Globe'];
+                    return { 
+                      value: c.id, 
+                      label: c.name,
+                      icon: IconComp ? <IconComp size={16} color={c.color_hex || '#888'} /> : null
+                    };
+                  })
                 ]}
               />
             </div>
