@@ -27,9 +27,9 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
   const { addToast } = useToastStore();
   const [loading, setLoading] = useState(false);
 
-  const [customers, setCustomers] = useState<{ value: string, label: string }[]>([]);
+  const [customers, setCustomers] = useState<{ value: string, label: string, organization_ids: string[] }[]>([]);
   const [organizations, setOrganizations] = useState<{ value: string, label: string }[]>([]);
-  const [channels, setChannels] = useState<{ value: string, label: string, icon?: any }[]>([]);
+  const [channels, setChannels] = useState<{ value: string, label: string, icon?: React.ReactNode }[]>([]);
   const [categories, setCategories] = useState<{ value: string, label: string }[]>([]);
 
   const [formData, setFormData] = useState({
@@ -52,14 +52,22 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           apiRequest<{ items: any[] }>('/catalog/categories').catch(() => ({ items: [] })),
         ]);
         
-        setCustomers(custRes.items.map(c => ({ value: c.id, label: c.first_name + ' ' + (c.last_name || '') })));
+        setCustomers(custRes.items.map(c => ({ 
+          value: c.id, 
+          label: c.first_name + ' ' + (c.last_name || ''),
+          organization_ids: c.organizations?.map((o: any) => o.id) || []
+        })));
+        
         setOrganizations(orgRes.items.map(o => ({ value: o.id, label: o.legal_name || o.commercial_name })));
         
-        setChannels(chanRes.items.map(c => ({ 
-          value: c.id, 
-          label: c.name,
-          icon: channelIconMap[c.code]
-        })));
+        setChannels(chanRes.items.map(c => {
+          const IconComp = channelIconMap[c.code];
+          return {
+            value: c.id, 
+            label: c.name,
+            icon: IconComp ? <IconComp size={16} /> : undefined
+          };
+        }));
 
         setCategories(catRes.items.map(c => ({ value: c.value, label: c.label })));
       } catch (e) {
@@ -98,6 +106,8 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
 
   if (!isOpen) return null;
 
+  const filteredCustomers = customers.filter(c => !formData.organization_id || c.organization_ids.includes(formData.organization_id));
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -119,29 +129,31 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-1.5">
+              <label className="grid gap-1.5 z-40">
+                <span className="text-xs uppercase tracking-wider text-white/40">Empresa (Opcional)</span>
+                <CustomDropdown
+                  value={formData.organization_id}
+                  onChange={(val) => {
+                    setFormData({ ...formData, organization_id: val, customer_id: '' });
+                  }}
+                  options={organizations}
+                  placeholder="Sin empresa"
+                />
+              </label>
+
+              <label className="grid gap-1.5 z-40">
                 <span className="text-xs uppercase tracking-wider text-white/40">Cliente *</span>
                 <CustomDropdown
                   value={formData.customer_id}
                   onChange={(val) => setFormData({ ...formData, customer_id: val })}
-                  options={customers}
-                  placeholder="Buscar cliente..."
-                />
-              </label>
-              
-              <label className="grid gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-white/40">Empresa (Opcional)</span>
-                <CustomDropdown
-                  value={formData.organization_id}
-                  onChange={(val) => setFormData({ ...formData, organization_id: val })}
-                  options={organizations}
-                  placeholder="Sin empresa"
+                  options={filteredCustomers}
+                  placeholder={formData.organization_id ? "Selecciona un empleado..." : "Buscar cliente..."}
                 />
               </label>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-1.5 z-40">
+              <label className="grid gap-1.5 z-30">
                 <span className="text-xs uppercase tracking-wider text-white/40">Canal de Origen *</span>
                 <CustomDropdown
                   value={formData.source_channel_id}
@@ -151,7 +163,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
                 />
               </label>
 
-              <label className="grid gap-1.5 z-40">
+              <label className="grid gap-1.5 z-30">
                 <span className="text-xs uppercase tracking-wider text-white/40">Categoría *</span>
                 <CustomDropdown
                   value={formData.category_id}
