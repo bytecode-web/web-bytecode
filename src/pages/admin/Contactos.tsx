@@ -227,6 +227,9 @@ const Contactos: React.FC = () => {
 
   const handleSave = async () => {
     if (!selectedId) return;
+    if (status !== (detail?.status || 'new') && !reason.trim()) {
+      return addToast('El motivo del cambio de estado es obligatorio.', 'error');
+    }
     try {
       const result = await apiRequest<{ item: DetailItem }>(`/admin/contacts/${selectedId}`, {
         method: 'PATCH',
@@ -357,7 +360,7 @@ const Contactos: React.FC = () => {
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ej. El cliente aprobó la cotización..."
-                  required
+                  required={status !== (detail?.status || 'new')}
                   className="w-full rounded-lg bg-[#06CFD6]/5 border border-[#06CFD6]/20 px-3 py-2 text-sm text-white/90 placeholder:text-white/20 focus:border-[#06CFD6]/50 focus:outline-none"
                 />
               </div>

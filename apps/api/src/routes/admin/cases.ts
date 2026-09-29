@@ -297,6 +297,9 @@ casesRouter.patch(
 
       const oldStatusId = currentRow.status_id as string | undefined;
       if (oldStatusId && newStatusId && oldStatusId !== newStatusId) {
+        if (!body.reason || !body.reason.trim()) {
+          throw new HttpError(400, 'El motivo del cambio de estado es obligatorio.');
+        }
         await client.query(
           `INSERT INTO contact_case_status_history (contact_case_id, old_status_id, new_status_id, changed_by, reason)
            VALUES ($1, $2, $3, $4, $5)`,
