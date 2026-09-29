@@ -45,7 +45,7 @@ export const CreateContactModal: React.FC<CreateContactModalProps> = ({ isOpen, 
       
       setCustomers(custRes.items.map(c => ({ id: c.id, name: c.first_name + ' ' + (c.last_name || '') })));
       setOrganizations(orgRes.items.map(o => ({ id: o.id, name: o.legal_name || o.commercial_name })));
-      setCategories(catRes.items.map(c => ({ id: c.id, name: c.name })));
+      setCategories(catRes.items.map(c => ({ id: c.value, name: c.label })));
       setChannels(chanRes.items.map(c => ({ id: c.id, name: c.name })));
     } catch (e) {
       console.error(e);

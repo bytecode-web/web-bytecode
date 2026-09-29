@@ -26,6 +26,9 @@ export interface ContactCase {
   servicio: string;
   status: string;
   status_name?: string;
+  category_id?: string;
+  category_code?: string;
+  category_name?: string;
   priority?: string;
   priority_name?: string;
   admin_notes: string;
@@ -157,8 +160,8 @@ const Contactos: React.FC = () => {
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
 
-      const catRes = await apiRequest<{ items: { id: string, name: string }[] }>('/catalog/categories').catch(() => ({ items: [] }));
-      setCategories(catRes.items.map(cat => ({ value: cat.id, label: cat.name })));
+      const catRes = await apiRequest<{ items: { value: string, label: string }[] }>('/catalog/categories').catch(() => ({ items: [] }));
+      setCategories(catRes.items);
     } catch (err) {
       console.error(err);
     }
@@ -483,6 +486,11 @@ const Contactos: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
+                    {item.category_name && (
+                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap">
+                        {item.category_name}
+                      </span>
+                    )}
                     <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
                       {statusLabel(item.status)}
                     </span>

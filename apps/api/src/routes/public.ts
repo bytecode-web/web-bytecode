@@ -502,7 +502,7 @@ router.post(
           INSERT INTO contact_cases (
               case_code, customer_id, organization_id, service_id, status_id, subject, message, internal_notes, priority_id, source_channel_id, first_response_due_at, category_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), NOW() + INTERVAL '24 hours', (SELECT id FROM contact_categories ORDER BY created_at ASC LIMIT 1))
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), NOW() + INTERVAL '24 hours', (SELECT id FROM contact_categories WHERE code = 'web_lead'))
           RETURNING id, created_at
           `,
           [
@@ -522,7 +522,7 @@ router.post(
           INSERT INTO contact_cases (
               case_code, customer_id, service_id, status_id, subject, message, internal_notes, priority_id, source_channel_id, first_response_due_at, category_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), NOW() + INTERVAL '24 hours', (SELECT id FROM contact_categories ORDER BY created_at ASC LIMIT 1))
+            VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), NOW() + INTERVAL '24 hours', (SELECT id FROM contact_categories WHERE code = 'web_lead'))
           RETURNING id, created_at
           `,
           [
