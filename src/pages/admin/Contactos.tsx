@@ -182,6 +182,7 @@ const Contactos: React.FC = () => {
       setStatus(String(result.item.status ?? 'new'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));
+      setReason('');
       
       const [assignmentResult, statusResult] = await Promise.all([
         apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/contacts/${id}/assignment-history`),
