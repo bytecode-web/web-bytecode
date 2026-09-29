@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users, Plus } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
+import { CreateContactModal } from '../../components/admin/contactos/CreateContactModal';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -118,6 +119,9 @@ const Contactos: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('new');
   const [priority, setPriority] = useState('normal');
+  const [categoryId, setCategoryId] = useState('');
+  const [reason, setReason] = useState('');
+  const [categories, setCategories] = useState<{value: string, label: string}[]>([]);
   const [priorities, setPriorities] = useState<{ value: string, label: string }[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const { addToast } = useToastStore();
@@ -128,6 +132,7 @@ const Contactos: React.FC = () => {
   const [statusHistory, setStatusHistory] = useState<StatusHistoryRecord[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { admin } = useOutletContext<{ admin: AdminUser }>();
@@ -147,6 +152,9 @@ const Contactos: React.FC = () => {
       ]);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
+
+      const catRes = await apiRequest<{ items: { id: string, name: string }[] }>('/catalog/categories').catch(() => ({ items: [] }));
+      setCategories(catRes.items.map(cat => ({ value: cat.id, label: cat.name })));
     } catch (err) {
       console.error(err);
     }
@@ -222,7 +230,7 @@ const Contactos: React.FC = () => {
     try {
       const result = await apiRequest<{ item: DetailItem }>(`/admin/contacts/${selectedId}`, {
         method: 'PATCH',
-        json: { status, adminNotes: notes, priority },
+        json: { status, adminNotes: notes, priority, category_id: categoryId || null, reason: reason || null },
       });
       setDetail(result.item);
       const statusResult = await apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/contacts/${selectedId}/history`);
@@ -294,7 +302,7 @@ const Contactos: React.FC = () => {
           />
 
           <div className="pt-6 border-t border-white/5 flex flex-col gap-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Agente</label>
                 {isAssigning ? (
@@ -329,7 +337,31 @@ const Contactos: React.FC = () => {
                   disabled={isReadOnly}
                 />
               </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Categoría</label>
+                <CustomDropdown
+                  value={categoryId}
+                  placeholder="Sin Categoría"
+                  onChange={(val) => setCategoryId(val)}
+                  options={categories}
+                  disabled={isReadOnly}
+                />
+              </div>
             </div>
+            
+            {status !== (detail?.status || 'new') && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-[#06CFD6] font-semibold">Motivo del Cambio de Estado *</label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Ej. El cliente aprobó la cotización..."
+                  required
+                  className="w-full rounded-lg bg-[#06CFD6]/5 border border-[#06CFD6]/20 px-3 py-2 text-sm text-white/90 placeholder:text-white/20 focus:border-[#06CFD6]/50 focus:outline-none"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Notas</label>
               <textarea
@@ -398,9 +430,14 @@ const Contactos: React.FC = () => {
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Bandeja de mensajes de contacto</p>
           </div>
         </div>
-        <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
-          <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#06CFD6]/10 border border-[#06CFD6]/20 px-4 py-2 text-sm font-medium text-[#06CFD6] transition-colors hover:bg-[#06CFD6]/20">
+            <Plus className="h-4 w-4" /> <span>Nuevo Caso</span>
+          </button>
+          <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+            <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       <section className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -497,6 +534,7 @@ const Contactos: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <CreateContactModal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={() => { loadList(); setCreateModalOpen(false); }} />
     </div>
   );
 };

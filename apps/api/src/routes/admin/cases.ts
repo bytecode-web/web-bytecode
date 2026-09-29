@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -12,10 +13,23 @@ import { HttpError } from '../../utils/httpError.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
+
+const createContactSchema = z.object({
+  customer_id: z.string().uuid(),
+  organization_id: z.string().uuid().optional().nullable(),
+  category_id: z.string().uuid().optional().nullable(),
+  source_channel_id: z.string().uuid().optional().nullable(),
+  priority_id: z.string().uuid().optional().nullable(),
+  subject: z.string().trim().max(220).optional().nullable(),
+  message: z.string().trim().optional().nullable(),
+});
+
 const updateSchema = z.object({
   status: z.string().trim().min(1).max(80).optional(),
   priority: z.string().trim().min(1).max(40).optional(),
   adminNotes: z.string().max(3000).optional(),
+  category_id: z.string().uuid().optional().nullable(),
+  reason: z.string().trim().optional().nullable(),
 });
 
 const contactColumns = `
@@ -37,7 +51,8 @@ const contactColumns = `
   sc.code as status,
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
-  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
+  c.category_id, cat.name as category_name, cat.code as category_code
 `;
 
 const contactJoins = `
@@ -49,6 +64,7 @@ const contactJoins = `
   LEFT JOIN customer_organizations co ON co.customer_id = c.customer_id
     AND co.organization_id = c.organization_id
     AND co.deleted_at IS NULL
+  LEFT JOIN contact_categories cat ON c.category_id = cat.id
 `;
 
 const legacyContactColumns = `
@@ -66,13 +82,15 @@ const legacyContactColumns = `
   sc.code as status,
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
-  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
+  c.category_id, cat.name as category_name, cat.code as category_code
 `;
 
 const legacyContactJoins = `
   JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+  LEFT JOIN contact_categories cat ON c.category_id = cat.id
 `;
 
 let normalizedContactSchema: boolean | null = null;
@@ -258,24 +276,31 @@ casesRouter.patch(
         newStatusId = statusResult.rows[0].id;
       }
 
+      let extraUpdate = "";
+      if (body.status === 'resolved' || body.status === 'closed') {
+        extraUpdate = ", resolved_at = COALESCE(resolved_at, now()), closed_at = COALESCE(closed_at, now())";
+      }
+
       const result = await client.query(
         `UPDATE contact_cases
          SET status_id = COALESCE($2, status_id),
              internal_notes = COALESCE($3, internal_notes),
              priority_id = COALESCE($4, priority_id),
+             category_id = COALESCE($5, category_id),
              updated_at = now()
+             ${extraUpdate}
          WHERE id = $1
          RETURNING id`,
-        [id, newStatusId ?? null, body.adminNotes ?? null, newPriorityId ?? null],
+        [id, newStatusId ?? null, body.adminNotes ?? null, newPriorityId ?? null, body.category_id ?? null],
       );
       if (result.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
 
       const oldStatusId = currentRow.status_id as string | undefined;
       if (oldStatusId && newStatusId && oldStatusId !== newStatusId) {
         await client.query(
-          `INSERT INTO contact_case_status_history (contact_case_id, old_status_id, new_status_id, changed_by)
-           VALUES ($1, $2, $3, $4)`,
-          [id, oldStatusId, newStatusId, req.admin?.id ?? null],
+          `INSERT INTO contact_case_status_history (contact_case_id, old_status_id, new_status_id, changed_by, reason)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, oldStatusId, newStatusId, req.admin?.id ?? null, body.reason ?? null],
         );
 
         const assignedTo = currentRow.assigned_to as string | undefined;
