@@ -52,7 +52,8 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           apiRequest<{ items: any[] }>('/catalog/categories').catch(() => ({ items: [] })),
         ]);
         
-        setCustomers(custRes.items.map(c => ({ 
+        const uniqueCustomers = Array.from(new Map(custRes.items.map(c => [c.primary_email || c.id, c])).values());
+        setCustomers(uniqueCustomers.map(c => ({ 
           value: c.id, 
           label: `${c.first_name} ${c.last_name || ''} (${c.primary_email || 'Sin correo'})`.trim(),
           organization_ids: c.organizations?.map((o: any) => o.id) || []

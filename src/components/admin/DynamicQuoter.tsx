@@ -302,10 +302,11 @@ const DynamicQuoter = ({
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Contacto Asociado</span>
           {(() => {
-            const availableContacts = customers?.filter(c => {
+            const filteredContacts = customers?.filter(c => {
               if (organizationId) return c.organization_ids?.includes(organizationId);
               return !c.organization_ids || c.organization_ids.length === 0;
             }) ?? [];
+            const availableContacts = Array.from(new Map(filteredContacts.map(c => [c.email || c.id, c])).values());
             return (
               <CustomDropdown
                 value={customerEmail}
