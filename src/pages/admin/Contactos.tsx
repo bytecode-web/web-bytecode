@@ -68,7 +68,7 @@ const detailFields: Array<{ key: string; label: string }> = [
 
 const formatDate = (value?: string) =>
   value
-    ? new Intl.DateTimeFormat('es-PE', {
+    ? new Intl.DateTimeFormat(undefined, {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(value))
@@ -242,6 +242,7 @@ const Contactos: React.FC = () => {
       setDetail(result.item);
       const statusResult = await apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/contacts/${selectedId}/history`);
       setStatusHistory(statusResult.items);
+      setReason('');
       await loadList();
     addToast('Operación completada con éxito', 'success');
     } catch (err) {
@@ -284,8 +285,8 @@ const Contactos: React.FC = () => {
               <div key={key} className={key === 'message' ? 'sm:col-span-2' : ''}>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
-                  {key === 'created_at' || key === 'updated_at'
-                    ? formatDate(String(detail[key] ?? ''))
+                  {['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
+                    ? formatDate(String(detail[key]))
                     : String(detail[key] ?? '-')}
                 </p>
               </div>
@@ -329,7 +330,7 @@ const Contactos: React.FC = () => {
                 <CustomDropdown
                           value={status}
                           placeholder="Seleccionar estado..."
-                          onChange={(val) => setStatus(val)}
+                          onChange={(val) => { setStatus(val); setReason(''); }}
                           options={statuses}
                           disabled={isReadOnly}
                         />
