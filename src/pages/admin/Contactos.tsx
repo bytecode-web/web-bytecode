@@ -71,6 +71,7 @@ const formatDate = (value?: string) =>
     ? new Intl.DateTimeFormat(undefined, {
         dateStyle: 'medium',
         timeStyle: 'short',
+        hour12: true,
       }).format(new Date(value))
     : '';
 
