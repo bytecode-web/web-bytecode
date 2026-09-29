@@ -54,11 +54,17 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
         
         setCustomers(custRes.items.map(c => ({ 
           value: c.id, 
-          label: c.first_name + ' ' + (c.last_name || ''),
+          label: `${c.first_name} ${c.last_name || ''} (${c.primary_email || 'Sin correo'})`.trim(),
           organization_ids: c.organizations?.map((o: any) => o.id) || []
         })));
         
-        setOrganizations(orgRes.items.map(o => ({ value: o.id, label: o.legal_name || o.commercial_name || o.name })));
+        setOrganizations(orgRes.items.map(o => {
+          const name = o.legal_name || o.commercial_name || o.name;
+          return {
+            value: o.id,
+            label: o.document_number ? `${name} (RUC: ${o.document_number})` : name
+          };
+        }));
         
         setChannels(chanRes.items.map(c => {
           const IconComp = channelIconMap[c.code];
@@ -106,7 +112,10 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
 
   if (!isOpen) return null;
 
-  const filteredCustomers = customers.filter(c => !formData.organization_id || c.organization_ids.includes(formData.organization_id));
+  const filteredCustomers = customers.filter(c => {
+    if (formData.organization_id) return c.organization_ids.includes(formData.organization_id);
+    return !c.organization_ids || c.organization_ids.length === 0;
+  });
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -130,14 +139,17 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <div className="grid gap-5 md:grid-cols-2">
               <label className="grid gap-1.5 z-40">
-                <span className="text-xs uppercase tracking-wider text-white/40">Empresa (Opcional)</span>
+                <span className="text-xs uppercase tracking-wider text-white/40">Empresa / B2B</span>
                 <CustomDropdown
                   value={formData.organization_id}
                   onChange={(val) => {
                     setFormData({ ...formData, organization_id: val, customer_id: '' });
                   }}
-                  options={organizations}
-                  placeholder="Sin empresa"
+                  options={[
+                    { value: '', label: 'Cliente Independiente (Sin Empresa)' },
+                    ...organizations
+                  ]}
+                  placeholder="Seleccionar empresa..."
                 />
               </label>
 
@@ -147,7 +159,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
                   value={formData.customer_id}
                   onChange={(val) => setFormData({ ...formData, customer_id: val })}
                   options={filteredCustomers}
-                  placeholder={formData.organization_id ? "Selecciona un empleado..." : "Buscar cliente..."}
+                  placeholder={formData.organization_id ? "Selecciona un empleado..." : "Selecciona un cliente..."}
                 />
               </label>
             </div>
