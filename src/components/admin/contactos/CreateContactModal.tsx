@@ -52,7 +52,11 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           apiRequest<{ items: any[] }>('/catalog/categories').catch(() => ({ items: [] })),
         ]);
         
-        const uniqueCustomers = Array.from(new Map(custRes.items.map(c => [c.primary_email || c.id, c])).values());
+        const uniqueCustomers = Array.from(new Map(custRes.items.map(c => [
+          `${c.first_name} ${c.last_name || ''} ${c.primary_email || ''}`.trim().toLowerCase() || c.id, 
+          c
+        ])).values());
+        
         setCustomers(uniqueCustomers.map(c => ({ 
           value: c.id, 
           label: `${c.first_name} ${c.last_name || ''} (${c.primary_email || 'Sin correo'})`.trim(),
@@ -61,9 +65,10 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
         
         setOrganizations(orgRes.items.map(o => {
           const name = o.legal_name || o.commercial_name || o.name;
+          const docNumber = o.primary_document?.document_number || o.document_number;
           return {
             value: o.id,
-            label: o.document_number ? `${name} (RUC: ${o.document_number})` : name
+            label: docNumber ? `${name} (RUC: ${docNumber})` : name
           };
         }));
         

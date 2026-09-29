@@ -306,7 +306,10 @@ const DynamicQuoter = ({
               if (organizationId) return c.organization_ids?.includes(organizationId);
               return !c.organization_ids || c.organization_ids.length === 0;
             }) ?? [];
-            const availableContacts = Array.from(new Map(filteredContacts.map(c => [c.email || c.id, c])).values());
+            const availableContacts = Array.from(new Map(filteredContacts.map(c => [
+              `${c.name || ''} ${c.email || ''}`.trim().toLowerCase() || c.id, 
+              c
+            ])).values());
             return (
               <CustomDropdown
                 value={customerEmail}
