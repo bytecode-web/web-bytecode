@@ -17,6 +17,8 @@ export function startCronJobs() {
 }
 
 async function escalateCases(tableName: string, moduleName: string) {
+  const codeCol = tableName === 'contact_cases' ? 'case_code' : 'complaint_code';
+  
   const query = `
     WITH next_priority AS (
         SELECT p1.id as current_priority_id, p1.sla_hours, p2.id as next_priority_id, p2.name as next_priority_name
@@ -26,7 +28,7 @@ async function escalateCases(tableName: string, moduleName: string) {
         AND p2.weight = (SELECT min(weight) FROM priority_catalog WHERE weight > p1.weight AND is_active = true)
     ),
     stale_cases AS (
-        SELECT c.id, c.case_code, c.assigned_to, c.priority_id, np.next_priority_id, np.next_priority_name
+        SELECT c.id, c.${codeCol} as code, c.assigned_to, c.priority_id, np.next_priority_id, np.next_priority_name
         FROM ${tableName} c
         JOIN next_priority np ON c.priority_id = np.current_priority_id
         JOIN status_catalog sc ON c.status_id = sc.id
@@ -38,7 +40,7 @@ async function escalateCases(tableName: string, moduleName: string) {
         updated_at = NOW()
     FROM stale_cases sc
     WHERE cc.id = sc.id
-    RETURNING cc.id, cc.case_code, cc.assigned_to, sc.next_priority_name;
+    RETURNING cc.id, sc.code as case_code, cc.assigned_to, sc.next_priority_name;
   `;
 
   try {
@@ -47,7 +49,6 @@ async function escalateCases(tableName: string, moduleName: string) {
     if (result.rowCount && result.rowCount > 0) {
       console.log(`[CRON] ${result.rowCount} casos escalados de prioridad en ${tableName}.`);
       
-      // Notificar a los agentes asignados
       for (const row of result.rows) {
         if (row.assigned_to) {
           const codeStr = row.case_code || row.id.split('-')[0];

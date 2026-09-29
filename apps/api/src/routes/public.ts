@@ -181,6 +181,11 @@ router.get('/catalog/priorities', asyncHandler(async (_req: Request, res: Respon
   res.json({ items: result.rows });
 }));
 
+router.get('/catalog/categories', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query('SELECT id as value, name as label, code FROM contact_categories WHERE is_active = true ORDER BY name ASC');
+  res.json({ items: result.rows });
+}));
+
 router.get('/cms/pages', asyncHandler(async (_req: Request, res: Response) => {
   const result = await pool.query(`
     SELECT cp.id, cp.slug, cp.title, cp.meta_title, cp.meta_description,
