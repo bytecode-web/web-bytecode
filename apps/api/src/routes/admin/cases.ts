@@ -158,6 +158,47 @@ const buildWhere = (status?: string, search?: string, fields: string[] = []) => 
   };
 };
 
+casesRouter.post(
+  '/contacts',
+  requireCsrf,
+  asyncHandler(async (req: Request, res: Response) => {
+    const schema = z.object({
+      customer_id: z.string().uuid(),
+      organization_id: z.string().uuid().optional().nullable(),
+      source_channel_id: z.string().uuid(),
+      category_id: z.string().uuid(),
+      subject: z.string().min(1),
+      message: z.string().min(1)
+    });
+    const body = schema.parse(req.body);
+    
+    // Obtener default priority desde category
+    const catRes = await pool.query('SELECT default_priority_id FROM contact_categories WHERE id = $1', [body.category_id]);
+    let priorityId = catRes.rows[0]?.default_priority_id;
+    
+    if (!priorityId) {
+      const prioRes = await pool.query("SELECT id FROM priority_catalog WHERE code = 'normal'");
+      priorityId = prioRes.rows[0]?.id;
+    }
+    
+    const caseCodeRes = await pool.query("SELECT 'C-' || to_char(NOW(), 'YYMMDD') || '-' || lpad(floor(random() * 10000)::text, 4, '0') as case_code");
+    const caseCode = caseCodeRes.rows[0].case_code;
+
+    const result = await pool.query(
+      `
+      INSERT INTO contact_cases (
+        case_code, customer_id, organization_id, source_channel_id, category_id, subject, message, priority_id, first_response_due_at, status_id, created_by
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, NOW() + INTERVAL '24 hours', (SELECT id FROM status_catalog WHERE code = 'new' AND domain = 'case'), $9
+      ) RETURNING id, case_code, created_at
+      `,
+      [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).user.id]
+    );
+
+    res.status(201).json({ item: result.rows[0] });
+  })
+);
+
 casesRouter.get(
   '/cases/assignment-options',
   asyncHandler(async (req: Request, res: Response) => {
