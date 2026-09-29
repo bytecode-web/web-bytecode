@@ -61,6 +61,9 @@ const detailFields: Array<{ key: string; label: string }> = [
   { key: 'message', label: 'Mensaje' },
   { key: 'created_at', label: 'Creado' },
   { key: 'updated_at', label: 'Actualizado' },
+  { key: 'first_response_due_at', label: 'Vencimiento SLA' },
+  { key: 'resolved_at', label: 'Resuelto el' },
+  { key: 'closed_at', label: 'Cerrado el' },
 ];
 
 const formatDate = (value?: string) =>

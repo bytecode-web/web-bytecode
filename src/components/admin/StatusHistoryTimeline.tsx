@@ -18,13 +18,11 @@ const StatusHistoryTimeline: React.FC<Props> = ({ records, loading = false }) =>
       icon: <RefreshCw className="h-4 w-4" />,
       title: (
         <div className="flex flex-col gap-3 min-w-[200px]">
-          <div className="text-sm">
-            <span className="font-medium text-white/90">{record.user_name || record.user_email || 'Sistema'}</span>
-            {' cambió el estado de '}
-            <span className="text-white/90">{record.old_status_name || record.old_status || 'Sin estado'}</span>
-            {' a '}
-            <span className="text-white/90">{record.new_status_name || record.new_status}</span>.
-          </div>
+          <span className="font-medium text-white/90">{record.user_name || record.user_email || 'Sistema'}</span>
+          {' cambió el estado de '}
+          <span className="text-white/90">{record.old_status_name || record.old_status || 'Sin estado'}</span>
+          {' a '}
+          <span className="text-white/90">{record.new_status_name || record.new_status}</span>.
           {record.reason && (
             <div className="mt-1 border-l-2 border-[#06CFD6]/30 pl-3">
               <p className="text-[10px] uppercase tracking-wider text-[#06CFD6] mb-0.5 font-semibold">Motivo del Cambio</p>

@@ -50,7 +50,7 @@ const contactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at, c.first_response_due_at, c.resolved_at, c.closed_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code
 `;
@@ -81,7 +81,7 @@ const legacyContactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code
 `;
