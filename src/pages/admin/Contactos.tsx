@@ -189,6 +189,7 @@ const Contactos: React.FC = () => {
       setStatus(String(result.item.status ?? 'new'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));
+      setCategoryId(String(result.item.category_id || ''));
       setReason('');
       
       const [assignmentResult, statusResult] = await Promise.all([
