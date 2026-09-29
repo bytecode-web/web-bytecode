@@ -47,7 +47,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
       try {
         const [custRes, orgRes, chanRes, catRes] = await Promise.all([
           apiRequest<{ items: any[] }>('/admin/customers?limit=1000').catch(() => ({ items: [] })),
-          apiRequest<{ items: any[] }>('/catalog/organizations').catch(() => ({ items: [] })),
+          apiRequest<{ items: any[] }>('/admin/organizations?limit=1000').catch(() => ({ items: [] })),
           apiRequest<{ items: any[] }>('/catalog/channels').catch(() => ({ items: [] })),
           apiRequest<{ items: any[] }>('/catalog/categories').catch(() => ({ items: [] })),
         ]);
@@ -58,14 +58,14 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           organization_ids: c.organizations?.map((o: any) => o.id) || []
         })));
         
-        setOrganizations(orgRes.items.map(o => ({ value: o.id, label: o.legal_name || o.commercial_name })));
+        setOrganizations(orgRes.items.map(o => ({ value: o.id, label: o.legal_name || o.commercial_name || o.name })));
         
         setChannels(chanRes.items.map(c => {
           const IconComp = channelIconMap[c.code];
           return {
             value: c.id, 
             label: c.name,
-            icon: IconComp ? <IconComp size={16} /> : undefined
+            icon: IconComp ? <IconComp size={16} color={c.color_hex || '#06CFD6'} /> : undefined
           };
         }));
 
