@@ -193,7 +193,7 @@ casesRouter.post(
         $1, $2, $3, $4, $5, $6, $7, $8, NOW() + INTERVAL '24 hours', (SELECT id FROM status_catalog WHERE code = 'new' AND domain = 'case'), $9
       ) RETURNING id, case_code, created_at
       `,
-      [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).user.id]
+      [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).admin.id]
     );
 
     res.status(201).json({ item: result.rows[0] });
