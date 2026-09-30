@@ -195,6 +195,14 @@ casesRouter.post(
       [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).admin.id]
     );
 
+    await auditService.logAdminAction({
+      userId: (req as any).admin.id,
+      action: 'create',
+      entityType: 'contact_submission',
+      entity: result.rows[0],
+      req
+    });
+
     res.status(201).json({ item: result.rows[0] });
   })
 );
