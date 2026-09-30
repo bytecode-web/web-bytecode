@@ -182,8 +182,7 @@ casesRouter.post(
       priorityId = prioRes.rows[0]?.id;
     }
     
-    const caseCodeRes = await pool.query("SELECT 'C-' || to_char(NOW(), 'YYMMDD') || '-' || lpad(floor(random() * 10000)::text, 4, '0') as case_code");
-    const caseCode = caseCodeRes.rows[0].case_code;
+    const caseCode = `CAS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
 
     const result = await pool.query(
       `

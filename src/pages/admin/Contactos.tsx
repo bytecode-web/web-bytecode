@@ -60,7 +60,7 @@ const detailFields: Array<{ key: string; label: string }> = [
   { key: 'celular', label: 'Celular' },
   { key: 'empresa', label: 'Empresa' },
   { key: 'ruc', label: 'RUC' },
-  { key: 'servicio', label: 'Servicio' },
+  { key: 'servicio', label: 'Asunto' },
   { key: 'message', label: 'Mensaje' },
   { key: 'created_at', label: 'Creado' },
   { key: 'updated_at', label: 'Actualizado' },
