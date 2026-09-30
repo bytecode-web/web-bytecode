@@ -160,6 +160,7 @@ const buildWhere = (status?: string, search?: string, fields: string[] = []) => 
 
 casesRouter.post(
   '/contacts',
+  requirePermission('admin.contactos.manage'),
   requireCsrf,
   asyncHandler(async (req: Request, res: Response) => {
     const schema = z.object({
