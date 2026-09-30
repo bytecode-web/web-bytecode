@@ -52,10 +52,13 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           apiRequest<{ items: any[] }>('/catalog/categories').catch(() => ({ items: [] })),
         ]);
         
-        const uniqueCustomers = Array.from(new Map(custRes.items.map(c => [
-          `${c.first_name} ${c.last_name || ''} ${c.primary_email || ''}`.trim().toLowerCase() || c.id, 
-          c
-        ])).values());
+        const uniqueCustomers = Array.from(new Map(custRes.items.map(c => {
+          const orgIdsStr = c.organizations?.map((o: any) => o.id).sort().join(',') || '';
+          return [
+            `${c.first_name} ${c.last_name || ''} ${c.primary_email || ''} ${orgIdsStr}`.trim().toLowerCase() || c.id, 
+            c
+          ];
+        })).values());
         
         setCustomers(uniqueCustomers.map(c => ({ 
           value: c.id, 

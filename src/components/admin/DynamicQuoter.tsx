@@ -307,7 +307,7 @@ const DynamicQuoter = ({
               return !c.organization_ids || c.organization_ids.length === 0;
             }) ?? [];
             const availableContacts = Array.from(new Map(filteredContacts.map(c => [
-              `${c.name || ''} ${c.email || ''}`.trim().toLowerCase() || c.id, 
+              `${c.name || ''} ${c.email || ''} ${(c.organization_ids || []).sort().join(',')}`.trim().toLowerCase() || c.id, 
               c
             ])).values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             return (
