@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { Users, MessageSquareText, Activity, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 
 type StatItem = { status: string; total: number };
 type RecentItem = { id: string; nombre: string; email: string; status: string; created_at: string; code?: string };
@@ -37,9 +38,6 @@ const Dashboard: React.FC = () => {
 
   const totalContacts = data?.contactsStats.reduce((acc, curr) => acc + curr.total, 0) || 0;
   const totalComplaints = data?.complaintsStats.reduce((acc, curr) => acc + curr.total, 0) || 0;
-
-  const formatDate = (val: string) => 
-    new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(val));
 
   return (
     <div className="flex flex-col gap-6 font-sansation">
@@ -117,7 +115,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-white/60">{item.status}</span>
-                    <p className="mt-1 text-[10px] text-white/30">{formatDate(item.created_at)}</p>
+                    <p className="mt-1 text-[10px] text-white/30">{formatLocalDate(item.created_at, 'datetime-short')}</p>
                   </div>
                 </div>
               ))}
@@ -139,7 +137,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-white/60">{item.status}</span>
-                    <p className="mt-1 text-[10px] text-white/30">{formatDate(item.created_at)}</p>
+                    <p className="mt-1 text-[10px] text-white/30">{formatLocalDate(item.created_at, 'datetime-short')}</p>
                   </div>
                 </div>
               ))}

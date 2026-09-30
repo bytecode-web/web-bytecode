@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import { Monitor, Smartphone, Tablet, Trash2, ShieldCheck, Clock } from 'lucide-react';
 import AdminPanel from '../../components/admin/AdminPanel';
 
@@ -93,16 +94,6 @@ const AdminSeguridad: React.FC = () => {
     return <Monitor className="w-8 h-8 text-gray-500" />;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Intl.DateTimeFormat('es-PE', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(dateString));
-  };
-
   if (loading) {
     return <div className="p-8 text-white flex items-center gap-3"><Clock className="animate-spin w-5 h-5 text-[#06CFD6]" /> Cargando dispositivos...</div>;
   }
@@ -167,11 +158,11 @@ const AdminSeguridad: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="w-12 text-white/30 uppercase">Login:</span>
-                        <span className="text-white/60">{formatDate(session.created_at)}</span>
+                        <span className="text-white/60">{formatLocalDate(session.created_at, 'datetime-medium')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="w-12 text-white/30 uppercase">Expira:</span>
-                        <span className="text-white/60">{formatDate(session.expires_at)}</span>
+                        <span className="text-white/60">{formatLocalDate(session.expires_at, 'datetime-medium')}</span>
                       </div>
                     </div>
                   </div>

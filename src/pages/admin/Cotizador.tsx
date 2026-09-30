@@ -13,6 +13,7 @@ import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 import { useLocation } from 'react-router-dom';
 import { formatCurrencyValue, useQuoterState, type EditableQuoteItemData, type PreparedQuotePayload, type PricingCatalogItem } from '../../hooks/useQuoterState';
+import { formatLocalDate } from '../../lib/dateFormatter';
 
 const PAGE_SIZE = 9;
 
@@ -261,9 +262,6 @@ const AdminCotizador: React.FC = () => {
     }
   }, [location.state, catalog.length, loading, loadData]);
 
-  const formatDate = (val: string) =>
-    new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(val));
-
   const openActionsMenu = (quoteId: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
 
@@ -344,7 +342,7 @@ const AdminCotizador: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center text-xs text-white/40">
-                    <span className="block truncate">{formatDate(quote.created_at)}</span>
+                    <span className="block truncate">{formatLocalDate(quote.created_at, 'datetime-short')}</span>
                   </td>
                   <td className="relative px-6 py-4 text-center" data-quote-actions>
                     <button

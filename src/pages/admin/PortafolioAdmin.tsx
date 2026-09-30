@@ -4,6 +4,7 @@ import { ImageUp, Plus, RefreshCw, Save, Trash2, ArrowLeft, X, Briefcase } from 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminPanel from '../../components/admin/AdminPanel';
 import { apiRequest, type AdminPortfolioItemData, type PortfolioTechnologyData } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 
@@ -22,14 +23,6 @@ const emptyForm: PortfolioForm = {
   status: 'draft',
   technologyIds: [],
 };
-
-const formatDate = (value?: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('es-PE', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }).format(new Date(value))
-    : '-';
 
 const toForm = (item: AdminPortfolioItemData): PortfolioForm => ({
   name: item.name,
@@ -365,7 +358,7 @@ const AdminPortafolio: React.FC = () => {
             <div className="flex items-start justify-between gap-4 border-b border-white/5 pb-4">
               <div>
                 <h2 className="text-lg font-semibold text-white/90">{selectedId ? 'Editar proyecto' : 'Nuevo proyecto'}</h2>
-                <p className="mt-1 text-xs text-white/40">{selectedItem ? `Actualizado: ${formatDate(selectedItem.updated_at)}` : 'Completa los datos y la imagen antes de guardar.'}</p>
+                <p className="mt-1 text-xs text-white/40">{selectedItem ? `Actualizado: ${formatLocalDate(selectedItem.updated_at, 'datetime-short')}` : 'Completa los datos y la imagen antes de guardar.'}</p>
               </div>
               {selectedId && (
                 <button onClick={handleDelete} disabled={saving} className="rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/20 disabled:opacity-50">

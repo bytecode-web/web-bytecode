@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Globe, MoreVertical, RefreshCw, Save, Edit2, Settings2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -125,9 +126,6 @@ const AdminCMS: React.FC = () => {
     }
   };
 
-  const formatDate = (value: string) =>
-    new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
-
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
@@ -171,7 +169,7 @@ const AdminCMS: React.FC = () => {
                         <Globe className="h-3 w-3" /> {page.status_name || page.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-white/40 text-xs">{formatDate(page.updated_at)}</td>
+                    <td className="px-6 py-4 text-white/40 text-xs">{formatLocalDate(page.updated_at, 'datetime-short')}</td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={(e) => handleOpenActions(e, page.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
                         <MoreVertical className="h-4 w-4" />

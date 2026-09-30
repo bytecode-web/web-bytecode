@@ -3,6 +3,7 @@ import { useToastStore } from '../../stores/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit2, Plus, RefreshCw, Save, UserCheck, UserX, X, MoreVertical, Trash2, UserCog, Eye, EyeOff } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import PaginationControl from '../../components/ui/PaginationControl';
@@ -233,9 +234,6 @@ const Usuarios: React.FC = () => {
     });
   };
 
-  const formatDate = (value: string | null) =>
-    value ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Nunca';
-
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/5">
@@ -289,7 +287,7 @@ const Usuarios: React.FC = () => {
                       {user.is_active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center text-white/40 text-xs">{formatDate(user.last_login_at)}</td>
+                  <td className="px-6 py-4 text-center text-white/40 text-xs">{user.last_login_at ? formatLocalDate(user.last_login_at, 'datetime-medium') : 'Nunca'}</td>
                   <td className="px-6 py-4 text-center">
                     <button onClick={(e) => handleOpenActions(e, user.id)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
                       <MoreVertical className="h-4 w-4" />

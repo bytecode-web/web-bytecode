@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useToastStore } from '../../stores/toastStore';
 import { ClipboardList, RefreshCw, Eye, X, ChevronDown, ChevronUp, Code } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 
 type AuditLog = {
   id: string;
@@ -153,9 +154,6 @@ const Auditoria: React.FC = () => {
     return `${os} • ${browser}`;
   };
 
-  const formatDate = (val: string) => 
-    new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(val));
-
   return (
     <div className="flex flex-col gap-6 font-sansation">
       <div className="flex items-center justify-between pb-4 border-b border-white/5">
@@ -192,7 +190,7 @@ const Auditoria: React.FC = () => {
             <tbody className={`divide-y divide-white/5 text-white/80 transition-opacity ${loading ? 'opacity-60' : 'opacity-100'}`}>
               {logs.map(log => (
                 <tr key={log.id} className="transition-colors hover:bg-white/[0.02]">
-                  <td className="px-6 py-4 text-white/50 text-xs">{formatDate(log.created_at)}</td>
+                  <td className="px-6 py-4 text-white/50 text-xs">{formatLocalDate(log.created_at, 'datetime-precise')}</td>
                   <td className="px-6 py-4">
                     {log.admin_name ? (
                       <div>

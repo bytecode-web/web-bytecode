@@ -3,6 +3,7 @@ import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLink
 import { motion, AnimatePresence } from 'framer-motion';
 import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users, Plus } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import { CreateContactModal } from '../../components/admin/contactos/CreateContactModal';
@@ -69,20 +70,9 @@ const detailFields: Array<{ key: string; label: string }> = [
   { key: 'closed_at', label: 'Cerrado el' },
 ];
 
-const formatDate = (value?: string) =>
-  value
-    ? new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        hour12: true,
-      }).format(new Date(value))
-    : '';
-
 const formatFullName = (item: Pick<ContactItem, 'nombre' | 'apellido'>) =>
   [item.nombre, item.apellido].filter(Boolean).join(' ');
 
-const formatCardDate = (value: string) =>
-  new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(value));
 
 const formatContactTitle = (item: ContactItem) =>
   formatFullName(item) || item.empresa || 'Sin nombre';
@@ -291,7 +281,7 @@ const Contactos: React.FC = () => {
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
                   {['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
-                    ? formatDate(String(detail[key]))
+                    ? formatLocalDate(String(detail[key]))
                     : String(detail[key] ?? '-')}
                 </p>
               </div>
@@ -483,7 +473,7 @@ const Contactos: React.FC = () => {
                     </span>
                     <span className="flex items-center gap-1.5 text-[10px] text-white/30">
                       <CalendarDays className="h-3 w-3 shrink-0" />
-                      {formatCardDate(item.created_at)}
+                      {formatLocalDate(item.created_at, 'date-medium')}
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
