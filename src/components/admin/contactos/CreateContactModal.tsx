@@ -61,7 +61,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
           value: c.id, 
           label: `${c.first_name} ${c.last_name || ''} (${c.primary_email || 'Sin correo'})`.trim(),
           organization_ids: c.organizations?.map((o: any) => o.id) || []
-        })));
+        })).sort((a, b) => a.label.localeCompare(b.label)));
         
         setOrganizations(orgRes.items.map(o => {
           const name = o.legal_name || o.commercial_name || o.name;
@@ -70,7 +70,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
             value: o.id,
             label: docNumber ? `${name} (RUC: ${docNumber})` : name
           };
-        }));
+        }).sort((a, b) => a.label.localeCompare(b.label)));
         
         setChannels(chanRes.items.map(c => {
           const IconComp = channelIconMap[c.code];

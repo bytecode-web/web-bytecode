@@ -292,10 +292,10 @@ const DynamicQuoter = ({
             disabled={isReadOnly}
             options={[
               { value: '', label: 'Cliente Independiente (Sin Empresa)' },
-              ...(organizations?.map((org) => ({
+              ...((organizations?.map((org) => ({
                 value: org.id,
                 label: org.ruc ? `${org.name} (${org.tax_name || 'Doc'}: ${org.ruc})` : org.name,
-              })) ?? []),
+              })) ?? []).sort((a, b) => a.label.localeCompare(b.label))),
             ]}
           />
         </div>
@@ -309,7 +309,7 @@ const DynamicQuoter = ({
             const availableContacts = Array.from(new Map(filteredContacts.map(c => [
               `${c.name || ''} ${c.email || ''}`.trim().toLowerCase() || c.id, 
               c
-            ])).values());
+            ])).values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             return (
               <CustomDropdown
                 value={customerEmail}
