@@ -552,7 +552,7 @@ const Contactos: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      <CreateContactModal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={() => { loadList(); setCreateModalOpen(false); }} />
+      <CreateContactModal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={async (newId) => { await loadList(); if(newId){ await loadDetail(newId); } setCreateModalOpen(false); }} />
     </div>
   );
 };

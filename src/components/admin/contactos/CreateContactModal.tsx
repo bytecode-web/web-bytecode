@@ -9,7 +9,7 @@ import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLink
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (id?: string) => void;
 }
 
 const channelIconMap: Record<string, any> = {
@@ -101,7 +101,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
 
     setLoading(true);
     try {
-      await apiRequest('/admin/contacts', {
+      const result = await apiRequest<{ item: { id: string } }>('/admin/contacts', {
         method: 'POST',
         json: {
           ...formData,
@@ -110,13 +110,18 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
       });
       addToast('Caso creado exitosamente', 'success');
       setFormData({ customer_id: '', organization_id: '', source_channel_id: '', category_id: '', subject: '', message: '' });
-      onSuccess();
+      onSuccess(result.item.id);
       onClose();
     } catch (e: any) {
       addToast(e.message || 'Error al crear caso', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    setFormData({ customer_id: '', organization_id: '', source_channel_id: '', category_id: '', subject: '', message: '' });
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -127,8 +132,8 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
   });
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
         <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
           
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
@@ -137,7 +142,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
             </h2>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={loading}
               className="rounded-lg p-2 text-white/40 transition-colors hover:bg-white/5 hover:text-white"
             >
@@ -218,20 +223,21 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
               />
             </label>
 
-            <div className="mt-4 flex justify-end gap-3 border-t border-white/5 pt-6">
+            <div className="mt-4 flex justify-end gap-3 border-t border-white/5 pt-5">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={loading}
-                className="rounded-lg border border-white/10 px-5 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
               >
                 Cancelar
               </button>
               <AnimatedSubmitButton
+                type="submit"
                 isLoading={loading}
                 text="Crear Ticket"
                 loadingText="Creando..."
-                className="bg-[#06CFD6]/10 text-[#06CFD6] hover:bg-[#06CFD6]/20 px-6 py-2.5"
+                className="rounded-lg border border-[#06CFD6]/30 bg-[#06CFD6]/10 px-6 py-2 text-sm font-medium text-[#06CFD6] transition-colors hover:bg-[#06CFD6]/20 disabled:opacity-50"
               />
             </div>
           </form>
