@@ -53,6 +53,9 @@ type DynamicQuoterProps = {
   customers?: Array<{ id: string; email: string; name: string; organization_ids: string[] }>;
   onOrganizationChange?: (value: string | null) => void;
   onCurrencyCodeChange?: (value: string) => void;
+  frozenExchangeRate?: number | null;
+  onUpdateExchangeRate?: (update: boolean) => void;
+  isUpdateExchangeRateRequested?: boolean;
   initialCatalog: PricingCatalogItem[];
   customerName: string;
   customerEmail: string;
@@ -212,10 +215,14 @@ const DynamicQuoter = ({
   customers = [],
   onOrganizationChange,
   onCurrencyCodeChange,
+  frozenExchangeRate,
+  onUpdateExchangeRate,
+  isUpdateExchangeRateRequested = false,
 }: DynamicQuoterProps) => {
   const currCode = currencyCode || 'PEN';
   const currencySymbol = currCode === 'USD' ? '$' : currCode === 'EUR' ? '€' : 'S/';
-  const exchangeRate = currCode === 'USD' ? (exchangeRates?.USD ?? 3.75) : currCode === 'EUR' ? (exchangeRates?.EUR ?? 4.05) : 1;
+  const liveExRate = currCode === 'USD' ? (exchangeRates?.USD ?? 3.75) : currCode === 'EUR' ? (exchangeRates?.EUR ?? 4.05) : 1;
+  const exchangeRate = (!isUpdateExchangeRateRequested && frozenExchangeRate) ? frozenExchangeRate : liveExRate;
   const formatCurr = (value: number) => `${currencySymbol} ${(value / exchangeRate).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const [activeItem, setActiveItem] = useState<NormalizedPricingCatalogItem | null>(null);
   const setCatalog = useQuoterState((state) => state.setCatalog);
@@ -331,7 +338,6 @@ const DynamicQuoter = ({
           })()}
         </div>
 
-        
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Moneda / Divisa</span>
           <CustomDropdown
@@ -345,6 +351,28 @@ const DynamicQuoter = ({
               { value: 'EUR', label: 'Euro (EUR - €)' },
             ]}
           />
+          {frozenExchangeRate && currCode !== 'PEN' && onUpdateExchangeRate && (
+            <div className="mt-1 flex items-center justify-between text-xs text-white/60">
+              <span>
+                Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
+                {' / '}
+                Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
+              </span>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateExchangeRate(!isUpdateExchangeRateRequested)}
+                  className={`rounded border px-2 py-0.5 transition-colors ${
+                    isUpdateExchangeRateRequested
+                      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  {isUpdateExchangeRateRequested ? 'Recalculando...' : 'Recalcular'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Observaciones Internas</span>
