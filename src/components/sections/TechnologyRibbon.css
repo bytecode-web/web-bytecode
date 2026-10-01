@@ -1,0 +1,138 @@
+.home-tools {
+  --u:1vw
+}
+
+.home-tools {
+  background:white;
+  color:#4c4c4b;
+  padding:calc(var(--u)*1.8) 6.6% calc(var(--u)*5)
+}
+
+.home-tools h2 {
+  display:flex;
+  align-items:center;
+  gap:calc(var(--u)*1.6);
+  margin:0 auto calc(var(--u)*2.5);
+  max-width:none;
+  font-size:calc(var(--u)*2.75);
+  font-weight:700;
+  text-align:center;
+  line-height:1.1
+}
+
+.home-tools h2:before, .home-tools h2:after {
+  content:'';
+  flex:1;
+  border-top:1px solid #888
+}
+
+.home-tools-logos {
+  max-width:none;
+  margin:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:2%
+}
+
+.home-tools-logos img {
+  object-fit:contain;
+  width:auto;
+  height:calc(var(--u)*5.8);
+  max-width:30%;
+  filter:grayscale(1);
+  opacity:.75
+}
+
+.home-tools-logos .home-tool-laravel {
+  width:16%
+}
+
+.home-tools-logos .home-tool-github {
+  width:20%
+}
+
+.home-tools-logos .home-tool-php {
+  width:13%
+}
+
+.home-tools-logos .home-tool-JAVA {
+  width:13%
+}
+
+.home-tools-logos .home-tool-mongodb {
+  width:31%
+}
+
+@media(max-width:767px) {
+.home-tools {
+  --u:1vw
+}
+
+.home-tools {
+  padding:2vw 6.6% 8vw
+}
+.home-tools h2 {
+  font-size:5.8vw;
+  gap:3vw;
+  margin-bottom:5vw
+}
+.home-tools h2 span {
+  width:43%
+}
+
+.home-tools-logos {
+  justify-content:center;
+  gap:5%
+}
+.home-tools-logos img {
+  height:10vw
+}
+.home-tools-logos .home-tool-laravel, .home-tools-logos .home-tool-mongodb {
+  display:none
+}
+.home-tools-logos .home-tool-github {
+  width:34%;
+  max-width:34%
+}
+.home-tools-logos .home-tool-php {
+  width:22%
+}
+.home-tools-logos .home-tool-JAVA {
+  width:22%
+}
+
+
+}
+
+.home-tools { position: relative; }
+
+.home-tools-window { overflow: hidden; }
+
+.home-tools-track { display: flex; width: 200%; animation: home-technologies 18s linear infinite; animation-play-state: paused; }
+
+.home-tools[data-playing="true"] .home-tools-track { animation-play-state: running; }
+
+.home-tools-track .home-tools-logos { flex: 0 0 50%; width: 50%; margin: 0; padding-right: 2%; gap: 2%; }
+
+@keyframes home-technologies { to { transform: translateX(-50%); } }
+
+.home-motion-control { position: absolute; right: 2%; bottom: 1%; z-index: 5; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid currentColor; border-radius: 50%; color: #0ca3c6; background: transparent; cursor: pointer; opacity: 0; transition: opacity 160ms; }
+
+.home-services:hover > .home-motion-control, .home-tools:hover > .home-motion-control, .home-testimonials:hover > .home-motion-control, .home-motion-control:focus-visible { opacity: 1; }
+
+.home-motion-control:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+
+@media (max-width: 767px) {
+  .home-tools-track { width: 400%; }
+  .home-tools-track .home-tools-logos img { display: block; flex-shrink: 1; height: 10vw; }
+  .home-tools-track .home-tool-laravel { width: 16%; }
+  .home-tools-track .home-tool-github { width: 20%; max-width: 30%; }
+  .home-tools-track .home-tool-php, .home-tools-track .home-tool-JAVA { width: 13%; }
+  .home-tools-track .home-tool-mongodb { width: 31%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-tools-track { animation: none; }
+  .home-motion-control { transition: none; }
+}

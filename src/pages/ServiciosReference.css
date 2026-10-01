@@ -1,0 +1,60 @@
+﻿.services-reference { background: white; color: white; font-family: var(--font-sansation); overflow: clip; }
+.services-viewer { position: relative; background: #000; }
+.services-viewer:focus-visible, .services-viewer a:focus-visible, .services-arrow:focus-visible { outline: 3px solid #0ca3c6; outline-offset: -4px; }
+.services-photo { position: relative; height: 63.5vw; touch-action: pan-y; }
+.services-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.services-photo::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #0008, #0005), linear-gradient(0deg, #000 0%, transparent 40%); }
+.services-arrow { position: absolute; z-index: 2; top: 26vw; width: 5vw; height: 9vw; display: grid; place-items: center; color: #aaa; cursor: pointer; background: none; border: 0; }
+.services-arrow-prev { left: 2.4%; }
+.services-arrow-next { right: 2.4%; }
+.services-arrow svg { width: 80%; height: 80%; fill: none; stroke: currentColor; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.services-arrow:hover { color: white; }
+.services-information { position: relative; margin-top: -3.5vw; display: grid; grid-template-columns: 1fr 1fr; padding: 0 6.6% 8.2vw; }
+.services-description { padding-right: 4.5vw; }
+.services-label { font-size: 3.2vw; line-height: 1.2; margin: 0 0 .7vw; }
+.services-description h1 { color: #0ca3c6; font-size: 5.8vw; font-weight: 700; line-height: 1.12; margin: 0 0 2vw; }
+.services-description-text { font-size: 2.25vw; line-height: 1.15; margin: 0; text-align: justify; }
+.services-contact { align-self: end; border-left: 1px solid #ddd; min-height: 19.5vw; padding-left: 4.2vw; text-align: center; }
+.services-contact h2 { font-size: 3.3vw; line-height: 1.12; font-weight: 700; margin: 1vw auto 2.5vw; max-width: 32vw; }
+.services-contact a { display: block; background: #00c5cf; border-radius: 1.6vw; font-size: 3.2vw; line-height: 1.2; padding: .45em .5em; }
+.services-contact a:hover { background: #0ca3c6; }
+.services-reference > .home-tools { padding-top: 4.5vw; padding-bottom: 6vw; }
+.services-reference > .home-tools h2 { margin-bottom: 3.2vw; }
+.services-reference-footer { background: linear-gradient(white, #b5b9b9); padding: 0 1.6%; }
+.services-reference-footer .home-footer { background: linear-gradient(#000, #001b21); border-radius: 6vw 6vw 0 0; padding: 0 5.2% 4.8vw; }
+.services-reference-footer .home-footer-cta { border-top: 0; min-height: 25.5vw; }
+.services-reference-footer .home-footer-cta h2 { width: 30%; }
+.services-reference-footer .home-footer-geometry { width: 24%; left: -8%; top: 8%; height: 85%; }
+@media (max-width: 767px) {
+  .services-photo { height: 114vw; }
+  .services-photo img { object-position: 50% center; }
+  .services-information { display: flex; flex-direction: column; margin-top: -3vw; padding: 0 8.3% 12.5vw; }
+  .services-description { padding: 0; }
+  .services-label { font-size: 5.6vw; text-align: center; margin: 0 0 1vw; }
+  .services-description h1 { font-size: 11.6vw; line-height: 1.12; text-align: center; margin-bottom: 5.5vw; }
+  .services-description-text { font-size: 4.9vw; line-height: 1.15; }
+  .services-arrow { top: 118vw; width: 9vw; height: 14vw; }
+  .services-arrow-prev { left: 3%; }
+  .services-arrow-next { right: 3%; }
+  .services-arrow svg { stroke-width: 7; }
+  .services-contact { align-self: stretch; border: 0; padding: 0; min-height: 0; margin-top: 6vw; }
+  .services-contact h2 { max-width: none; font-size: 5.6vw; line-height: 1.15; margin: 0 0 5vw; white-space: nowrap; }
+  .services-contact a { font-size: 8.5vw; padding: .24em .3em; border-radius: 5.5vw; }
+  .services-reference > .home-tools { padding: 7.8vw 6.6% 10vw; }
+  .services-reference > .home-tools h2 { margin-bottom: 6vw; }
+  .services-reference-footer { padding: 0 3.2%; }
+  .services-reference-footer .home-footer { border-radius: 11vw 11vw 0 0; padding: 0 3.6% 10vw; }
+  .services-reference-footer .home-footer-cta { min-height: 63vw; padding-top: 14vw; gap: 6vw; }
+  .services-reference-footer .home-footer-cta h2 { width: 100%; font-size: 5.8vw; }
+  .services-reference-footer .home-footer-connect { width: 87%; font-size: 9vw; padding: .22em; border-radius: 5vw; }
+  .services-reference-footer .home-footer-geometry { top: 36%; left: -17%; width: 49%; height: 65%; }
+  .services-reference-footer .home-footer-mark { width: 7%; bottom: 6%; }
+}
+.services-description h1[data-compact="true"] { font-size: 4.5vw; min-height: 6.5vw; }
+.services-description-text { font-size: 2.15vw; }
+.services-arrow svg { stroke-width: 10; }
+@media (max-width: 767px) {
+  .services-description h1[data-compact="true"] { font-size: 8.8vw; min-height: 13vw; display: grid; align-items: center; }
+  .services-description-text { font-size: 4.6vw; }
+  .services-arrow svg { stroke-width: 9; }
+}
