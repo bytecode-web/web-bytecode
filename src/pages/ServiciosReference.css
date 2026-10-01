@@ -20,13 +20,6 @@
 .services-contact a:hover { background: #0ca3c6; }
 .services-reference > .home-tools { padding-top: 4.5vw; padding-bottom: 6vw; }
 .services-reference > .home-tools h2 { margin-bottom: 3.2vw; }
-.services-reference-footer { background: linear-gradient(white, #b5b9b9); padding: 0 1.6%; }
-.services-reference-footer .home-footer { background: linear-gradient(#000, #001b21); border-radius: 6vw 6vw 0 0; padding: 6vw 5.2% 4.8vw; overflow: hidden; isolation: isolate; }
-.services-reference-footer .footer-top-divider { display: none; }
-.services-reference-footer .footer-decoration { top: 5%; left: -2%; width: 22%; height: auto; }
-.services-reference-footer .home-footer-cta { border-top: 0; min-height: 25.5vw; }
-.services-reference-footer .home-footer-cta h2 { width: 30%; }
-.services-reference-footer .home-footer-geometry { width: 24%; left: -8%; top: 8%; height: 85%; }
 @media (max-width: 767px) {
   .services-photo { height: 114vw; }
   .services-photo img { object-position: 50% center; }
@@ -44,14 +37,6 @@
   .services-contact a { font-size: 8.5vw; padding: .24em .3em; border-radius: 5.5vw; }
   .services-reference > .home-tools { padding: 7.8vw 6.6% 10vw; }
   .services-reference > .home-tools h2 { margin-bottom: 6vw; }
-  .services-reference-footer { padding: 0 3.2%; }
-  .services-reference-footer .home-footer { border-radius: 11vw 11vw 0 0; padding: 14vw 3.6% 10vw; }
-  .services-reference-footer .footer-decoration { top: 12%; left: -8%; width: 40%; }
-  .services-reference-footer .home-footer-cta { min-height: 63vw; padding-top: 14vw; gap: 6vw; }
-  .services-reference-footer .home-footer-cta h2 { width: 100%; font-size: 5.8vw; }
-  .services-reference-footer .home-footer-connect { width: 87%; font-size: 9vw; padding: .22em; border-radius: 5vw; }
-  .services-reference-footer .home-footer-geometry { top: 36%; left: -17%; width: 49%; height: 65%; }
-  .services-reference-footer .home-footer-mark { width: 7%; bottom: 6%; }
 }
 .services-description h1[data-compact="true"] { font-size: 4.5vw; min-height: 6.5vw; }
 .services-description-text { font-size: 2.15vw; }
@@ -60,4 +45,66 @@
   .services-description h1[data-compact="true"] { font-size: 8.8vw; min-height: 13vw; display: grid; align-items: center; }
   .services-description-text { font-size: 4.6vw; }
   .services-arrow svg { stroke-width: 9; }
+}
+
+@media (min-width: 768px) {
+  .services-viewer {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: calc(100svh - 88px);
+    min-height: 0;
+    overflow: hidden
+  }
+  .services-photo {
+    min-height: 0;
+    height: auto
+  }
+  .services-information {
+    align-items: center;
+    margin-top: 0;
+    padding: 0 6.6% clamp(16px, 2.2vh, 24px)
+  }
+  .services-description {
+    padding-right: clamp(24px, 3vw, 48px)
+  }
+  .services-label {
+    font-size: clamp(18px, 1.6vw, 24px);
+    margin-bottom: clamp(8px, .8vw, 12px)
+  }
+  .services-description h1 {
+    font-size: clamp(34px, 3.8vw, 56px);
+    line-height: 1.06;
+    margin-bottom: clamp(8px, 1.25vw, 18px)
+  }
+  .services-description h1[data-compact="true"] {
+    min-height: 0;
+    font-size: clamp(30px, 3vw, 46px)
+  }
+  .services-description-text {
+    font-size: clamp(16px, 1.15vw, 20px);
+    line-height: 1.25
+  }
+  .services-contact {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-self: stretch;
+    min-height: 0;
+    padding-left: clamp(24px, 3vw, 48px)
+  }
+  .services-contact h2 {
+    max-width: min(32vw, 420px);
+    margin: 0 auto clamp(10px, 1.5vh, 18px);
+    font-size: clamp(22px, 1.8vw, 30px)
+  }
+  .services-contact a {
+    font-size: clamp(20px, 2.1vw, 30px);
+    padding: .32em .45em;
+    border-radius: clamp(12px, 1.2vw, 18px)
+  }
+  .services-arrow {
+    top: calc((100svh - 88px - clamp(180px, 20vh, 240px) - clamp(64px, 7.5vh, 86px)) / 2);
+    width: clamp(36px, 3vw, 52px);
+    height: clamp(64px, 7.5vh, 86px)
+  }
 }
