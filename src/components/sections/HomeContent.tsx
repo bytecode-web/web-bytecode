@@ -6,7 +6,6 @@ import './TechnologyRibbon.css';
 function useHomeMotion() {
   const ref = useRef<HTMLElement>(null);
   const [enabled, setEnabled] = useState(false);
-  const [paused, setPaused] = useState(false);
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
@@ -26,7 +25,7 @@ function useHomeMotion() {
       reduced.removeEventListener('change', update);
     };
   }, []);
-  return { ref, playing: enabled && !paused, paused, toggle: () => setPaused(value => !value) };
+  return { ref, playing: enabled };
 }
 
 function useSlideCycle(count: number, delay: number, mobileDelay = delay, initial = 0) {
@@ -47,12 +46,6 @@ function useSlideCycle(count: number, delay: number, mobileDelay = delay, initia
   return { ...motion, active, setActive };
 }
 
-function MotionControl({ paused, toggle, label }: { paused: boolean; toggle: () => void; label: string }) {
-  return <button type="button" className="home-motion-control" onClick={toggle} aria-label={`${paused ? 'Reanudar' : 'Pausar'} ${label}`} aria-pressed={paused}>
-    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">{paused ? <path d="m6 3 11 7-11 7Z" fill="currentColor" /> : <path d="M5 3h3v14H5zm7 0h3v14h-3z" fill="currentColor" />}</svg>
-  </button>;
-}
-
 const services = [
   { title: 'Página Web', description: 'Te mereces un sitio web\nque haga todo lo que necesitas.', image: '/images/home/website.webp' },
   { title: 'App Móvil', description: 'Aplicaciones nativas e híbridas\npara cualquier dispositivo.', image: '/images/home/mobile-app.webp' },
@@ -60,7 +53,7 @@ const services = [
 ];
 
 export function HomeServices() {
-  const { ref, active, setActive, paused, toggle } = useSlideCycle(services.length, 4500, 3000);
+  const { ref, active, setActive } = useSlideCycle(services.length, 4500, 3000);
   return (
     <section ref={ref} className="home-services" aria-labelledby="home-services-title" aria-roledescription="carrusel">
       <div className="home-services-backdrop" aria-hidden="true"><svg viewBox="0 0 731 100" preserveAspectRatio="none"><path d="M0 85C110-35 590-20 731 100V120H0Z" fill="white" /></svg></div>
@@ -78,7 +71,6 @@ export function HomeServices() {
           <img className="home-card-mark" src="/vectors/logos/isotipo.svg" alt="" width="36" height="44" />
         </Link>)}
       </div>
-      <MotionControl paused={paused} toggle={toggle} label="servicios" />
       <div className="home-service-dots" aria-label="Seleccionar servicio">
         {services.map((item, index) => <button key={item.title} type="button" onClick={() => setActive(index)} aria-label={item.title} aria-pressed={index === active}><span className={index === active ? 'is-active' : ''} /></button>)}
       </div>
@@ -87,7 +79,7 @@ export function HomeServices() {
 }
 
 export function HomeTools() {
-  const { ref, playing, paused, toggle } = useHomeMotion();
+  const { ref, playing } = useHomeMotion();
   return <section ref={ref} className="home-tools" aria-labelledby="home-tools-title" data-playing={playing}>
     <h2 id="home-tools-title"><span>Nuestras Herramientas</span></h2>
     <div className="home-tools-window"><div className="home-tools-track">
@@ -96,7 +88,6 @@ export function HomeTools() {
       </div>)}
     </div>
     </div>
-    <MotionControl paused={paused} toggle={toggle} label="tecnologías" />
   </section>;
 }
 
@@ -114,9 +105,9 @@ export function HomeAI() {
         <img className="home-ai-face" src="/images/characters/chica.png" alt="Retrato de inteligencia artificial en tonos turquesa" width="409" height="557" loading="lazy" decoding="async" />
       </div>
       <div className="home-ai-copy">
-        <h2 id="home-ai-title">Comenzar nunca ha sido<br />tan fácil gracias a la IA</h2>
-        <p>No hace falta tener experiencia.</p>
-        <small>Kit de diseño con IA, uno de los mejores<br />inventos de TIME de 2025*</small>
+        <h2 id="home-ai-title">Lanzar tu proyecto nunca fue tan fácil</h2>
+        <p>Nosotros nos encargamos de todo.</p>
+        <small><strong>Sistemas desarrollados desde cero</strong><br />Código nativo, sin plantillas ni atajos.</small>
       </div>
       <div className="home-ai-portrait home-ai-man"><img src="/images/characters/hombre.webp" alt="Diseñador trabajando con un modelo de inteligencia artificial" width="346" height="613" loading="lazy" decoding="async" /></div>
     </div>
@@ -124,10 +115,10 @@ export function HomeAI() {
 }
 
 export function HomeTestimonials() {
-  const { ref, active, paused, toggle } = useSlideCycle(3, 3500, 3500, 1);
+  const { ref, active } = useSlideCycle(3, 3500, 3500, 1);
   return <section ref={ref} className="home-testimonials" aria-labelledby="home-trust-title" aria-roledescription="carrusel">
     <div className="home-testimonials-inner">
-      <div className="home-trust-copy" id="home-trust-title"><p>Con la confianza de</p><h2>14 Millones</h2><p>de emprendedores en todo el mundo</p></div>
+      <div className="home-trust-copy" id="home-trust-title"><h2><span className="home-trust-heading-white">CONSTRUYENDO EL</span><br /><span className="home-trust-heading-white">FUTURO,</span><br />CASO POR CASO</h2><p>Testimonios veraces de nuestros primeros usuarios piloto que ya están transformando sus industrias.</p></div>
       <div className="home-review-stack">
         {[
           { name: 'María García', role: 'Emprendedora', image: 'cliente2senito', text: 'Excelente servicio, mi negocio creció enormemente. Totalmente conforme.' },
@@ -142,6 +133,5 @@ export function HomeTestimonials() {
       </div>
       <img className="home-trust-geometry" src="/vectors/shapes/grafico-derecha.svg" alt="" width="500" height="300" loading="lazy" />
     </div>
-    <MotionControl paused={paused} toggle={toggle} label="testimonios" />
   </section>;
 }

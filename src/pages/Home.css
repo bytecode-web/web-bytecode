@@ -307,20 +307,25 @@
 }
 
 .home-trust-copy p {
-  font-size:calc(var(--u)*2.2);
-  font-weight:700;
-  line-height:1.2;
-  margin:0;
+  max-width:44vw;
+  margin:.8em 0 0 auto;
+  font-size:calc(var(--u)*1.2);
+  font-weight:400;
+  line-height:1.45;
   color:#c7ced0
 }
 
 .home-trust-copy h2 {
-  font-size:calc(var(--u)*7.1);
-  line-height:1;
+  font-size:calc(var(--u)*3.2);
+  line-height:1.1;
   margin:0;
   font-weight:700;
   letter-spacing:-.035em;
   color:#0093b0
+}
+
+.home-trust-heading-white {
+  color:#fff
 }
 
 .home-review-stack {
@@ -614,10 +619,13 @@
   margin-top:12vw
 }
 .home-trust-copy p {
-  font-size:4.8vw
+  max-width:90%;
+  margin:.8em auto 0;
+  font-size:3.8vw;
+  line-height:1.4
 }
 .home-trust-copy h2 {
-  font-size:14.8vw;
+  font-size:6.2vw;
   line-height:1.15
 }
 
