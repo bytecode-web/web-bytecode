@@ -189,7 +189,7 @@ const ToggleSwitch = ({ checked, label, onChange }: { checked: boolean; label: s
     className="flex w-full items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left transition-colors hover:bg-white/[0.04]"
   >
     <span className="text-sm font-medium text-white/80">{label}</span>
-    <span className={`relative h-6 w-11 rounded-full border transition-colors ${checked ? 'border-emerald-300/50 bg-emerald-400/30' : 'border-white/15 bg-white/10'}`}>
+    <span className={`relative shrink-0 h-6 w-11 rounded-full border transition-colors ${checked ? 'border-emerald-300/50 bg-emerald-400/30' : 'border-white/15 bg-white/10'}`}>
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </span>
   </button>
