@@ -310,7 +310,13 @@ casesRouter.patch(
       await client.query('BEGIN');
       const current = await client.query('SELECT * FROM contact_cases WHERE id = $1 FOR UPDATE', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
-      currentRow = current.rows[0];
+      
+      const currentFull = await client.query(
+        `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`,
+        [id]
+      );
+      currentRow = currentFull.rows[0];
+      const rawCurrent = current.rows[0];
 
       let newStatusId: string | undefined;
       let newPriorityId: string | undefined;
@@ -358,7 +364,7 @@ casesRouter.patch(
       );
       if (result.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
 
-      const oldStatusId = currentRow.status_id as string | undefined;
+      const oldStatusId = rawCurrent.status_id as string | undefined;
       if (oldStatusId && newStatusId && oldStatusId !== newStatusId) {
         if (!body.reason || !body.reason.trim()) {
           throw new HttpError(400, 'El motivo del cambio de estado es obligatorio.');
@@ -369,9 +375,9 @@ casesRouter.patch(
           [id, oldStatusId, newStatusId, req.admin?.id ?? null, body.reason ?? null],
         );
 
-        const assignedTo = currentRow.assigned_to as string | undefined;
+        const assignedTo = rawCurrent.assigned_to as string | undefined;
         if (assignedTo && assignedTo !== req.admin?.id) {
-          const caseCode = currentRow.case_code || id.split('-')[0];
+          const caseCode = rawCurrent.case_code || id.split('-')[0];
           await sendDirectInAppNotification(
             assignedTo,
             "Actualización de Contacto",
@@ -387,6 +393,13 @@ casesRouter.patch(
         [id],
       );
       updatedRow = updated.rows[0];
+      
+      // Inject reason into audit log
+      if (body.reason && body.status) {
+        updatedRow.status_change_reason = body.reason;
+        currentRow.status_change_reason = null;
+      }
+
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -427,6 +440,13 @@ casesRouter.post(
       
       const current = await client.query('SELECT * FROM contact_cases WHERE id = $1', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
+      
+      const normalized = await hasNormalizedContactSchema();
+      const currentFullResult = await client.query(
+        `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`,
+        [id]
+      );
+      const currentFull = currentFullResult.rows[0];
 
       const assignedTo = body.assigned_to ? body.assigned_to : null;
 
@@ -479,7 +499,6 @@ casesRouter.post(
         }
       }
       
-      const normalized = await hasNormalizedContactSchema();
       const updated = await client.query(
         `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
         [id]
@@ -490,7 +509,7 @@ casesRouter.post(
         action: 'assign',
         entityType: 'contact_submission',
         entity: updated.rows[0],
-        previousState: current.rows[0],
+        previousState: currentFull,
         req
       });
 
