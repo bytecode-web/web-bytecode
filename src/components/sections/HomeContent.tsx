@@ -53,7 +53,7 @@ const services = [
 ];
 
 export function HomeServices() {
-  const { ref, active, setActive } = useSlideCycle(services.length, 4500, 3000);
+  const { ref, active } = useSlideCycle(services.length, 4500, 3000);
   return (
     <section ref={ref} className="home-services" aria-labelledby="home-services-title" aria-roledescription="carrusel">
       <div className="home-services-backdrop" aria-hidden="true"><svg viewBox="0 0 731 100" preserveAspectRatio="none"><path d="M0 85C110-35 590-20 731 100V120H0Z" fill="white" /></svg></div>
@@ -71,8 +71,8 @@ export function HomeServices() {
           <img className="home-card-mark" src="/vectors/logos/isotipo.svg" alt="" width="36" height="44" />
         </Link>)}
       </div>
-      <div className="home-service-dots" aria-label="Seleccionar servicio">
-        {services.map((item, index) => <button key={item.title} type="button" onClick={() => setActive(index)} aria-label={item.title} aria-pressed={index === active}><span className={index === active ? 'is-active' : ''} /></button>)}
+      <div className="home-service-dots" aria-hidden="true">
+        {services.map((item, index) => <span key={item.title} className={index === active ? 'is-active' : ''} />)}
       </div>
     </section>
   );
