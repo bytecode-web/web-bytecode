@@ -66,12 +66,14 @@ export default function HeroGalaxy() {
       context.drawImage(stars, 0, 0);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.save();
-      context.translate(width * .49, height * (width < 768 ? .57 : .5));
-      context.rotate(-.3);
-      context.scale(1, .52);
+      // Match the former camera at (0, 1, 6), looking at (0, -1, 0):
+      // a horizontal, nearly edge-on disk with its core above the center.
+      const focalLength = height / (2 * Math.tan(75 * Math.PI / 360));
+      context.translate(width * .5, height * .5 - focalLength * 3 / 19);
+      context.scale(1, 1 / Math.sqrt(37));
       context.rotate(angle);
       context.globalCompositeOperation = 'lighter';
-      const size = Math.max(width * 1.12, height * .98);
+      const size = Math.max(width * 1.12, height * 1.8);
       context.drawImage(galaxy, -size / 2, -size / 2, size, size);
       context.restore();
     };
