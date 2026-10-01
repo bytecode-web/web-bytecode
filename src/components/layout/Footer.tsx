@@ -30,7 +30,7 @@ const Footer: React.FC = () => {
         `}
       </style>
 
-      <footer className="home-footer" style={{ position: 'relative' }}>
+      <footer className="home-footer bg-gradient-to-b from-[#00171c] to-[#001b21]" style={{ position: 'relative' }}>
         {/* Decorativo Fondo Footer (Geométrico) */}
         <img
           src="/vectors/designs/elemento_footer.svg"
