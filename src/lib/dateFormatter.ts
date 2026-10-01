@@ -29,6 +29,7 @@ export const formatLocalDate = (value?: string | null, style: DateFormatStyle = 
       options = {
         dateStyle: 'short',
         timeStyle: 'short',
+        hour12: true,
       };
       break;
     case 'datetime-precise':
@@ -37,6 +38,7 @@ export const formatLocalDate = (value?: string | null, style: DateFormatStyle = 
       options = {
         dateStyle: 'short',
         timeStyle: 'medium',
+        hour12: true,
       };
       break;
     case 'date-medium':
