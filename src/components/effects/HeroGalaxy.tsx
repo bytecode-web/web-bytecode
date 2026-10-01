@@ -12,10 +12,12 @@ export default function HeroGalaxy() {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     let seed = 73;
     const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const galaxyResolution = 1536;
     const galaxy = document.createElement('canvas');
-    galaxy.width = galaxy.height = 1024;
+    galaxy.width = galaxy.height = galaxyResolution;
     const g = galaxy.getContext('2d');
     if (!g) return;
+    g.scale(galaxyResolution / 1024, galaxyResolution / 1024);
     const glow = (x: number, y: number, radius: number, color: string, alpha: number) => {
       const gradient = g.createRadialGradient(x, y, 0, x, y, radius);
       gradient.addColorStop(0, `rgba(${color},${alpha})`);
@@ -31,10 +33,10 @@ export default function HeroGalaxy() {
         const radius = 30 + step * 4.3;
         const angle = arm * Math.PI * 2 / 3 + radius * .012;
         glow(512 + Math.cos(angle) * radius, 512 + Math.sin(angle) * radius,
-          24 + radius * .13, arm === 1 ? '103,91,231' : '16,161,210', .045);
+          28 + radius * .15, arm === 1 ? '103,91,231' : '16,161,210', .052);
       }
     }
-    for (let i = 0; i < 6500; i++) {
+    for (let i = 0; i < 7800; i++) {
       const radius = Math.pow(random(), .7) * 450;
       const angle = (i % 3) * Math.PI * 2 / 3 + radius * .012 + (random() - .5) * .62;
       const spread = (random() - .5) * (12 + radius * .13);
@@ -42,12 +44,12 @@ export default function HeroGalaxy() {
       const y = 512 + Math.sin(angle) * (radius + spread);
       const alpha = .14 + random() * .48;
       g.fillStyle = radius < 100 ? `rgba(225,237,255,${alpha})` : `rgba(110,204,247,${alpha})`;
-      g.beginPath(); g.arc(x, y, .25 + random() * .75, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(x, y, .28 + random() * .72, 0, Math.PI * 2); g.fill();
       if (i % 100 === 0) glow(x, y, 7, '134,217,255', .35);
     }
-    glow(512, 512, 165, '71,119,222', .5);
-    glow(512, 512, 80, '174,214,255', .65);
-    glow(512, 512, 29, '244,242,255', .95);
+    glow(512, 512, 185, '71,119,222', .46);
+    glow(512, 512, 92, '174,214,255', .65);
+    glow(512, 512, 32, '244,242,255', .95);
 
     const stars = document.createElement('canvas');
     const s = stars.getContext('2d');
@@ -66,14 +68,14 @@ export default function HeroGalaxy() {
       context.drawImage(stars, 0, 0);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.save();
-      // Match the former camera at (0, 1, 6), looking at (0, -1, 0):
-      // a horizontal, nearly edge-on disk with its core above the center.
-      const focalLength = height / (2 * Math.tan(75 * Math.PI / 360));
-      context.translate(width * .5, height * .5 - focalLength * 3 / 19);
-      context.scale(1, 1 / Math.sqrt(37));
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.translate(width * .49, height * (width < 768 ? .57 : .5));
+      context.rotate(-.3);
+      context.scale(1, .52);
       context.rotate(angle);
       context.globalCompositeOperation = 'lighter';
-      const size = Math.max(width * 1.12, height * 1.8);
+      const size = Math.max(width * 1.12, height * .98);
       context.drawImage(galaxy, -size / 2, -size / 2, size, size);
       context.restore();
     };
