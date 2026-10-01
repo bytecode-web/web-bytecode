@@ -125,5 +125,20 @@ export default function HeroGalaxy() {
       galaxy.width = galaxy.height = stars.width = stars.height = 0;
     };
   }, []);
-  return <div className="hero-galaxy" aria-hidden="true"><canvas ref={ref} /><div className="hero-galaxy-vignette" /></div>;
+  return (
+    <div className="hero-galaxy" aria-hidden="true">
+      <div className="hero-galaxy-menu-background">
+        <div
+          className="hero-galaxy-menu-stars"
+          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}vectors/designs/stardust.png)` }}
+        />
+        <div
+          className="hero-galaxy-menu-stars hero-galaxy-menu-stars-reversed"
+          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}vectors/designs/stardust.png)` }}
+        />
+      </div>
+      <canvas ref={ref} />
+      <div className="hero-galaxy-vignette" />
+    </div>
+  );
 }
