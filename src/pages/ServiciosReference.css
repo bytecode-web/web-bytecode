@@ -21,7 +21,9 @@
 .services-reference > .home-tools { padding-top: 4.5vw; padding-bottom: 6vw; }
 .services-reference > .home-tools h2 { margin-bottom: 3.2vw; }
 .services-reference-footer { background: linear-gradient(white, #b5b9b9); padding: 0 1.6%; }
-.services-reference-footer .home-footer { background: linear-gradient(#000, #001b21); border-radius: 6vw 6vw 0 0; padding: 0 5.2% 4.8vw; }
+.services-reference-footer .home-footer { background: linear-gradient(#000, #001b21); border-radius: 6vw 6vw 0 0; padding: 6vw 5.2% 4.8vw; overflow: hidden; isolation: isolate; }
+.services-reference-footer .footer-top-divider { display: none; }
+.services-reference-footer .footer-decoration { top: 5%; left: -2%; width: 22%; height: auto; }
 .services-reference-footer .home-footer-cta { border-top: 0; min-height: 25.5vw; }
 .services-reference-footer .home-footer-cta h2 { width: 30%; }
 .services-reference-footer .home-footer-geometry { width: 24%; left: -8%; top: 8%; height: 85%; }
@@ -43,7 +45,8 @@
   .services-reference > .home-tools { padding: 7.8vw 6.6% 10vw; }
   .services-reference > .home-tools h2 { margin-bottom: 6vw; }
   .services-reference-footer { padding: 0 3.2%; }
-  .services-reference-footer .home-footer { border-radius: 11vw 11vw 0 0; padding: 0 3.6% 10vw; }
+  .services-reference-footer .home-footer { border-radius: 11vw 11vw 0 0; padding: 14vw 3.6% 10vw; }
+  .services-reference-footer .footer-decoration { top: 12%; left: -8%; width: 40%; }
   .services-reference-footer .home-footer-cta { min-height: 63vw; padding-top: 14vw; gap: 6vw; }
   .services-reference-footer .home-footer-cta h2 { width: 100%; font-size: 5.8vw; }
   .services-reference-footer .home-footer-connect { width: 87%; font-size: 9vw; padding: .22em; border-radius: 5vw; }
