@@ -190,20 +190,28 @@ casesRouter.post(
         case_code, customer_id, organization_id, source_channel_id, category_id, subject, message, priority_id, first_response_due_at, status_id, created_by
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, NOW() + INTERVAL '24 hours', (SELECT id FROM status_catalog WHERE code = 'new' AND domain = 'case'), $9
-      ) RETURNING id, case_code, created_at
+      ) RETURNING id
       `,
       [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).admin.id]
     );
+
+    const insertedId = result.rows[0].id;
+    const normalized = await hasNormalizedContactSchema();
+    const fullTicketResult = await pool.query(
+      `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
+      [insertedId]
+    );
+    const fullTicket = fullTicketResult.rows[0];
 
     await auditService.logAdminAction({
       userId: (req as any).admin.id,
       action: 'create',
       entityType: 'contact_submission',
-      entity: result.rows[0],
+      entity: fullTicket,
       req
     });
 
-    res.status(201).json({ item: result.rows[0] });
+    res.status(201).json({ item: fullTicket });
   })
 );
 
