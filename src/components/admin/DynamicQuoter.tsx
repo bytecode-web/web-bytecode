@@ -61,6 +61,7 @@ type DynamicQuoterProps = {
   customerName: string;
   customerEmail: string;
   notes: string;
+  paymentPolicy?: string | null;
   loading?: boolean;
   error?: string;
   primaryFieldsAfter?: React.ReactNode;
@@ -200,6 +201,7 @@ const DynamicQuoter = ({
   initialCatalog,
   customerEmail,
   notes,
+  paymentPolicy,
   loading = false,
   error = '',
   primaryFieldsAfter,
@@ -401,6 +403,16 @@ const DynamicQuoter = ({
             className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition-colors focus:border-[#06CFD6]/70 resize-y min-h-[76px]"
           />
         </label>
+        {paymentPolicy ? (
+          <div className="flex flex-col gap-1.5 lg:col-span-3">
+            <span className="text-xs font-medium uppercase tracking-wider text-white/55">
+              Políticas y Metadatos del Sistema (Solo Lectura)
+            </span>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-white/70 whitespace-pre-line font-mono">
+              {paymentPolicy}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {primaryFieldsAfter}

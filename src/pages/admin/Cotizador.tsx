@@ -58,6 +58,7 @@ const AdminCotizador: React.FC = () => {
     customerName: '',
     customerEmail: '',
     notes: '',
+    paymentPolicy: null as string | null,
     organizationId: null as string | null,
     currencyCode: 'PEN',
     status: 'draft',
@@ -137,7 +138,7 @@ const AdminCotizador: React.FC = () => {
   const openNewQuote = () => {
     setCatalogInStore(catalog);
     resetQuoter();
-    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
+    setFormData({ customerName: '', customerEmail: '', notes: '', paymentPolicy: null, organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
     setStatusHistory([]);
     setIsModalOpen(true);
   };
@@ -165,6 +166,7 @@ const AdminCotizador: React.FC = () => {
         customerName: detail.quote.first_name || '',
         customerEmail: detail.quote.primary_email || '',
         notes: detail.quote.notes || '',
+        paymentPolicy: detail.quote.payment_policy || null,
         organizationId: detail.quote.organization_id ?? null,
         currencyCode: detail.quote.currency_code ?? 'PEN',
         status: detail.quote.status,
@@ -248,7 +250,7 @@ const AdminCotizador: React.FC = () => {
         },
       });
       setIsModalOpen(false);
-      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
+      setFormData({ customerName: '', customerEmail: '', notes: '', paymentPolicy: null, organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
       resetQuoter();
       await loadData();
     addToast('Operación completada con éxito', 'success');
@@ -453,6 +455,7 @@ const AdminCotizador: React.FC = () => {
               customerName={formData.customerName}
               customerEmail={formData.customerEmail}
               notes={formData.notes}
+              paymentPolicy={formData.paymentPolicy}
               organizationId={formData.organizationId}
               currencyCode={formData.currencyCode}
               originalCurrencyCode={formData.originalCurrencyCode}
