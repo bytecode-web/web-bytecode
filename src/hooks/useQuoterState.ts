@@ -424,8 +424,8 @@ export const computeQuoteTotals = (
     const freeIncludedQuantity = freeQuantityFor(item);
     const billableQuantity = billableQuantityFor(item, quantity);
     const customPrice = line.customPrice;
-    const unitPrice = customPrice !== undefined && requiresCustomPrice(item)
-      ? clampCustomPriceFor(item, customPrice).clampedPrice
+    const unitPrice = customPrice !== undefined
+      ? (requiresCustomPrice(item) ? clampCustomPriceFor(item, customPrice).clampedPrice : customPrice)
       : moneyValue(item.base_price);
     const includedInBase = (
       item.item_type === 'base_included' ||
@@ -439,8 +439,8 @@ export const computeQuoteTotals = (
       subtotal = isActiveBaseTrigger ? moneyValue(item.base_price) : 0;
     } else if (item.item_type === 'base_included') {
       subtotal = 0;
-    } else if (customPrice !== undefined && requiresCustomPrice(item)) {
-      subtotal = unitPrice * quantity;
+    } else if (customPrice !== undefined) {
+      subtotal = unitPrice * (item.pricing_model === 'per_unit' ? billableQuantity : quantity);
     } else if (item.pricing_model === 'per_unit') {
       subtotal = billableQuantity * moneyValue(item.base_price);
     } else {
