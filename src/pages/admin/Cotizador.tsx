@@ -29,6 +29,7 @@ export interface Quote {
   created_at: string;
   first_name: string;
   primary_email: string;
+  notes?: string | null;
 }
 
 type QuoteDetailResponse = {
@@ -163,7 +164,7 @@ const AdminCotizador: React.FC = () => {
       setFormData({
         customerName: detail.quote.first_name || '',
         customerEmail: detail.quote.primary_email || '',
-        notes: detail.quote.payment_policy || '',
+        notes: detail.quote.notes || '',
         organizationId: detail.quote.organization_id ?? null,
         currencyCode: detail.quote.currency_code ?? 'PEN',
         status: detail.quote.status,
