@@ -520,49 +520,53 @@ const Contactos: React.FC = () => {
                     selectedId === item.id ? 'bg-white/5 border-white/40' : 'border-transparent hover:bg-white/[0.02]'
                   }`}
                 >
-                  {/* Fila 1: Segmento B2B/B2C, Nombre de Contacto, Fecha y Asignación */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span
-                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap border ${
-                          getContactB2Type(item) === 'B2B'
-                            ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
-                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                        }`}
-                      >
-                        {getContactB2Type(item)}
-                      </span>
-                      <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
-                        {formatContactTitle(item)}
-                      </p>
+                  {/* Bloque superior e intermedio: Info a la izquierda, Fecha y Agente a la derecha */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      {/* Segmento B2B/B2C y Nombre de Contacto */}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap border ${
+                            getContactB2Type(item) === 'B2B'
+                              ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                          }`}
+                        >
+                          {getContactB2Type(item)}
+                        </span>
+                        <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
+                          {formatContactTitle(item)}
+                        </p>
+                      </div>
+
+                      {/* Código de caso y Asunto / Servicio */}
+                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
+                        {item.case_code && (
+                          <span className="shrink-0 font-mono text-[11px] text-white/35">
+                            #{item.case_code} ·
+                          </span>
+                        )}
+                        <BriefcaseBusiness className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{item.servicio || 'Servicio no especificado'}</span>
+                      </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
-                      {item.assigned_to === admin.id ? (
-                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
-                          <UserCheck className="h-3 w-3" /> Mío
-                        </span>
-                      ) : item.assigned_to ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
-                          <UserCheck className="h-3 w-3" />
-                        </span>
-                      ) : null}
-                      <span className="flex items-center gap-1 text-[10px] text-white/30">
+                    {/* Columna derecha: Fecha arriba, Badge de Agente debajo */}
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap">
                         <CalendarDays className="h-3 w-3 shrink-0" />
                         {formatLocalDate(item.created_at, 'date-medium')}
                       </span>
+                      {item.assigned_to === admin.id ? (
+                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)] whitespace-nowrap" title="Asignado a ti">
+                          <UserCheck className="h-3 w-3" /> Mío
+                        </span>
+                      ) : item.assigned_to ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap" title="Asignado a otro">
+                          <UserCheck className="h-3 w-3" />
+                        </span>
+                      ) : null}
                     </div>
-                  </div>
-
-                  {/* Fila 2: Código de caso y Asunto / Servicio */}
-                  <div className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
-                    {item.case_code && (
-                      <span className="shrink-0 font-mono text-[11px] text-white/35">
-                        #{item.case_code} ·
-                      </span>
-                    )}
-                    <BriefcaseBusiness className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{item.servicio || 'Servicio no especificado'}</span>
                   </div>
 
                   {/* Fila 3: Badges de Estado, Prioridad y Categoría en línea */}
