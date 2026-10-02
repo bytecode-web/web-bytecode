@@ -52,7 +52,30 @@ const contactColumns = `
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
-  c.category_id, cat.name as category_name, cat.code as category_code
+  c.category_id, cat.name as category_name, cat.code as category_code,
+  c.organization_id,
+  cu.person_type as customer_person_type,
+  CASE
+    WHEN c.organization_id IS NOT NULL 
+      OR NULLIF(trim(COALESCE(o.legal_name, (regexp_match(c.message, 'Empresa:[[:space:]]*([^[:cntrl:]]+)'))[1])), '') IS NOT NULL
+      OR NULLIF(trim(COALESCE((SELECT document_number FROM organization_documents od WHERE od.organization_id = o.id AND od.is_active = true LIMIT 1), (regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1])), '') IS NOT NULL
+      OR cu.person_type = 'company'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
+  (
+    SELECT dt.name
+    FROM customer_documents cd
+    JOIN document_types dt ON cd.document_type_id = dt.id
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_type_name,
+  (
+    SELECT cd.document_number
+    FROM customer_documents cd
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_number
 `;
 
 const contactJoins = `
@@ -83,7 +106,29 @@ const legacyContactColumns = `
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
-  c.category_id, cat.name as category_name, cat.code as category_code
+  c.category_id, cat.name as category_name, cat.code as category_code,
+  NULL::uuid as organization_id,
+  cu.person_type as customer_person_type,
+  CASE
+    WHEN NULLIF(trim((regexp_match(c.message, 'Empresa:[[:space:]]*([^[:cntrl:]]+)'))[1]), '') IS NOT NULL
+      OR NULLIF(trim((regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1]), '') IS NOT NULL
+      OR cu.person_type = 'company'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
+  (
+    SELECT dt.name
+    FROM customer_documents cd
+    JOIN document_types dt ON cd.document_type_id = dt.id
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_type_name,
+  (
+    SELECT cd.document_number
+    FROM customer_documents cd
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_number
 `;
 
 const legacyContactJoins = `

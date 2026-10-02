@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users, Plus } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users, Plus, Building2, User } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { formatLocalDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
@@ -19,11 +19,11 @@ export interface ContactCase {
   case_code?: string;
   nombre: string;
   apellido?: string;
-  cargo: string;
+  cargo?: string;
   email: string;
   celular: string;
-  empresa: string;
-  ruc: string;
+  empresa?: string;
+  ruc?: string;
   servicio: string;
   status: string;
   status_name?: string;
@@ -35,7 +35,29 @@ export interface ContactCase {
   admin_notes: string;
   assigned_to?: string;
   created_at: string;
+  b2_type?: 'B2B' | 'B2C';
+  organization_id?: string | null;
+  document_type_name?: string | null;
+  document_number?: string | null;
 }
+
+export const getContactB2Type = (item: {
+  b2_type?: string;
+  organization_id?: string | null;
+  empresa?: string | null;
+  ruc?: string | null;
+  cargo?: string | null;
+}): 'B2B' | 'B2C' => {
+  if (item.b2_type === 'B2B') return 'B2B';
+  if (item.b2_type === 'B2C') return 'B2C';
+  const hasCompanyData = Boolean(
+    item.organization_id ||
+    (typeof item.empresa === 'string' && item.empresa.trim() !== '') ||
+    (typeof item.ruc === 'string' && item.ruc.trim() !== '') ||
+    (typeof item.cargo === 'string' && item.cargo.trim() !== '')
+  );
+  return hasCompanyData ? 'B2B' : 'B2C';
+};
 
 type ContactItem = ContactCase;
 
@@ -53,22 +75,7 @@ type AssignmentHistoryItem = {
 
 type DetailItem = Record<string, string | number | null | undefined>;
 
-const detailFields: Array<{ key: string; label: string }> = [
-  { key: 'nombre', label: 'Nombre' },
-  { key: 'apellido', label: 'Apellido' },
-  { key: 'cargo', label: 'Cargo' },
-  { key: 'email', label: 'Email' },
-  { key: 'celular', label: 'Celular' },
-  { key: 'empresa', label: 'Empresa' },
-  { key: 'ruc', label: 'RUC' },
-  { key: 'servicio', label: 'Asunto' },
-  { key: 'message', label: 'Mensaje' },
-  { key: 'created_at', label: 'Creado' },
-  { key: 'updated_at', label: 'Actualizado' },
-  { key: 'first_response_due_at', label: 'Vencimiento SLA' },
-  { key: 'resolved_at', label: 'Resuelto el' },
-  { key: 'closed_at', label: 'Cerrado el' },
-];
+
 
 const formatFullName = (item: Pick<ContactItem, 'nombre' | 'apellido'>) =>
   [item.nombre, item.apellido].filter(Boolean).join(' ');
@@ -255,12 +262,60 @@ const Contactos: React.FC = () => {
       );
     }
 
+    const isB2B = getContactB2Type(detail as any) === 'B2B';
+
+    const activeDetailFields: Array<{ key: string; label: string }> = isB2B
+      ? [
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'apellido', label: 'Apellido' },
+          { key: 'cargo', label: 'Cargo' },
+          { key: 'email', label: 'Email' },
+          { key: 'celular', label: 'Celular' },
+          { key: 'empresa', label: 'Empresa' },
+          { key: 'ruc', label: 'RUC' },
+          { key: 'servicio', label: 'Asunto' },
+          { key: 'message', label: 'Mensaje' },
+          { key: 'created_at', label: 'Creado' },
+          { key: 'updated_at', label: 'Actualizado' },
+          { key: 'first_response_due_at', label: 'Vencimiento SLA' },
+          { key: 'resolved_at', label: 'Resuelto el' },
+          { key: 'closed_at', label: 'Cerrado el' },
+        ]
+      : [
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'apellido', label: 'Apellido' },
+          { key: 'email', label: 'Email' },
+          { key: 'celular', label: 'Celular' },
+          ...(detail.document_type_name || detail.document_number ? [
+            { key: 'document_type_name', label: 'Tipo de Documento' },
+            { key: 'document_number', label: 'N° Documento' },
+          ] : []),
+          { key: 'servicio', label: 'Asunto' },
+          { key: 'message', label: 'Mensaje' },
+          { key: 'created_at', label: 'Creado' },
+          { key: 'updated_at', label: 'Actualizado' },
+          { key: 'first_response_due_at', label: 'Vencimiento SLA' },
+          { key: 'resolved_at', label: 'Resuelto el' },
+          { key: 'closed_at', label: 'Cerrado el' },
+        ];
+
     return (
       <div className="flex flex-col">
         <div className="p-6 lg:p-8 flex flex-col gap-8">
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
             <h2 className="text-xl font-semibold text-white/90">Detalle del Contacto</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border ${
+                  isB2B
+                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                }`}
+              >
+                {isB2B ? <Building2 size={13} /> : <User size={13} />}
+                {isB2B ? 'B2B' : 'B2C'}
+              </span>
+
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
                   {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
@@ -276,7 +331,7 @@ const Contactos: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {detailFields.map(({ key, label }) => (
+            {activeDetailFields.map(({ key, label }) => (
               <div key={key} className={key === 'message' ? 'sm:col-span-2' : ''}>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
@@ -477,11 +532,22 @@ const Contactos: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
-                    {item.category_name && (
-                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap">
-                        {item.category_name}
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={`h-fit rounded-md px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap border ${
+                          getContactB2Type(item) === 'B2B'
+                            ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                            : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                        }`}
+                      >
+                        {getContactB2Type(item)}
                       </span>
-                    )}
+                      {item.category_name && (
+                        <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap">
+                          {item.category_name}
+                        </span>
+                      )}
+                    </div>
                     <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
                       {statusLabel(item.status)}
                     </span>
