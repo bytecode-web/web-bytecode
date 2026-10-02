@@ -272,25 +272,25 @@ const Auditoria: React.FC = () => {
                 const diffs = computeDiffs(selectedDetails);
                 if (diffs.length > 0) {
                   return (
-                    <div className="border border-white/10 rounded-lg overflow-hidden bg-black/20">
-                      <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-white/[0.05] text-white/50 text-[10px] uppercase tracking-wider">
+                    <div className="border border-white/10 rounded-lg overflow-auto max-h-[52vh] bg-black/20 custom-scrollbar">
+                      <table className="w-full text-left text-sm whitespace-nowrap border-separate border-spacing-0">
+                        <thead className="sticky top-0 z-10 text-white/60 text-[10px] uppercase tracking-wider">
                           <tr>
-                            <th className="px-4 py-2 font-medium">Campo</th>
-                            <th className="px-4 py-2 font-medium">Valor Anterior</th>
-                            <th className="px-4 py-2 font-medium">Nuevo Valor</th>
+                            <th className="sticky top-0 z-10 bg-zinc-900/95 px-4 py-2.5 font-medium border-b border-white/10 backdrop-blur-sm shadow-sm">Campo</th>
+                            <th className="sticky top-0 z-10 bg-zinc-900/95 px-4 py-2.5 font-medium border-b border-white/10 backdrop-blur-sm shadow-sm">Valor Anterior</th>
+                            <th className="sticky top-0 z-10 bg-zinc-900/95 px-4 py-2.5 font-medium border-b border-white/10 backdrop-blur-sm shadow-sm">Nuevo Valor</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody>
                           {diffs.map((d) => (
                             <tr key={d.key} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="px-4 py-3 font-mono text-xs text-white/80">{d.key}</td>
-                              <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.oldVal)}>
+                              <td className="px-4 py-3 font-mono text-xs text-white/80 border-b border-white/5">{d.key}</td>
+                              <td className="px-4 py-3 text-xs max-w-[200px] truncate border-b border-white/5" title={JSON.stringify(d.oldVal)}>
                                 <span className={`px-2 py-1 rounded inline-block truncate max-w-full ${d.oldVal === undefined ? 'text-white/30 italic' : 'bg-red-500/10 text-red-400 line-through'}`}>
                                   {d.oldVal === undefined ? 'Añadido' : (typeof d.oldVal === 'string' ? d.oldVal : JSON.stringify(d.oldVal))}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={JSON.stringify(d.newVal)}>
+                              <td className="px-4 py-3 text-xs max-w-[200px] truncate border-b border-white/5" title={JSON.stringify(d.newVal)}>
                                 <span className={`px-2 py-1 rounded inline-block truncate max-w-full ${d.newVal === undefined ? 'text-white/30 italic' : 'bg-emerald-500/10 text-emerald-400'}`}>
                                   {d.newVal === undefined ? 'Eliminado' : (typeof d.newVal === 'string' ? d.newVal : JSON.stringify(d.newVal))}
                                 </span>
