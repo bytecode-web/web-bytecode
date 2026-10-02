@@ -48,14 +48,14 @@ const Nosotros: React.FC = () => {
 
   return (
     <div className="relative flex w-full flex-col overflow-x-clip bg-[#044553] font-sansation select-none">
-      <SEO 
-        title="Nosotros" 
+      <SEO
+        title="Nosotros"
         description="Conoce a Bytecode, especialistas en ingeniería de software multiplataforma y automatización inteligente para negocios escalables."
       />
 
       {/* ── ESTRUCTURA RESPONSIVA UNIFICADA ── */}
       <section className="relative w-full lg:pb-[100px] 2xl:pb-[150px]">
-        
+
         {/* === Fondos Base === */}
         <div className="relative lg:absolute left-0 top-0 w-full overflow-hidden h-[18rem] sm:h-[17rem] md:h-[24rem] lg:h-[700px] xl:h-[850px] 2xl:h-[1000px] [@media(max-height:720px)]:lg:h-[560px] [@media(max-height:720px)]:xl:h-[620px] bg-black transition-all duration-500 z-0">
           <img
@@ -79,13 +79,13 @@ const Nosotros: React.FC = () => {
 
         {/* === Contenedor Principal Unificado === */}
         <div className="relative z-10 flex flex-col lg:block w-full lg:overflow-visible bg-[#0CA3C6] lg:bg-transparent px-4 sm:px-6 lg:px-[80px] xl:px-12 2xl:px-[100px] pb-16 sm:pb-20 lg:pb-0 pt-5 sm:pt-8 lg:pt-[140px] xl:pt-[200px] 2xl:pt-[250px] [@media(max-height:720px)]:lg:pt-[90px] [@media(max-height:720px)]:xl:pt-[110px] mx-auto max-w-none lg:max-w-[1600px] lg:min-h-[1050px] xl:min-h-[1350px] 2xl:min-h-[1600px] [@media(max-height:720px)]:lg:min-h-[760px] [@media(max-height:720px)]:xl:min-h-[860px] transition-all duration-500">
-          
+
           {/* Decorativos Intermedios Móvil */}
           <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#0CA3C6] to-transparent lg:hidden" />
           <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-b from-transparent to-[#044553] lg:hidden" />
           <div className="pointer-events-none absolute inset-0 z-0 opacity-80 top-[225px] md:top-[350px] lg:hidden">
-            <img 
-              src="/vectors/designs/elemento_intermedio_nosotros_vista_movil.svg" 
+            <img
+              src="/vectors/designs/elemento_intermedio_nosotros_vista_movil.svg"
               alt="Patrón"
               className="h-[434px] w-[648px] md:w-full md:h-auto md:scale-90 md:scale-x-[1.12] md:origin-top object-cover object-left-top"
             />
@@ -93,7 +93,7 @@ const Nosotros: React.FC = () => {
 
           {/* Bloque Izquierdo (Textos) */}
           <div className="relative z-30 w-full lg:w-1/2 lg:pl-[30px] flex flex-col order-2 lg:order-none">
-            
+
             {/* Título y Párrafo principal */}
             <div className="absolute lg:relative -top-[750px] md:-top-[990px] sm:-top-[140px] lg:top-0 left-0 lg:left-auto w-full lg:w-auto px-5 sm:px-8 lg:px-0 text-center lg:text-left z-20 lg:z-auto">
               <motion.h1
@@ -135,7 +135,7 @@ const Nosotros: React.FC = () => {
           <div className="relative lg:absolute z-10 lg:z-20 w-full lg:w-[800px] max-w-[18rem] sm:max-w-[21rem] lg:max-w-none mx-auto lg:mx-0 mb-24 sm:mb-14 md:mb-40 lg:mb-0 aspect-[0.72] lg:aspect-auto lg:right-0 lg:top-[55px] lg:h-[1700px] [@media(max-height:720px)]:lg:h-[1280px] md:origin-top lg:origin-[100%_15%] md:scale-[1.5] lg:scale-[0.62] xl:scale-[0.82] 2xl:scale-[1.21] [@media(max-height:720px)]:lg:scale-[0.48] [@media(max-height:720px)]:xl:scale-[0.62] [@media(max-height:720px)]:2xl:scale-[0.82] 2xl:-right-34 pointer-events-none lg:transition-transform lg:duration-500 order-1 lg:order-none mt-[20px] lg:mt-0">
 
             {/* 1. Rectángulo azul oscuro */}
-            <motion.div initial={{ opacity: 0, x: 80 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }} className="absolute -top-[20px] left-[calc(100%-140px)] md:left-[calc(100%-164px)] lg:top-[50px] lg:left-auto lg:right-0 h-[104px] w-[100vw] md:h-[114px] lg:h-[258px] lg:w-[355px] rounded-l-[20px] lg:rounded-l-[60px] rounded-r-none bg-[#024F79]" />
+            <motion.div initial={{ opacity: 0, x: 80 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }} className="absolute -top-[20px] left-[calc(100%-140px)] md:left-[calc(100%-164px)] lg:top-[50px] lg:left-auto lg:right-0 2xl:right-[var(--nosotros-right-edge)] h-[104px] w-[100vw] md:h-[114px] lg:h-[258px] lg:w-[355px] rounded-l-[20px] lg:rounded-l-[60px] rounded-r-none bg-[#024F79]" style={{ '--nosotros-right-edge': 'min(136px, calc(936px - 50vw))' } as React.CSSProperties} />
 
             {/* 2. Cuadrado inferior izquierdo */}
             <motion.div initial={{ opacity: 0, x: -60, y: 60 }} whileInView={{ opacity: 1, x: 0, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }} className="absolute top-[336px] right-[calc(100%-164.2px)] md:top-[391px] md:right-[calc(100%-196px)] lg:top-[1029px] lg:right-auto lg:left-[80px] h-[149px] w-[100vw] md:h-[169px] lg:h-[403px] lg:w-[414px] rounded-r-[34px] lg:rounded-[59px] rounded-l-none lg:rounded-l-[59px] bg-[#026B9B] shadow-[3px_5px_6px_rgba(0,0,0,0.4)]" />
@@ -148,40 +148,40 @@ const Nosotros: React.FC = () => {
 
             {/* 5. Sombra del piso */}
             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }} className="absolute top-[430px] left-[142px] md:top-[499px] md:left-[166px] lg:top-[1275px] lg:left-[60px] z-0 w-[90%] lg:w-[730px] -translate-x-1/2 lg:translate-x-0 opacity-85 lg:opacity-100">
-              <motion.img 
-                src="/images/nosotros/sombrapisohombre.png" 
-                alt="" 
-                draggable={false} 
-                className="w-full opacity-90 lg:opacity-100" 
-                animate={{ 
-                  scale: isHovered ? 0.95 : 1, 
-                  opacity: isHovered ? 0.4 : 0.9, 
-                  filter: isHovered ? "blur(6px)" : "blur(0px)" 
-                }} 
-                transition={{ 
+              <motion.img
+                src="/images/nosotros/sombrapisohombre.png"
+                alt=""
+                draggable={false}
+                className="w-full opacity-90 lg:opacity-100"
+                animate={{
+                  scale: isHovered ? 0.95 : 1,
+                  opacity: isHovered ? 0.4 : 0.9,
+                  filter: isHovered ? "blur(6px)" : "blur(0px)"
+                }}
+                transition={{
                   scale: { type: "spring", stiffness: 300, damping: 25 },
                   opacity: { type: "spring", stiffness: 300, damping: 25 },
-                  filter: { type: "tween", duration: 0.3, ease: "easeInOut" } 
-                }} 
+                  filter: { type: "tween", duration: 0.3, ease: "easeInOut" }
+                }}
               />
             </motion.div>
 
             {/* 6. El Hombre */}
             <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.9, delay: 0.4, ease: "easeOut" }} className="absolute left-1/2 lg:left-[60px] top-[3.8%] lg:top-[125px] z-10 w-[93%] lg:w-[750px] -translate-x-1/2 lg:translate-x-0 pointer-events-none">
-              <motion.img 
-                src="/images/nosotros/hombredepie.png" 
-                alt="Tecnología" 
-                draggable={false} 
-                className="w-full" 
+              <motion.img
+                src="/images/nosotros/hombredepie.png"
+                alt="Tecnología"
+                draggable={false}
+                className="w-full"
                 initial={{ filter: "drop-shadow(0px 20px 25px #0000004D) brightness(1)" }}
-                animate={{ 
-                  y: isHovered ? -15 : 0, 
-                  scale: isHovered ? 1.02 : 1, 
-                  filter: isHovered 
-                    ? `drop-shadow(${-glowPos.x}px ${-glowPos.y}px 30px #06CFD6D9) brightness(1.1)` 
-                    : `drop-shadow(0px 20px 25px #0000004D) brightness(1)` 
-                }} 
-                transition={{ type: "spring", stiffness: 300, damping: 25 }} 
+                animate={{
+                  y: isHovered ? -15 : 0,
+                  scale: isHovered ? 1.02 : 1,
+                  filter: isHovered
+                    ? `drop-shadow(${-glowPos.x}px ${-glowPos.y}px 30px #06CFD6D9) brightness(1.1)`
+                    : `drop-shadow(0px 20px 25px #0000004D) brightness(1)`
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
               />
             </motion.div>
 
@@ -201,10 +201,10 @@ const Nosotros: React.FC = () => {
 
       {/* SVG Final (Solo Móvil) */}
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-[950px]  w-full lg:hidden">
-        <img 
-          src="/vectors/designs/elemento_final_nosotros_vista_movil.svg" 
+        <img
+          src="/vectors/designs/elemento_final_nosotros_vista_movil.svg"
           alt="Fondo Móvil"
-          className="h-full w-full object-cover object-bottom md:object-fill" 
+          className="h-full w-full object-cover object-bottom md:object-fill"
         />
       </div>
 

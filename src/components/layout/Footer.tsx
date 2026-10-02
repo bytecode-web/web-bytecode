@@ -16,7 +16,7 @@ const Footer: React.FC = () => {
   const phone2Link = phone2.replace(/\D/g, '');
 
   return (
-    <div className="bg-transparent font-sansation select-none"> 
+    <div className="bg-transparent font-sansation select-none">
       {/* TODO(CSP): Move this embedded <style> block to a static stylesheet before enforcing CSP. */}
       <style>
         {`
@@ -30,12 +30,12 @@ const Footer: React.FC = () => {
         `}
       </style>
 
-      <footer style={{ position: 'relative' }}>
+      <footer className="home-footer bg-gradient-to-b from-[#00171c] to-[#001b21]" style={{ position: 'relative' }}>
         {/* Decorativo Fondo Footer (Geométrico) */}
         <img
           src="/vectors/designs/elemento_footer.svg"
           alt=""
-          className="absolute top-[35%] sm:top-[20%] md:top-[5%] left-[-1.1%] w-32 sm:w-42 md:w-62 opacity-60 pointer-events-none object-contain z-0"
+          className="footer-decoration absolute top-[35%] sm:top-[20%] md:top-[5%] left-[-1.1%] w-32 sm:w-42 md:w-62 opacity-60 pointer-events-none object-contain z-0"
           style={{
             filter:
               "brightness(0) saturate(100%) invert(20%) sepia(54%) saturate(2973%) hue-rotate(183deg) brightness(97%) contrast(98%)",
@@ -43,13 +43,13 @@ const Footer: React.FC = () => {
         />
 
         {/* Línea Separadora */}
-        <div className="border-t border-white mb-16 w-[86.6%] mx-auto" />
+        <div className="footer-top-divider border-t border-white mb-16 w-[86.6%] mx-auto" />
 
         {/* ========================================= */}
         {/* SECCIÓN SUPERIOR */}
         {/* ========================================= */}
         <div className="max-w-7xl mx-auto w-full relative z-10 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-20 mb-16">
-          
+
           {/* Lado Izquierdo: Texto Principal */}
           <div className="text-center lg:text-left">
             <h2 className="pb-[1.25em] md:pb-[1.15em] lg:pb-0 text-3xl md:text-5xl lg:text-5xl font-bold leading-tight md:leading-[1.15]">
@@ -89,7 +89,7 @@ const Footer: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         {/* ========================================= */}
         {/* SECCIÓN INFERIOR (Línea + Textos) */}
         {/* ========================================= */}
@@ -109,7 +109,7 @@ const Footer: React.FC = () => {
 
                 {/* WhatsApp 1 */}
                 {phone1 && (
-                  <a 
+                  <a
                     href={`https://wa.me/51${phone1Link}?text=%C2%A1Hola%2C%20equipo%20de%20Bytecode!%20Me%20gustar%C3%ADa%20cotizar%20el%20desarrollo%20de%20un%20software.`}
                     target="_blank"
                     rel="noopener noreferrer"

@@ -1,0 +1,73 @@
+/* The desktop canvas follows the 1248px reference; mobile follows 345px. */
+.about-page { position: relative; isolation: isolate; overflow: clip; background: linear-gradient(#0ca3c0 70%, #087082); color: white; font-family: var(--font-sansation); }
+.about-composition { position: relative; }
+.about-intro { height: 46.5vw; position: relative; display: flex; align-items: center; }
+.about-intro::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #000a, #0007); }
+.about-intro-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
+.about-intro-copy { position: relative; z-index: 1; width: 49%; margin-left: 6.4%; margin-top: -2vw; }
+.about-intro h1 { color: #0ca3c0; font-size: 5.8vw; font-weight: 700; line-height: 1.1; margin: 0 0 1.8vw; }
+.about-intro p { font-size: 2.3vw; line-height: 1.15; margin: 0; }
+.about-values { position: relative; z-index: 1; padding: 7.6vw 56% 6.7vw 12.35%; display: flex; flex-direction: column; gap: 6.3vw; background: #0ca3c0; border-top-right-radius: 10vw; }
+.about-values article { position: relative; z-index: 1; }
+.about-values h2 { font-size: 4.5vw; line-height: 1.1; font-weight: 700; margin: 0 0 1.8vw; }
+.about-values p { font-size: 1.7vw; line-height: 1.15; text-align: justify; margin: 0; }
+.about-art { position: absolute; z-index: 3; top: 3.1vw; right: 0; width: 51vw; height: 96vw; pointer-events: none; }
+.about-art-top { position: absolute; top: 0; right: -2%; width: 52%; height: 18.8%; background: #045477; border-radius: 4vw; }
+.about-art-bottom { position: absolute; top: 70%; left: 0; width: 57%; height: 29%; background: #066d96; border-radius: 4vw; }
+.about-art-panel { position: absolute; top: 3.2%; left: 19%; width: 62%; height: 90%; border-radius: 4vw; background: linear-gradient(155deg, #00c8d1, #04827f); }
+.about-art-circle { position: absolute; top: 6.5%; right: 6.5%; width: 59%; aspect-ratio: 1; border-radius: 50%; background: #0ba3c0; }
+.about-art-person { position: absolute; top: 6%; left: 3%; width: 98%; height: auto; }
+.about-art-shadow { position: absolute; width: 98%; height: auto; bottom: -.5%; left: 1%; }
+.about-lines-desktop { position: absolute; z-index: 2; left: 0; top: 46.5vw; height: calc(100% - 35vw); width: 12%; object-fit: cover; object-position: top left; pointer-events: none; opacity: .7; }
+.about-lines-middle, .about-lines-bottom { display: none; }
+.about-footer { position: relative; z-index: 4; margin: 0 1.6%; }
+.about-footer .home-footer { padding: 0 5.2% 4.8vw; border-radius: 6vw 6vw 0 0; background: linear-gradient(#000, #001a20); }
+.about-footer .home-footer-cta { border-top: 0; min-height: 25.5vw; }
+.about-footer .home-footer-cta h2 { width: 30%; }
+.about-footer .home-footer-geometry { width: 24%; left: -8%; top: 8%; height: 85%; }
+.about-footer .home-footer-mark { width: 5%; }
+.about-footer .home-footer-details { font-size: 1.4vw; }
+@media (max-width: 767px) {
+  .about-intro { height: 101.2vw; justify-content: center; }
+  .about-intro-photo { object-position: 52% center; }
+  .about-intro::after { background: linear-gradient(#0008, #0007 60%, #000a); }
+  .about-intro-copy { margin: -4vw 0 0; width: 76%; text-align: center; }
+  .about-intro h1 { font-size: 11.6vw; margin-bottom: 3vw; }
+  .about-intro p { font-size: 5.05vw; line-height: 1.1; }
+  .about-art { position: relative; top: auto; right: auto; width: 100%; height: 171vw; margin-top: -5.5vw; }
+  .about-art-top { top: 0; right: -2%; width: 53%; height: 20%; border-radius: 8vw 0 0 0; }
+  .about-art-panel { top: 6.2%; left: 24%; width: 49.5%; height: 80%; border-radius: 7vw; }
+  .about-art-circle { top: 9%; right: 16.8%; width: 46%; }
+  .about-art-bottom { top: 65%; left: -6%; width: 60%; height: 25.5%; border-radius: 0 0 9vw 0; }
+  .about-art-person { top: 7.8%; left: 10%; width: 79%; }
+  .about-art-shadow { width: 84%; left: 9%; bottom: 11%; }
+  .about-values { padding: 15vw 12.8% 61vw; gap: 8vw; border-radius: 0; background: transparent; }
+  .about-values h2 { font-size: 9.8vw; line-height: 1.1; margin-bottom: 3.2vw; text-align: center; text-shadow: 0 3px 10px #fff6; }
+  .about-values p { font-size: 4vw; line-height: 1.15; }
+  .about-lines-desktop { display: none; }
+  .about-lines-middle { display: block; position: absolute; z-index: 2; top: 165vw; left: 0; width: 100%; height: 108vw; object-fit: cover; pointer-events: none; opacity: .7; }
+  .about-lines-bottom { display: block; position: absolute; z-index: 2; bottom: 0; left: 0; width: 100%; height: 160vw; object-fit: cover; object-position: bottom; pointer-events: none; opacity: .7; }
+  .about-footer { margin: 0 3.2%; }
+  .about-footer .home-footer { border-radius: 11vw 11vw 0 0; padding: 0 3.6% 10vw; }
+  .about-footer .home-footer-cta { min-height: 63vw; padding-top: 14vw; gap: 6vw; }
+  .about-footer .home-footer-cta h2 { width: 100%; font-size: 5.8vw; }
+  .about-footer .home-footer-connect { width: 87%; font-size: 9vw; padding: .22em; border-radius: 5vw; }
+  .about-footer .home-footer-geometry { top: 36%; left: -17%; width: 49%; height: 65%; }
+  .about-footer .home-footer-mark { width: 7%; bottom: 6%; }
+  .about-footer .home-footer-details { font-size: 3.5vw; gap: 5vw; }
+}
+@media (min-width: 768px) {
+  .about-values { gap: 5.7vw; }
+  .about-values article:last-child { margin-top: -1.9vw; }
+  .about-art-person { left: -1%; width: 102%; }
+}
+.about-values article:last-child p { text-align: left; }
+@media (max-width: 767px) {
+  .about-intro-copy { width: 79%; }
+  .about-intro p { font-size: 4.9vw; }
+  .about-art-shadow { opacity: .55; }
+}
+@media (min-width: 768px) {
+  .about-intro-photo { height: calc(100% + 10vw); object-position: center top; }
+  .about-intro::after { bottom: -10vw; }
+}
