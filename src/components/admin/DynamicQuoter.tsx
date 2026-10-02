@@ -368,7 +368,7 @@ const DynamicQuoter = ({
                       : 'border-white/10 bg-white/5 hover:bg-white/10'
                   }`}
                 >
-                  {isUpdateExchangeRateRequested ? 'Recalculando...' : 'Recalcular'}
+                  {isUpdateExchangeRateRequested ? 'Deshacer (Tasa Actual)' : 'Usar Tasa de Hoy'}
                 </button>
               )}
             </div>

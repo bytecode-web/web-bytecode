@@ -270,7 +270,7 @@ quotesRouter.get(
 
     const quoteResult = await pool.query(
       `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
-              q.payment_policy, q.created_at,
+              q.payment_policy, q.created_at, q.exchange_rate,
               cu.first_name, cu.primary_email
        FROM quotes q
        JOIN status_catalog sc ON q.status_id = sc.id
