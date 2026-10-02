@@ -463,7 +463,7 @@ export const computeQuoteTotals = (
 
   const persistedLines = [...additiveItems, ...recurringItems].filter((line) => {
     if (line.item.item_type === 'category_trigger') return line.isActiveBaseTrigger;
-    if (line.item.item_type === 'base_canvas') return !activeTrigger;
+    if (line.item.item_type === 'base_canvas') return !activeTrigger && !isAdendaMode;
     return true;
   });
   const additivePrepared = persistedLines.map(({ item, quantity, subtotal, unitPrice }) => preparedItem(item, quantity, unitPrice, subtotal));
@@ -628,8 +628,9 @@ export const useQuoterState = create<QuoterState>((set, get) => ({
       if (!hasOtherRevisions) {
         const hasTrigger = nextCart.some((line) => state.catalog.find(i => i.id === line.catalogItemId)?.item_type === 'category_trigger');
         if (!hasTrigger) {
+          const hasBaseCanvas = nextCart.some((line) => state.catalog.find(i => i.id === line.catalogItemId)?.item_type === 'base_canvas');
           return {
-             cart: [
+             cart: hasBaseCanvas ? nextCart : [
                ...defaultCartFor(state.catalog),
                ...nextCart
              ]

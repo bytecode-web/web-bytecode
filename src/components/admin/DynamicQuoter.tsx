@@ -534,7 +534,7 @@ const DynamicQuoter = ({
                               type="number"
                               min={minCustomPrice}
                               max={maxCustomPrice}
-                              step={currCode === 'PEN' ? 50 : 10}
+                              step="any"
                               inputMode="decimal"
                               value={customPrice !== undefined ? Number((customPrice / exchangeRate).toFixed(2)) : ''}
                                 disabled={isReadOnly}
