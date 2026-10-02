@@ -458,7 +458,13 @@ const AdminCotizador: React.FC = () => {
               exchangeRates={exchangeRates}
               frozenExchangeRate={formData.exchangeRate}
               isUpdateExchangeRateRequested={formData.updateExchangeRate}
-              onUpdateExchangeRate={(val) => setFormData({ ...formData, updateExchangeRate: val })}
+              onUpdateExchangeRate={(val) => {
+                setFormData({ ...formData, updateExchangeRate: val });
+                addToast(
+                  val ? 'Calculando precios con la tasa de cambio actual' : 'Se ha restaurado la tasa de cambio original',
+                  val ? 'info' : 'success'
+                );
+              }}
               organizations={organizations}
               customers={customers}
               loading={loading}

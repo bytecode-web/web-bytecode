@@ -362,9 +362,15 @@ const DynamicQuoter = ({
               ) : currCode !== 'PEN' ? (
                 <>
                   <span>
-                    Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
-                    {' / '}
-                    Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
+                    {isUpdateExchangeRateRequested ? (
+                      <span className="text-emerald-400 font-medium">✨ Usando tasa actual: {liveExRate.toFixed(4)}</span>
+                    ) : (
+                      <>
+                        Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
+                        {' / '}
+                        Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
+                      </>
+                    )}
                   </span>
                   {!isReadOnly && (
                     <button
@@ -376,7 +382,7 @@ const DynamicQuoter = ({
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`}
                     >
-                      {isUpdateExchangeRateRequested ? 'Deshacer (Tasa Actual)' : 'Usar Tasa de Hoy'}
+                      {isUpdateExchangeRateRequested ? 'Restaurar' : 'Usar Tasa de Hoy'}
                     </button>
                   )}
                 </>
