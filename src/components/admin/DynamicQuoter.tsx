@@ -480,7 +480,7 @@ const DynamicQuoter = ({
                 </div>
               )}
 
-              {billableVisibleLines.map(({ item, quantity, customPrice, subtotal, billableQuantity, freeIncludedQuantity, includedInBase, isActiveBaseTrigger }) => {
+              {billableVisibleLines.map(({ item, quantity, customPrice, unitPrice, subtotal, billableQuantity, freeIncludedQuantity, includedInBase, isActiveBaseTrigger }) => {
                 const canEditQuantity = allowsMultipleQuantity(item);
                 const itemCode = item.item_code;
                 const canEditCustomPrice = Boolean(itemCode) && requiresCustomPrice(item);
@@ -554,7 +554,7 @@ const DynamicQuoter = ({
                             />
                           </label>
                         ) : (
-                          formatCurr(Number(item.base_price))
+                          formatCurr(unitPrice)
                         )}
                         {includedInBase && (
                           <span className="mt-1 inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 font-sansation text-[10px] font-medium text-emerald-200">
