@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 
 const GalaxyBackground = lazy(() => import('./GalaxyBackground'));
 
-export default function LazyGalaxyBackground() {
+export default function LazyGalaxyBackground({ luminousPoints = false }: { luminousPoints?: boolean }) {
   const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function LazyGalaxyBackground() {
 
   return (
     <Suspense fallback={null}>
-      <GalaxyBackground />
+      <GalaxyBackground luminousPoints={luminousPoints} />
     </Suspense>
   );
 }
