@@ -551,18 +551,18 @@ const Contactos: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Columna derecha: Fecha arriba, Badge de Agente debajo */}
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap">
+                    {/* Columna derecha: Fecha arriba, Badge de Agente debajo alineado a la derecha */}
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                      <span className="flex items-center justify-end gap-1 text-[10px] text-white/30 whitespace-nowrap self-end">
                         <CalendarDays className="h-3 w-3 shrink-0" />
                         {formatLocalDate(item.created_at, 'date-medium')}
                       </span>
                       {item.assigned_to === admin.id ? (
-                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)] whitespace-nowrap" title="Asignado a ti">
+                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)] whitespace-nowrap self-end" title="Asignado a ti">
                           <UserCheck className="h-3 w-3" /> Mío
                         </span>
                       ) : item.assigned_to ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap" title="Asignado a otro">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap self-end" title="Asignado a otro">
                           <UserCheck className="h-3 w-3" />
                         </span>
                       ) : null}
