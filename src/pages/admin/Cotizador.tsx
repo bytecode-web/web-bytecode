@@ -63,6 +63,7 @@ const AdminCotizador: React.FC = () => {
     isTerminal: false,
     exchangeRate: null as number | null,
     updateExchangeRate: false,
+    originalCurrencyCode: 'PEN',
   });
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string; ruc?: string; tax_name?: string }>>([]);
   const [customers, setCustomers] = useState<Array<{ id: string; email: string; name: string; organization_ids: string[] }>>([]);
@@ -135,7 +136,7 @@ const AdminCotizador: React.FC = () => {
   const openNewQuote = () => {
     setCatalogInStore(catalog);
     resetQuoter();
-    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false });
+    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
     setStatusHistory([]);
     setIsModalOpen(true);
   };
@@ -169,6 +170,7 @@ const AdminCotizador: React.FC = () => {
         isTerminal: Boolean(detail.quote.isTerminal),
         exchangeRate: quoteRate,
         updateExchangeRate: false,
+        originalCurrencyCode: detail.quote.currency_code ?? 'PEN',
       });
       setStatusHistory(historyResult.items);
       setIsModalOpen(true);
@@ -214,7 +216,9 @@ const AdminCotizador: React.FC = () => {
     setLoading(true);
     try {
       const liveRate = formData.currencyCode === 'USD' ? exchangeRates.USD : formData.currencyCode === 'EUR' ? exchangeRates.EUR : 1;
-      const activeRate = (formData.exchangeRate && !formData.updateExchangeRate && payload.editingQuoteId) ? formData.exchangeRate : liveRate;
+      const isDifferentCurrency = formData.currencyCode !== formData.originalCurrencyCode;
+      const forceLiveRate = formData.updateExchangeRate || isDifferentCurrency;
+      const activeRate = (formData.exchangeRate && !forceLiveRate && payload.editingQuoteId) ? formData.exchangeRate : liveRate;
 
       await apiRequest('/admin/quotes', {
         method: 'POST',
@@ -243,7 +247,7 @@ const AdminCotizador: React.FC = () => {
         },
       });
       setIsModalOpen(false);
-      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false });
+      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
       resetQuoter();
       await loadData();
     addToast('Operación completada con éxito', 'success');
@@ -450,6 +454,7 @@ const AdminCotizador: React.FC = () => {
               notes={formData.notes}
               organizationId={formData.organizationId}
               currencyCode={formData.currencyCode}
+              originalCurrencyCode={formData.originalCurrencyCode}
               exchangeRates={exchangeRates}
               frozenExchangeRate={formData.exchangeRate}
               isUpdateExchangeRateRequested={formData.updateExchangeRate}

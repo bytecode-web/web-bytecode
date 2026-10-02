@@ -48,6 +48,7 @@ type DynamicQuoterProps = {
   isReadOnly?: boolean;
   organizationId?: string | null;
   currencyCode?: string;
+  originalCurrencyCode?: string;
   exchangeRates?: { USD: number; EUR: number; PEN: number };
   organizations?: Array<{ id: string; name: string; ruc?: string; tax_name?: string }>;
   customers?: Array<{ id: string; email: string; name: string; organization_ids: string[] }>;
@@ -210,6 +211,7 @@ const DynamicQuoter = ({
   isReadOnly = false,
   organizationId,
   currencyCode = 'PEN',
+  originalCurrencyCode = 'PEN',
   exchangeRates,
   organizations = [],
   customers = [],
@@ -222,7 +224,9 @@ const DynamicQuoter = ({
   const currCode = currencyCode || 'PEN';
   const currencySymbol = currCode === 'USD' ? '$' : currCode === 'EUR' ? '€' : 'S/';
   const liveExRate = currCode === 'USD' ? (exchangeRates?.USD ?? 3.75) : currCode === 'EUR' ? (exchangeRates?.EUR ?? 4.05) : 1;
-  const exchangeRate = (!isUpdateExchangeRateRequested && frozenExchangeRate) ? frozenExchangeRate : liveExRate;
+  const isDifferentCurrency = currCode !== originalCurrencyCode;
+  const forceLiveRate = isUpdateExchangeRateRequested || isDifferentCurrency;
+  const exchangeRate = (!forceLiveRate && frozenExchangeRate) ? frozenExchangeRate : liveExRate;
   const formatCurr = (value: number) => `${currencySymbol} ${(value / exchangeRate).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const [activeItem, setActiveItem] = useState<NormalizedPricingCatalogItem | null>(null);
   const setCatalog = useQuoterState((state) => state.setCatalog);
@@ -351,26 +355,32 @@ const DynamicQuoter = ({
               { value: 'EUR', label: 'Euro (EUR - €)' },
             ]}
           />
-          {frozenExchangeRate && currCode !== 'PEN' && onUpdateExchangeRate && (
+          {frozenExchangeRate && onUpdateExchangeRate && (
             <div className="mt-1 flex items-center justify-between text-xs text-white/60">
-              <span>
-                Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
-                {' / '}
-                Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
-              </span>
-              {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateExchangeRate(!isUpdateExchangeRateRequested)}
-                  className={`rounded border px-2 py-0.5 transition-colors ${
-                    isUpdateExchangeRateRequested
-                      ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  {isUpdateExchangeRateRequested ? 'Deshacer (Tasa Actual)' : 'Usar Tasa de Hoy'}
-                </button>
-              )}
+              {isDifferentCurrency ? (
+                <span className="text-amber-400/90 italic">La divisa ha cambiado, usando tasa actual ({liveExRate.toFixed(4)}).</span>
+              ) : currCode !== 'PEN' ? (
+                <>
+                  <span>
+                    Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
+                    {' / '}
+                    Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
+                  </span>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateExchangeRate(!isUpdateExchangeRateRequested)}
+                      className={`rounded border px-2 py-0.5 transition-colors ${
+                        isUpdateExchangeRateRequested
+                          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      {isUpdateExchangeRateRequested ? 'Deshacer (Tasa Actual)' : 'Usar Tasa de Hoy'}
+                    </button>
+                  )}
+                </>
+              ) : null}
             </div>
           )}
         </div>
