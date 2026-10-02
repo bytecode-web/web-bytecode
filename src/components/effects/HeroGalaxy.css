@@ -5,9 +5,20 @@
   pointer-events: none;
   background: radial-gradient(ellipse at 34% 48%, #12344d 0%, transparent 55%), radial-gradient(ellipse at 76% 38%, #211c43 0%, transparent 54%), #030a16;
 }
-.hero-galaxy canvas { position: absolute; inset: 0; width: 100%; height: 100%; contain: strict; }
+.hero-galaxy-menu-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  background-color: #000;
+  background-image: radial-gradient(circle at 30% 50%, rgba(12,163,198,.25) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(6,207,214,.2) 0%, transparent 40%);
+}
+.hero-galaxy-menu-stars { position: absolute; inset: 0; opacity: .7; mix-blend-mode: screen; background-repeat: repeat; }
+.hero-galaxy-menu-stars-reversed { opacity: .5; transform: rotate(180deg); }
+.hero-galaxy canvas { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; contain: strict; }
 .hero-galaxy-vignette {
   position: absolute;
+  z-index: 2;
   inset: 0;
   background: radial-gradient(ellipse at 49% 44%, transparent 22%, #02081366 85%), linear-gradient(180deg, #02081344, transparent 25%, transparent 72%, #020a16aa);
 }

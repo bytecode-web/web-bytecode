@@ -1,7 +1,7 @@
 ﻿import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/shared/SEO';
-import Footer from '../components/layout/Footer';
+import AltFooter from '../components/layout/AltFooter';
 import { HomeTools } from '../components/sections/HomeContent';
 import './ServiciosReference.css';
 
@@ -42,6 +42,6 @@ export default function Servicios() {
       </div>
     </section>
     <HomeTools />
-    <div className="services-reference-footer"><Footer /></div>
+    <AltFooter />
   </div>;
 }

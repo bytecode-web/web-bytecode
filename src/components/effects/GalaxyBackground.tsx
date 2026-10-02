@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-export default function GalaxyBackground() {
+export default function GalaxyBackground({ luminousPoints = false }: { luminousPoints?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -45,6 +45,22 @@ export default function GalaxyBackground() {
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
     renderer.setPixelRatio(getPixelRatio(initialSize.width));
     renderer.setSize(initialSize.width, initialSize.height, false);
+
+    // Soft circular sprite keeps WebGL points round and gives them a glow.
+    const pointCanvas = document.createElement('canvas');
+    pointCanvas.width = 32;
+    pointCanvas.height = 32;
+    const pointContext = pointCanvas.getContext('2d');
+    if (pointContext) {
+      const glow = pointContext.createRadialGradient(16, 16, 0, 16, 16, 16);
+      glow.addColorStop(0, 'rgba(255,255,255,1)');
+      glow.addColorStop(0.18, 'rgba(255,255,255,0.9)');
+      glow.addColorStop(0.48, 'rgba(255,255,255,0.28)');
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      pointContext.fillStyle = glow;
+      pointContext.fillRect(0, 0, 32, 32);
+    }
+    const pointTexture = new THREE.CanvasTexture(pointCanvas);
 
     // ── Parameters
     const parameters = {
@@ -92,7 +108,8 @@ export default function GalaxyBackground() {
     geoGalaxy.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geoGalaxy.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
     const matGalaxy = new THREE.PointsMaterial({
-      size: parameters.size, sizeAttenuation: true,
+      size: parameters.size * (luminousPoints ? 3 : 1), sizeAttenuation: true,
+      map: luminousPoints ? pointTexture : null, transparent: true,
       depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
     });
     const galaxyPoints = new THREE.Points(geoGalaxy, matGalaxy);
@@ -150,8 +167,8 @@ export default function GalaxyBackground() {
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
     const starMat = new THREE.PointsMaterial({
-      color: 0x888888, size: 0.03, sizeAttenuation: true,
-      transparent: true, opacity: 0.5, depthWrite: false,
+      color: 0x888888, size: 0.03 * (luminousPoints ? 3 : 1), sizeAttenuation: true,
+      map: luminousPoints ? pointTexture : null, transparent: true, opacity: 0.5, depthWrite: false,
     });
     scene.add(new THREE.Points(starGeo, starMat));
 
@@ -232,9 +249,10 @@ export default function GalaxyBackground() {
       renderer.dispose();
       geoGalaxy.dispose(); matGalaxy.dispose();
       starGeo.dispose();   starMat.dispose();
+      pointTexture.dispose();
       coreTexture.dispose(); coreMaterial.dispose();
     };
-  }, []);
+  }, [luminousPoints]);
 
   return (
     <canvas
