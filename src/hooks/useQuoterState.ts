@@ -333,7 +333,7 @@ const cartLineFromEditableItem = (
   const quantity = Math.max(1, Math.floor(moneyValue(source.quantity) || 1));
   const unitPrice = source.unit_price === null || source.unit_price === undefined ? undefined : moneyValue(source.unit_price);
   const basePrice = moneyValue(item.base_price);
-  const customPrice = unitPrice !== undefined && (requiresCustomPrice(item) || unitPrice !== basePrice)
+  const customPrice = unitPrice !== undefined && requiresCustomPrice(item) && unitPrice !== basePrice
     ? unitPrice
     : undefined;
 
@@ -424,7 +424,7 @@ export const computeQuoteTotals = (
     const freeIncludedQuantity = freeQuantityFor(item);
     const billableQuantity = billableQuantityFor(item, quantity);
     const customPrice = line.customPrice;
-    const unitPrice = customPrice !== undefined && requiresCustomPrice(item)
+    const unitPrice = requiresCustomPrice(item) && customPrice !== undefined
       ? clampCustomPriceFor(item, customPrice).clampedPrice
       : moneyValue(item.base_price);
     const includedInBase = (
@@ -434,17 +434,15 @@ export const computeQuoteTotals = (
     let subtotal = 0;
 
     if (item.item_type === 'base_canvas') {
-      subtotal = activeTrigger ? 0 : moneyValue(item.base_price);
+      subtotal = activeTrigger ? 0 : unitPrice;
     } else if (item.item_type === 'category_trigger') {
-      subtotal = isActiveBaseTrigger ? moneyValue(item.base_price) : 0;
+      subtotal = isActiveBaseTrigger ? unitPrice : 0;
     } else if (item.item_type === 'base_included') {
       subtotal = 0;
-    } else if (customPrice !== undefined && requiresCustomPrice(item)) {
-      subtotal = unitPrice * quantity;
     } else if (item.pricing_model === 'per_unit') {
-      subtotal = billableQuantity * moneyValue(item.base_price);
+      subtotal = billableQuantity * unitPrice;
     } else {
-      subtotal = moneyValue(item.base_price) * quantity;
+      subtotal = unitPrice * quantity;
     }
 
     return { ...line, quantity, item, subtotal, billableQuantity, freeIncludedQuantity, unitPrice, includedInBase, isActiveBaseTrigger };
@@ -463,7 +461,7 @@ export const computeQuoteTotals = (
 
   const persistedLines = [...additiveItems, ...recurringItems].filter((line) => {
     if (line.item.item_type === 'category_trigger') return line.isActiveBaseTrigger;
-    if (line.item.item_type === 'base_canvas') return !activeTrigger;
+    if (line.item.item_type === 'base_canvas') return !activeTrigger && !isAdendaMode;
     return true;
   });
   const additivePrepared = persistedLines.map(({ item, quantity, subtotal, unitPrice }) => preparedItem(item, quantity, unitPrice, subtotal));
@@ -628,8 +626,9 @@ export const useQuoterState = create<QuoterState>((set, get) => ({
       if (!hasOtherRevisions) {
         const hasTrigger = nextCart.some((line) => state.catalog.find(i => i.id === line.catalogItemId)?.item_type === 'category_trigger');
         if (!hasTrigger) {
+          const hasBaseCanvas = nextCart.some((line) => state.catalog.find(i => i.id === line.catalogItemId)?.item_type === 'base_canvas');
           return {
-             cart: [
+             cart: hasBaseCanvas ? nextCart : [
                ...defaultCartFor(state.catalog),
                ...nextCart
              ]

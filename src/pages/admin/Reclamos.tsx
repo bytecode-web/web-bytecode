@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -45,17 +46,6 @@ type AssignmentHistoryItem = {
 };
 
 type DetailItem = Record<string, string | number | null | undefined>;
-
-const formatDate = (value?: string) =>
-  value
-    ? new Intl.DateTimeFormat('es-PE', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(value))
-    : '';
-
-const formatCardDate = (value: string) =>
-  new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(value));
 
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -283,7 +273,7 @@ const Reclamos: React.FC = () => {
                   <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{key.replace(/_/g, ' ')}</p>
                   <p className="break-words text-sm text-white/80">
                     {key === 'created_at' || key === 'updated_at'
-                      ? formatDate(String(value ?? ''))
+                      ? formatLocalDate(String(value ?? ''), 'datetime-medium')
                       : String(value ?? '-')}
                   </p>
                 </div>
@@ -426,7 +416,7 @@ const Reclamos: React.FC = () => {
                     </span>
                     <span className="flex items-center gap-1.5 text-[10px] text-white/30">
                       <CalendarDays className="h-3 w-3 shrink-0" />
-                      <span className="font-medium text-white/40">{formatCardDate(item.created_at)}</span>
+                      <span className="font-medium text-white/40">{formatLocalDate(item.created_at, 'date-medium')}</span>
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">

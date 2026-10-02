@@ -13,6 +13,7 @@ import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
 import { useLocation } from 'react-router-dom';
 import { formatCurrencyValue, useQuoterState, type EditableQuoteItemData, type PreparedQuotePayload, type PricingCatalogItem } from '../../hooks/useQuoterState';
+import { formatLocalDate } from '../../lib/dateFormatter';
 
 const PAGE_SIZE = 9;
 
@@ -28,6 +29,7 @@ export interface Quote {
   created_at: string;
   first_name: string;
   primary_email: string;
+  notes?: string | null;
 }
 
 type QuoteDetailResponse = {
@@ -56,10 +58,14 @@ const AdminCotizador: React.FC = () => {
     customerName: '',
     customerEmail: '',
     notes: '',
+    paymentPolicy: null as string | null,
     organizationId: null as string | null,
     currencyCode: 'PEN',
     status: 'draft',
     isTerminal: false,
+    exchangeRate: null as number | null,
+    updateExchangeRate: false,
+    originalCurrencyCode: 'PEN',
   });
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string; ruc?: string; tax_name?: string }>>([]);
   const [customers, setCustomers] = useState<Array<{ id: string; email: string; name: string; organization_ids: string[] }>>([]);
@@ -132,7 +138,7 @@ const AdminCotizador: React.FC = () => {
   const openNewQuote = () => {
     setCatalogInStore(catalog);
     resetQuoter();
-    setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
+    setFormData({ customerName: '', customerEmail: '', notes: '', paymentPolicy: null, organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
     setStatusHistory([]);
     setIsModalOpen(true);
   };
@@ -146,7 +152,11 @@ const AdminCotizador: React.FC = () => {
         apiRequest<QuoteDetailResponse>(`/admin/quotes/${quoteId}`),
         apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/quotes/${quoteId}/history`),
       ]);
-      const quoteRate = detail.quote.currency_code === 'USD' ? exchangeRates.USD : detail.quote.currency_code === 'EUR' ? exchangeRates.EUR : 1;
+      const rawExchangeRate = (detail.quote as any).exchange_rate;
+      const quoteRate = rawExchangeRate !== undefined && rawExchangeRate !== null 
+        ? Number(rawExchangeRate) 
+        : (detail.quote.currency_code === 'USD' ? exchangeRates.USD : detail.quote.currency_code === 'EUR' ? exchangeRates.EUR : 1);
+        
       const normalizedItems = detail.items.map((item) => ({
         ...item,
         unit_price: item.unit_price !== null && item.unit_price !== undefined ? Number(item.unit_price) * quoteRate : item.unit_price,
@@ -155,11 +165,15 @@ const AdminCotizador: React.FC = () => {
       setFormData({
         customerName: detail.quote.first_name || '',
         customerEmail: detail.quote.primary_email || '',
-        notes: detail.quote.payment_policy || '',
+        notes: detail.quote.notes || '',
+        paymentPolicy: detail.quote.payment_policy || null,
         organizationId: detail.quote.organization_id ?? null,
         currencyCode: detail.quote.currency_code ?? 'PEN',
         status: detail.quote.status,
         isTerminal: Boolean(detail.quote.isTerminal),
+        exchangeRate: quoteRate,
+        updateExchangeRate: false,
+        originalCurrencyCode: detail.quote.currency_code ?? 'PEN',
       });
       setStatusHistory(historyResult.items);
       setIsModalOpen(true);
@@ -204,13 +218,19 @@ const AdminCotizador: React.FC = () => {
 
     setLoading(true);
     try {
-      const activeRate = formData.currencyCode === 'USD' ? exchangeRates.USD : formData.currencyCode === 'EUR' ? exchangeRates.EUR : 1;
+      const liveRate = formData.currencyCode === 'USD' ? exchangeRates.USD : formData.currencyCode === 'EUR' ? exchangeRates.EUR : 1;
+      const isDifferentCurrency = formData.currencyCode !== formData.originalCurrencyCode;
+      const forceLiveRate = formData.updateExchangeRate || isDifferentCurrency;
+      const activeRate = (formData.exchangeRate && !forceLiveRate && payload.editingQuoteId) ? formData.exchangeRate : liveRate;
+
       await apiRequest('/admin/quotes', {
         method: 'POST',
         json: {
           editingQuoteId: payload.editingQuoteId,
           organizationId: formData.organizationId || null,
           currencyCode: formData.currencyCode || 'PEN',
+          exchangeRate: activeRate,
+          updateExchangeRate: formData.updateExchangeRate,
           customerName: formData.customerName,
           customerEmail: formData.customerEmail,
           notes: formData.notes,
@@ -220,7 +240,7 @@ const AdminCotizador: React.FC = () => {
           items: payload.items.map((item) => ({
             catalog_item_id: item.catalog_item_id,
             quantity: item.pricing_model === 'per_unit' ? Math.max(1, item.billable_quantity) : item.quantity,
-            unit_price: Number((Math.abs(item.pricing_model === 'per_unit' && item.billable_quantity === 0 ? 0 : item.unit_price) / activeRate).toFixed(4)),
+            unit_price: Number(((item.pricing_model === 'per_unit' && item.billable_quantity === 0 ? 0 : item.unit_price) / activeRate).toFixed(4)),
             discount_amount: Number(((item.discount_amount ?? 0) / activeRate).toFixed(4)),
             recurrence: item.recurrence,
             custom_name: item.pricing_model === 'per_unit' && item.free_included_quantity > 0
@@ -230,7 +250,7 @@ const AdminCotizador: React.FC = () => {
         },
       });
       setIsModalOpen(false);
-      setFormData({ customerName: '', customerEmail: '', notes: '', organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false });
+      setFormData({ customerName: '', customerEmail: '', notes: '', paymentPolicy: null, organizationId: null, currencyCode: 'PEN', status: statuses[0]?.code ?? 'draft', isTerminal: false, exchangeRate: null, updateExchangeRate: false, originalCurrencyCode: 'PEN' });
       resetQuoter();
       await loadData();
     addToast('Operación completada con éxito', 'success');
@@ -260,9 +280,6 @@ const AdminCotizador: React.FC = () => {
       }
     }
   }, [location.state, catalog.length, loading, loadData]);
-
-  const formatDate = (val: string) =>
-    new Intl.DateTimeFormat('es-PE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(val));
 
   const openActionsMenu = (quoteId: string, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -344,7 +361,7 @@ const AdminCotizador: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center text-xs text-white/40">
-                    <span className="block truncate">{formatDate(quote.created_at)}</span>
+                    <span className="block truncate">{formatLocalDate(quote.created_at, 'datetime-short')}</span>
                   </td>
                   <td className="relative px-6 py-4 text-center" data-quote-actions>
                     <button
@@ -438,9 +455,20 @@ const AdminCotizador: React.FC = () => {
               customerName={formData.customerName}
               customerEmail={formData.customerEmail}
               notes={formData.notes}
+              paymentPolicy={formData.paymentPolicy}
               organizationId={formData.organizationId}
               currencyCode={formData.currencyCode}
+              originalCurrencyCode={formData.originalCurrencyCode}
               exchangeRates={exchangeRates}
+              frozenExchangeRate={formData.exchangeRate}
+              isUpdateExchangeRateRequested={formData.updateExchangeRate}
+              onUpdateExchangeRate={(val) => {
+                setFormData({ ...formData, updateExchangeRate: val });
+                addToast(
+                  val ? 'Calculando precios con la tasa de cambio actual' : 'Se ha restaurado la tasa de cambio original',
+                  val ? 'info' : 'success'
+                );
+              }}
               organizations={organizations}
               customers={customers}
               loading={loading}

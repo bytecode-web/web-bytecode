@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, ExternalLink, HardDrive, Search, File as FileIcon, FileText, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
@@ -253,7 +254,7 @@ const Archivos: React.FC = () => {
                   </h3>
                   <div className="text-xs text-gray-400 mt-1 space-y-1">
                     <p>{formatBytes(asset.byte_size)} • {asset.mime_type.split('/')[1]?.toUpperCase()}</p>
-                    <p>{new Date(asset.created_at).toLocaleDateString()}</p>
+                    <p>{formatLocalDate(asset.created_at, 'date-medium')}</p>
                   </div>
                 </div>
               </div>

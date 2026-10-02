@@ -1,6 +1,7 @@
 import React, { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
 import InteractiveHoverCard from './InteractiveHoverCard';
+import { formatLocalDate } from '../../lib/dateFormatter';
 
 export type TimelineItem = {
   title: ReactNode;
@@ -14,17 +15,6 @@ type TimelineProps = {
   emptyMessage?: string;
   loading?: boolean;
 };
-
-const formatFullDate = (value: string) => new Intl.DateTimeFormat('es-PE', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-}).format(new Date(value));
-
-const formatShortDate = (value: string) => new Intl.DateTimeFormat('es-PE', {
-  day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
-}).format(new Date(value));
 
 const Timeline: React.FC<TimelineProps> = ({
   items,
@@ -99,11 +89,11 @@ const Timeline: React.FC<TimelineProps> = ({
                         placement={isEven ? 'above' : 'below'}
                         trigger={<div className="relative z-20 flex h-9 w-9 cursor-default items-center justify-center rounded-full border border-white/15 bg-[#111] text-white/55 shadow-lg transition duration-200 hover:border-cyan-300/60 hover:bg-cyan-400/10 hover:text-cyan-100 hover:ring-4 hover:ring-cyan-400/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400/20" tabIndex={0}>{item.icon ?? <Clock3 className="h-4 w-4" />}</div>}
                       >
-                        <time className="mb-2 block border-b border-white/10 pb-2 text-[10px] font-medium text-white/45">{formatFullDate(item.date)}</time>
+                        <time className="mb-2 block border-b border-white/10 pb-2 text-[10px] font-medium text-white/45">{formatLocalDate(item.date, 'datetime-medium')}</time>
                         <div>{item.title}</div>
                       </InteractiveHoverCard>
                       <time className={`absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[9px] text-white/35 ${isEven ? 'top-full mt-2' : 'bottom-full mb-2'}`}>
-                        {formatShortDate(item.date)}
+                        {formatLocalDate(item.date, 'date-numeric')}
                       </time>
                     </li>
                     {index < items.length - 1 && <li aria-hidden="true" className="mx-1 h-px w-8 bg-white/10" />}

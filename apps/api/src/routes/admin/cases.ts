@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -12,10 +13,23 @@ import { HttpError } from '../../utils/httpError.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
+
+const createContactSchema = z.object({
+  customer_id: z.string().uuid(),
+  organization_id: z.string().uuid().optional().nullable(),
+  category_id: z.string().uuid().optional().nullable(),
+  source_channel_id: z.string().uuid().optional().nullable(),
+  priority_id: z.string().uuid().optional().nullable(),
+  subject: z.string().trim().max(220).optional().nullable(),
+  message: z.string().trim().optional().nullable(),
+});
+
 const updateSchema = z.object({
   status: z.string().trim().min(1).max(80).optional(),
   priority: z.string().trim().min(1).max(40).optional(),
   adminNotes: z.string().max(3000).optional(),
+  category_id: z.string().uuid().optional().nullable(),
+  reason: z.string().trim().optional().nullable(),
 });
 
 const contactColumns = `
@@ -36,8 +50,32 @@ const contactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
-  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
+  c.category_id, cat.name as category_name, cat.code as category_code,
+  c.organization_id,
+  cu.person_type as customer_person_type,
+  CASE
+    WHEN c.organization_id IS NOT NULL 
+      OR NULLIF(trim(COALESCE(o.legal_name, (regexp_match(c.message, 'Empresa:[[:space:]]*([^[:cntrl:]]+)'))[1])), '') IS NOT NULL
+      OR NULLIF(trim(COALESCE((SELECT document_number FROM organization_documents od WHERE od.organization_id = o.id AND od.is_active = true LIMIT 1), (regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1])), '') IS NOT NULL
+      OR cu.person_type = 'company'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
+  (
+    SELECT dt.name
+    FROM customer_documents cd
+    JOIN document_types dt ON cd.document_type_id = dt.id
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_type_name,
+  (
+    SELECT cd.document_number
+    FROM customer_documents cd
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_number
 `;
 
 const contactJoins = `
@@ -49,6 +87,7 @@ const contactJoins = `
   LEFT JOIN customer_organizations co ON co.customer_id = c.customer_id
     AND co.organization_id = c.organization_id
     AND co.deleted_at IS NULL
+  LEFT JOIN contact_categories cat ON c.category_id = cat.id
 `;
 
 const legacyContactColumns = `
@@ -65,14 +104,38 @@ const legacyContactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
-  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at,
-  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+  c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
+  ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
+  c.category_id, cat.name as category_name, cat.code as category_code,
+  NULL::uuid as organization_id,
+  cu.person_type as customer_person_type,
+  CASE
+    WHEN NULLIF(trim((regexp_match(c.message, 'Empresa:[[:space:]]*([^[:cntrl:]]+)'))[1]), '') IS NOT NULL
+      OR NULLIF(trim((regexp_match(c.message, 'RUC:[[:space:]]*([^[:cntrl:]]+)'))[1]), '') IS NOT NULL
+      OR cu.person_type = 'company'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
+  (
+    SELECT dt.name
+    FROM customer_documents cd
+    JOIN document_types dt ON cd.document_type_id = dt.id
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_type_name,
+  (
+    SELECT cd.document_number
+    FROM customer_documents cd
+    WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
+    LIMIT 1
+  ) as document_number
 `;
 
 const legacyContactJoins = `
   JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+  LEFT JOIN contact_categories cat ON c.category_id = cat.id
 `;
 
 let normalizedContactSchema: boolean | null = null;
@@ -139,6 +202,63 @@ const buildWhere = (status?: string, search?: string, fields: string[] = []) => 
     params,
   };
 };
+
+casesRouter.post(
+  '/contacts',
+  requirePermission('admin.contactos.manage'),
+  requireCsrf,
+  asyncHandler(async (req: Request, res: Response) => {
+    const schema = z.object({
+      customer_id: z.string().uuid(),
+      organization_id: z.string().uuid().optional().nullable(),
+      source_channel_id: z.string().uuid(),
+      category_id: z.string().uuid(),
+      subject: z.string().min(1),
+      message: z.string().min(1)
+    });
+    const body = schema.parse(req.body);
+    
+    // Obtener default priority desde category
+    const catRes = await pool.query('SELECT default_priority_id FROM contact_categories WHERE id = $1', [body.category_id]);
+    let priorityId = catRes.rows[0]?.default_priority_id;
+    
+    if (!priorityId) {
+      const prioRes = await pool.query("SELECT id FROM priority_catalog WHERE code = 'normal'");
+      priorityId = prioRes.rows[0]?.id;
+    }
+    
+    const caseCode = `CAS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+    const result = await pool.query(
+      `
+      INSERT INTO contact_cases (
+        case_code, customer_id, organization_id, source_channel_id, category_id, subject, message, priority_id, first_response_due_at, status_id, created_by
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, NOW() + INTERVAL '24 hours', (SELECT id FROM status_catalog WHERE code = 'new' AND domain = 'case'), $9
+      ) RETURNING id
+      `,
+      [caseCode, body.customer_id, body.organization_id || null, body.source_channel_id, body.category_id, body.subject, body.message, priorityId, (req as any).admin.id]
+    );
+
+    const insertedId = result.rows[0].id;
+    const normalized = await hasNormalizedContactSchema();
+    const fullTicketResult = await pool.query(
+      `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
+      [insertedId]
+    );
+    const fullTicket = fullTicketResult.rows[0];
+
+    await auditService.logAdminAction({
+      userId: (req as any).admin.id,
+      action: 'create',
+      entityType: 'contact_submission',
+      entity: fullTicket,
+      req
+    });
+
+    res.status(201).json({ item: fullTicket });
+  })
+);
 
 casesRouter.get(
   '/cases/assignment-options',
@@ -235,7 +355,13 @@ casesRouter.patch(
       await client.query('BEGIN');
       const current = await client.query('SELECT * FROM contact_cases WHERE id = $1 FOR UPDATE', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
-      currentRow = current.rows[0];
+      
+      const currentFull = await client.query(
+        `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`,
+        [id]
+      );
+      currentRow = currentFull.rows[0];
+      const rawCurrent = current.rows[0];
 
       let newStatusId: string | undefined;
       let newPriorityId: string | undefined;
@@ -258,29 +384,45 @@ casesRouter.patch(
         newStatusId = statusResult.rows[0].id;
       }
 
+      let extraUpdate = "";
+      if (body.status) {
+        if (body.status === 'resolved') {
+           extraUpdate = ", resolved_at = COALESCE(resolved_at, now()), closed_at = NULL";
+        } else if (body.status === 'closed' || body.status === 'lost') {
+           extraUpdate = ", resolved_at = COALESCE(resolved_at, now()), closed_at = COALESCE(closed_at, now())";
+        } else {
+           extraUpdate = ", resolved_at = NULL, closed_at = NULL";
+        }
+      }
+
       const result = await client.query(
         `UPDATE contact_cases
          SET status_id = COALESCE($2, status_id),
              internal_notes = COALESCE($3, internal_notes),
              priority_id = COALESCE($4, priority_id),
+             category_id = COALESCE($5, category_id),
              updated_at = now()
+             ${extraUpdate}
          WHERE id = $1
          RETURNING id`,
-        [id, newStatusId ?? null, body.adminNotes ?? null, newPriorityId ?? null],
+        [id, newStatusId ?? null, body.adminNotes ?? null, newPriorityId ?? null, body.category_id ?? null],
       );
       if (result.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
 
-      const oldStatusId = currentRow.status_id as string | undefined;
+      const oldStatusId = rawCurrent.status_id as string | undefined;
       if (oldStatusId && newStatusId && oldStatusId !== newStatusId) {
+        if (!body.reason || !body.reason.trim()) {
+          throw new HttpError(400, 'El motivo del cambio de estado es obligatorio.');
+        }
         await client.query(
-          `INSERT INTO contact_case_status_history (contact_case_id, old_status_id, new_status_id, changed_by)
-           VALUES ($1, $2, $3, $4)`,
-          [id, oldStatusId, newStatusId, req.admin?.id ?? null],
+          `INSERT INTO contact_case_status_history (contact_case_id, old_status_id, new_status_id, changed_by, reason)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, oldStatusId, newStatusId, req.admin?.id ?? null, body.reason ?? null],
         );
 
-        const assignedTo = currentRow.assigned_to as string | undefined;
+        const assignedTo = rawCurrent.assigned_to as string | undefined;
         if (assignedTo && assignedTo !== req.admin?.id) {
-          const caseCode = currentRow.case_code || id.split('-')[0];
+          const caseCode = rawCurrent.case_code || id.split('-')[0];
           await sendDirectInAppNotification(
             assignedTo,
             "Actualización de Contacto",
@@ -296,6 +438,13 @@ casesRouter.patch(
         [id],
       );
       updatedRow = updated.rows[0];
+      
+      // Inject reason into audit log
+      if (body.reason && body.status) {
+        updatedRow.status_change_reason = body.reason;
+        currentRow.status_change_reason = null;
+      }
+
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -336,6 +485,13 @@ casesRouter.post(
       
       const current = await client.query('SELECT * FROM contact_cases WHERE id = $1', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
+      
+      const normalized = await hasNormalizedContactSchema();
+      const currentFullResult = await client.query(
+        `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`,
+        [id]
+      );
+      const currentFull = currentFullResult.rows[0];
 
       const assignedTo = body.assigned_to ? body.assigned_to : null;
 
@@ -388,7 +544,6 @@ casesRouter.post(
         }
       }
       
-      const normalized = await hasNormalizedContactSchema();
       const updated = await client.query(
         `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
         [id]
@@ -399,7 +554,7 @@ casesRouter.post(
         action: 'assign',
         entityType: 'contact_submission',
         entity: updated.rows[0],
-        previousState: current.rows[0],
+        previousState: currentFull,
         req
       });
 

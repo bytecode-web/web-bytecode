@@ -237,7 +237,7 @@ quotesRouter.get(
 
     const [result, countResult] = await Promise.all([pool.query(
       `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
-              q.created_at, cu.first_name, cu.primary_email
+              q.notes, q.created_at, cu.first_name, cu.primary_email
        FROM quotes q
        JOIN status_catalog sc ON q.status_id = sc.id
        LEFT JOIN customers cu ON q.customer_id = cu.id
@@ -270,7 +270,7 @@ quotesRouter.get(
 
     const quoteResult = await pool.query(
       `SELECT q.id, q.quote_code, q.total_amount, q.currency_code, q.organization_id, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal",
-              q.payment_policy, q.created_at,
+              q.notes, q.payment_policy, q.created_at, q.exchange_rate,
               cu.first_name, cu.primary_email
        FROM quotes q
        JOIN status_catalog sc ON q.status_id = sc.id
@@ -301,7 +301,8 @@ const createQuoteSchema = z.object({
   organizationId: z.string().uuid().nullable().optional(),
   customerName: z.string().min(1),
   customerEmail: z.string().email(),
-  
+  exchangeRate: z.number().positive().optional(),
+  updateExchangeRate: z.boolean().optional(),
   currencyCode: z.enum(['PEN', 'USD', 'EUR']).default('PEN').optional(),
   items: z.array(z.object({
     catalog_item_id: z.string().uuid(),
@@ -373,8 +374,13 @@ quotesRouter.post(
 
       const userRole = req.admin?.roles?.[0] || 'guest';
       const currencyCode = body.currencyCode ?? 'PEN';
-      const liveRates = await getLiveExchangeRates();
-      const exchangeRate = currencyCode === 'USD' ? liveRates.USD : currencyCode === 'EUR' ? liveRates.EUR : 1;
+      let exchangeRate = 1;
+      if (!body.editingQuoteId || body.updateExchangeRate) {
+        const liveRates = await getLiveExchangeRates();
+        exchangeRate = currencyCode === 'USD' ? liveRates.USD : currencyCode === 'EUR' ? liveRates.EUR : 1;
+      } else {
+        exchangeRate = body.exchangeRate ?? 1;
+      }
       const quoteItemsData: Array<{ catalog_item_id: string; quantity: number; name: string; unitPrice: number; discountAmount: number; recurrence: 'none' | 'monthly' | 'yearly' }> = [];
       for (const item of body.items) {
         const catRes = await client.query(
@@ -434,11 +440,10 @@ quotesRouter.post(
         .reduce((acc, item) => acc + ((item.quantity * item.unitPrice) - item.discountAmount), 0);
 
       const paymentPolicyParts = [
-        body.notes,
         body.projectCategory ? `Categoria de proyecto: ${body.projectCategory}` : undefined,
         recurringMonthlyTotal > 0 ? `Recurrente mensual: ${recurringMonthlyTotal}` : undefined,
         recurringYearlyTotal > 0 ? `Recurrente anual: ${recurringYearlyTotal}` : undefined,
-        body.legalNotes?.length ? body.legalNotes.join('') : undefined,
+        body.legalNotes?.length ? body.legalNotes.join('\n') : undefined,
       ].filter(Boolean);
 
       let previousQuoteState = null;
@@ -464,10 +469,12 @@ quotesRouter.post(
           `UPDATE quotes
            SET customer_id = $1, organization_id = $2, payment_policy = $3,
                status_id = COALESCE($5, status_id), updated_at = now(),
-               currency_code = COALESCE($6, currency_code)
+               currency_code = COALESCE($6, currency_code),
+               exchange_rate = $7,
+               notes = $8
            WHERE id = $4 AND deleted_at IS NULL
            RETURNING id`,
-          [customerId, organizationId, paymentPolicyParts.join('') || null, body.editingQuoteId, newStatusId ?? null, currencyCode],
+          [customerId, organizationId, paymentPolicyParts.join('\n') || null, body.editingQuoteId, newStatusId ?? null, currencyCode, exchangeRate, body.notes || null],
         );
         if (!quoteRes.rowCount || quoteRes.rowCount === 0) throw new HttpError(404, 'Cotizacion no encontrada');
         quoteId = quoteRes.rows[0].id;
@@ -516,12 +523,12 @@ quotesRouter.post(
         await client.query('DELETE FROM quote_items WHERE quote_id = $1', [quoteId]);
       } else {
         const quoteRes = await client.query(
-          `INSERT INTO quotes (quote_code, customer_id, organization_id, status_id, total_amount, valid_until, payment_policy, created_by, currency_code)
-           SELECT $1, $2, $3, sc.id, 0, current_date + interval '30 days', $4, $5, $7
+          `INSERT INTO quotes (quote_code, customer_id, organization_id, status_id, total_amount, valid_until, payment_policy, created_by, currency_code, exchange_rate, notes)
+           SELECT $1, $2, $3, sc.id, 0, current_date + interval '30 days', $4, $5, $7, $8, $9
            FROM status_catalog sc
            WHERE sc.domain = 'quote' AND sc.code = $6 AND sc.is_active = true
            RETURNING id, status_id as initial_status_id, quote_code`,
-          [createBusinessCode('QT'), customerId, organizationId, paymentPolicyParts.join('') || null, req.admin?.id, body.status ?? 'draft', currencyCode]
+          [createBusinessCode('QT'), customerId, organizationId, paymentPolicyParts.join('\n') || null, req.admin?.id, body.status ?? 'draft', currencyCode, exchangeRate, body.notes || null]
         );
         if (!quoteRes.rowCount) throw new HttpError(400, 'Estado de cotizacion invalido');
         quoteId = quoteRes.rows[0].id;

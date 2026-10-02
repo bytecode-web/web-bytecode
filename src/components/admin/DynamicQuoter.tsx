@@ -48,15 +48,20 @@ type DynamicQuoterProps = {
   isReadOnly?: boolean;
   organizationId?: string | null;
   currencyCode?: string;
+  originalCurrencyCode?: string;
   exchangeRates?: { USD: number; EUR: number; PEN: number };
   organizations?: Array<{ id: string; name: string; ruc?: string; tax_name?: string }>;
   customers?: Array<{ id: string; email: string; name: string; organization_ids: string[] }>;
   onOrganizationChange?: (value: string | null) => void;
   onCurrencyCodeChange?: (value: string) => void;
+  frozenExchangeRate?: number | null;
+  onUpdateExchangeRate?: (update: boolean) => void;
+  isUpdateExchangeRateRequested?: boolean;
   initialCatalog: PricingCatalogItem[];
   customerName: string;
   customerEmail: string;
   notes: string;
+  paymentPolicy?: string | null;
   loading?: boolean;
   error?: string;
   primaryFieldsAfter?: React.ReactNode;
@@ -186,7 +191,7 @@ const ToggleSwitch = ({ checked, label, onChange }: { checked: boolean; label: s
     className="flex w-full items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left transition-colors hover:bg-white/[0.04]"
   >
     <span className="text-sm font-medium text-white/80">{label}</span>
-    <span className={`relative h-6 w-11 rounded-full border transition-colors ${checked ? 'border-emerald-300/50 bg-emerald-400/30' : 'border-white/15 bg-white/10'}`}>
+    <span className={`relative shrink-0 h-6 w-11 rounded-full border transition-colors ${checked ? 'border-emerald-300/50 bg-emerald-400/30' : 'border-white/15 bg-white/10'}`}>
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </span>
   </button>
@@ -196,6 +201,7 @@ const DynamicQuoter = ({
   initialCatalog,
   customerEmail,
   notes,
+  paymentPolicy,
   loading = false,
   error = '',
   primaryFieldsAfter,
@@ -207,15 +213,22 @@ const DynamicQuoter = ({
   isReadOnly = false,
   organizationId,
   currencyCode = 'PEN',
+  originalCurrencyCode = 'PEN',
   exchangeRates,
   organizations = [],
   customers = [],
   onOrganizationChange,
   onCurrencyCodeChange,
+  frozenExchangeRate,
+  onUpdateExchangeRate,
+  isUpdateExchangeRateRequested = false,
 }: DynamicQuoterProps) => {
   const currCode = currencyCode || 'PEN';
   const currencySymbol = currCode === 'USD' ? '$' : currCode === 'EUR' ? '€' : 'S/';
-  const exchangeRate = currCode === 'USD' ? (exchangeRates?.USD ?? 3.75) : currCode === 'EUR' ? (exchangeRates?.EUR ?? 4.05) : 1;
+  const liveExRate = currCode === 'USD' ? (exchangeRates?.USD ?? 3.75) : currCode === 'EUR' ? (exchangeRates?.EUR ?? 4.05) : 1;
+  const isDifferentCurrency = currCode !== originalCurrencyCode;
+  const forceLiveRate = isUpdateExchangeRateRequested || isDifferentCurrency;
+  const exchangeRate = (!forceLiveRate && frozenExchangeRate) ? frozenExchangeRate : liveExRate;
   const formatCurr = (value: number) => `${currencySymbol} ${(value / exchangeRate).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const [activeItem, setActiveItem] = useState<NormalizedPricingCatalogItem | null>(null);
   const setCatalog = useQuoterState((state) => state.setCatalog);
@@ -292,20 +305,24 @@ const DynamicQuoter = ({
             disabled={isReadOnly}
             options={[
               { value: '', label: 'Cliente Independiente (Sin Empresa)' },
-              ...(organizations?.map((org) => ({
+              ...((organizations?.map((org) => ({
                 value: org.id,
                 label: org.ruc ? `${org.name} (${org.tax_name || 'Doc'}: ${org.ruc})` : org.name,
-              })) ?? []),
+              })) ?? []).sort((a, b) => a.label.localeCompare(b.label))),
             ]}
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Contacto Asociado</span>
           {(() => {
-            const availableContacts = customers?.filter(c => {
+            const filteredContacts = customers?.filter(c => {
               if (organizationId) return c.organization_ids?.includes(organizationId);
               return !c.organization_ids || c.organization_ids.length === 0;
             }) ?? [];
+            const availableContacts = Array.from(new Map(filteredContacts.map(c => [
+              `${c.name || ''} ${c.email || ''} ${(c.organization_ids || []).sort().join(',')}`.trim().toLowerCase() || c.id, 
+              c
+            ])).values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             return (
               <CustomDropdown
                 value={customerEmail}
@@ -327,7 +344,6 @@ const DynamicQuoter = ({
           })()}
         </div>
 
-        
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Moneda / Divisa</span>
           <CustomDropdown
@@ -341,17 +357,62 @@ const DynamicQuoter = ({
               { value: 'EUR', label: 'Euro (EUR - €)' },
             ]}
           />
+          {frozenExchangeRate && onUpdateExchangeRate && (
+            <div className="mt-1 flex items-center justify-between text-xs text-white/60">
+              {isDifferentCurrency ? (
+                <span className="text-amber-400/90 italic">La divisa ha cambiado, usando tasa actual ({liveExRate.toFixed(4)}).</span>
+              ) : currCode !== 'PEN' ? (
+                <>
+                  <span>
+                    {isUpdateExchangeRateRequested ? (
+                      <span className="text-emerald-400 font-medium">✨ Usando tasa actual: {liveExRate.toFixed(4)}</span>
+                    ) : (
+                      <>
+                        Tasa Guardada: <span className="font-semibold text-white/90">{frozenExchangeRate.toFixed(4)}</span>
+                        {' / '}
+                        Actual: <span className="font-semibold text-white/90">{liveExRate.toFixed(4)}</span>
+                      </>
+                    )}
+                  </span>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateExchangeRate(!isUpdateExchangeRateRequested)}
+                      className={`rounded border px-2 py-0.5 transition-colors ${
+                        isUpdateExchangeRateRequested
+                          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      {isUpdateExchangeRateRequested ? 'Restaurar' : 'Usar Tasa de Hoy'}
+                    </button>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
-        <label className="flex flex-col gap-1.5">
+        <label className="flex flex-col gap-1.5 lg:col-span-3">
           <span className="text-xs font-medium uppercase tracking-wider text-white/55">Observaciones Internas</span>
-          <input
-            type="text"
+          <textarea
+            rows={3}
             value={notes}
             onChange={(event) => onNotesChange(event.target.value)}
             disabled={isReadOnly}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition-colors focus:border-[#06CFD6]/70"
+            placeholder="Ingrese observaciones internas (visibles solo para el equipo)..."
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/90 outline-none transition-colors focus:border-[#06CFD6]/70 resize-y min-h-[76px]"
           />
         </label>
+        {paymentPolicy ? (
+          <div className="flex flex-col gap-1.5 lg:col-span-3">
+            <span className="text-xs font-medium uppercase tracking-wider text-white/55">
+              Políticas y Metadatos del Sistema (Solo Lectura)
+            </span>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-white/70 whitespace-pre-line font-mono">
+              {paymentPolicy}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {primaryFieldsAfter}
@@ -432,7 +493,7 @@ const DynamicQuoter = ({
                 </div>
               )}
 
-              {billableVisibleLines.map(({ item, quantity, customPrice, subtotal, billableQuantity, freeIncludedQuantity, includedInBase, isActiveBaseTrigger }) => {
+              {billableVisibleLines.map(({ item, quantity, customPrice, unitPrice, subtotal, billableQuantity, freeIncludedQuantity, includedInBase, isActiveBaseTrigger }) => {
                 const canEditQuantity = allowsMultipleQuantity(item);
                 const itemCode = item.item_code;
                 const canEditCustomPrice = Boolean(itemCode) && requiresCustomPrice(item);
@@ -486,7 +547,7 @@ const DynamicQuoter = ({
                               type="number"
                               min={minCustomPrice}
                               max={maxCustomPrice}
-                              step={currCode === 'PEN' ? 50 : 10}
+                              step="any"
                               inputMode="decimal"
                               value={customPrice !== undefined ? Number((customPrice / exchangeRate).toFixed(2)) : ''}
                                 disabled={isReadOnly}
@@ -506,7 +567,7 @@ const DynamicQuoter = ({
                             />
                           </label>
                         ) : (
-                          formatCurr(Number(item.base_price))
+                          formatCurr(unitPrice)
                         )}
                         {includedInBase && (
                           <span className="mt-1 inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 font-sansation text-[10px] font-medium text-emerald-200">

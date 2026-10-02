@@ -46,6 +46,7 @@ export const statusHistorySelect = (historyTable: string, entityColumn: string) 
          old_sc.name AS old_status_name,
          new_sc.code AS new_status,
          new_sc.name AS new_status_name
+         ${historyTable === 'contact_case_status_history' ? ', h.reason' : ''}
   FROM ${historyTable} h
   LEFT JOIN status_catalog old_sc ON h.old_status_id = old_sc.id
   LEFT JOIN status_catalog new_sc ON h.new_status_id = new_sc.id

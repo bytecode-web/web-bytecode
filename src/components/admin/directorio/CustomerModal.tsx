@@ -16,6 +16,7 @@ interface Props {
   countries: any[];
   documentTypes: any[];
   organizations: any[];
+  channels?: any[];
 }
 
 const channelIconMap: Record<string, any> = {
@@ -29,7 +30,7 @@ const channelIconMap: Record<string, any> = {
   admin: IconShield
 };
 
-export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, initialData, countries, documentTypes, organizations }: Props) {
+export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, initialData, countries, documentTypes, organizations, channels = [] }: Props) {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -43,15 +44,6 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
     position_title: '',
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [channels, setChannels] = useState<any[]>([]);
-
-  useEffect(() => {
-    if(isOpen) {
-      apiRequest('/catalog/channels').then((res: any) => {
-        if(res && res.items) setChannels(res.items);
-      }).catch(() => {});
-    }
-  }, [isOpen]);
   
   const addToast = useToastStore((state) => state.addToast);
 

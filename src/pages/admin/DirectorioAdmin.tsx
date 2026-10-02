@@ -38,16 +38,19 @@ export default function DirectorioAdmin() {
   const [countries, setCountries] = useState<any[]>([]);
   const [documentTypes, setDocumentTypes] = useState<any[]>([]);
   const [allOrgs, setAllOrgs] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetchCountries(),
       fetchDocumentTypes(),
-      apiRequest<{items: any[]}>('/admin/organizations?limit=1000').catch(() => ({items: []}))
-    ]).then(([cRes, dRes, orgRes]) => {
+      apiRequest<{items: any[]}>('/admin/organizations?limit=1000').catch(() => ({items: []})),
+      apiRequest<{items: any[]}>('/catalog/channels').catch(() => ({items: []}))
+    ]).then(([cRes, dRes, orgRes, chRes]) => {
       setCountries(cRes);
       setDocumentTypes(dRes);
       setAllOrgs(orgRes.items);
+      setChannels(chRes.items);
     });
   }, []);
 
@@ -533,6 +536,7 @@ export default function DirectorioAdmin() {
         countries={countries}
         documentTypes={documentTypes}
         organizations={allOrgs}
+        channels={channels}
       />
 
       <OrganizationContactsModal

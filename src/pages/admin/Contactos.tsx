@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users } from 'lucide-react';
+import { BriefcaseBusiness, CalendarDays, Mail, MessageSquareText, RefreshCw, UserCheck, X, Users, Plus, Building2, User } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
+import { formatLocalDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
+import { CreateContactModal } from '../../components/admin/contactos/CreateContactModal';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -17,20 +19,45 @@ export interface ContactCase {
   case_code?: string;
   nombre: string;
   apellido?: string;
-  cargo: string;
+  cargo?: string;
   email: string;
   celular: string;
-  empresa: string;
-  ruc: string;
+  empresa?: string;
+  ruc?: string;
   servicio: string;
   status: string;
   status_name?: string;
+  category_id?: string;
+  category_code?: string;
+  category_name?: string;
   priority?: string;
   priority_name?: string;
   admin_notes: string;
   assigned_to?: string;
   created_at: string;
+  b2_type?: 'B2B' | 'B2C';
+  organization_id?: string | null;
+  document_type_name?: string | null;
+  document_number?: string | null;
 }
+
+export const getContactB2Type = (item: {
+  b2_type?: string;
+  organization_id?: string | null;
+  empresa?: string | null;
+  ruc?: string | null;
+  cargo?: string | null;
+}): 'B2B' | 'B2C' => {
+  if (item.b2_type === 'B2B') return 'B2B';
+  if (item.b2_type === 'B2C') return 'B2C';
+  const hasCompanyData = Boolean(
+    item.organization_id ||
+    (typeof item.empresa === 'string' && item.empresa.trim() !== '') ||
+    (typeof item.ruc === 'string' && item.ruc.trim() !== '') ||
+    (typeof item.cargo === 'string' && item.cargo.trim() !== '')
+  );
+  return hasCompanyData ? 'B2B' : 'B2C';
+};
 
 type ContactItem = ContactCase;
 
@@ -48,33 +75,11 @@ type AssignmentHistoryItem = {
 
 type DetailItem = Record<string, string | number | null | undefined>;
 
-const detailFields: Array<{ key: string; label: string }> = [
-  { key: 'nombre', label: 'Nombre' },
-  { key: 'apellido', label: 'Apellido' },
-  { key: 'cargo', label: 'Cargo' },
-  { key: 'email', label: 'Email' },
-  { key: 'celular', label: 'Celular' },
-  { key: 'empresa', label: 'Empresa' },
-  { key: 'ruc', label: 'RUC' },
-  { key: 'servicio', label: 'Servicio' },
-  { key: 'message', label: 'Mensaje' },
-  { key: 'created_at', label: 'Creado' },
-  { key: 'updated_at', label: 'Actualizado' },
-];
 
-const formatDate = (value?: string) =>
-  value
-    ? new Intl.DateTimeFormat('es-PE', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(value))
-    : '';
 
 const formatFullName = (item: Pick<ContactItem, 'nombre' | 'apellido'>) =>
   [item.nombre, item.apellido].filter(Boolean).join(' ');
 
-const formatCardDate = (value: string) =>
-  new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(value));
 
 const formatContactTitle = (item: ContactItem) =>
   formatFullName(item) || item.empresa || 'Sin nombre';
@@ -118,6 +123,9 @@ const Contactos: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('new');
   const [priority, setPriority] = useState('normal');
+  const [categoryId, setCategoryId] = useState('');
+  const [reason, setReason] = useState('');
+  const [categories, setCategories] = useState<{value: string, label: string}[]>([]);
   const [priorities, setPriorities] = useState<{ value: string, label: string }[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const { addToast } = useToastStore();
@@ -128,6 +136,7 @@ const Contactos: React.FC = () => {
   const [statusHistory, setStatusHistory] = useState<StatusHistoryRecord[]>([]);
   const [isAssigning, setIsAssigning] = useState(false);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { admin } = useOutletContext<{ admin: AdminUser }>();
@@ -147,6 +156,9 @@ const Contactos: React.FC = () => {
       ]);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
+
+      const catRes = await apiRequest<{ items: { value: string, label: string }[] }>('/catalog/categories').catch(() => ({ items: [] }));
+      setCategories(catRes.items);
     } catch (err) {
       console.error(err);
     }
@@ -174,6 +186,8 @@ const Contactos: React.FC = () => {
       setStatus(String(result.item.status ?? 'new'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));
+      setCategoryId(String(result.item.category_id || ''));
+      setReason('');
       
       const [assignmentResult, statusResult] = await Promise.all([
         apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/contacts/${id}/assignment-history`),
@@ -219,14 +233,18 @@ const Contactos: React.FC = () => {
 
   const handleSave = async () => {
     if (!selectedId) return;
+    if (status !== (detail?.status || 'new') && !reason.trim()) {
+      return addToast('El motivo del cambio de estado es obligatorio.', 'error');
+    }
     try {
       const result = await apiRequest<{ item: DetailItem }>(`/admin/contacts/${selectedId}`, {
         method: 'PATCH',
-        json: { status, adminNotes: notes, priority },
+        json: { status, adminNotes: notes, priority, category_id: categoryId || null, reason: reason || null },
       });
       setDetail(result.item);
       const statusResult = await apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/contacts/${selectedId}/history`);
       setStatusHistory(statusResult.items);
+      setReason('');
       await loadList();
     addToast('Operación completada con éxito', 'success');
     } catch (err) {
@@ -244,12 +262,60 @@ const Contactos: React.FC = () => {
       );
     }
 
+    const isB2B = getContactB2Type(detail as any) === 'B2B';
+
+    const activeDetailFields: Array<{ key: string; label: string }> = isB2B
+      ? [
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'apellido', label: 'Apellido' },
+          { key: 'cargo', label: 'Cargo' },
+          { key: 'email', label: 'Email' },
+          { key: 'celular', label: 'Celular' },
+          { key: 'empresa', label: 'Empresa' },
+          { key: 'ruc', label: 'RUC' },
+          { key: 'servicio', label: 'Asunto' },
+          { key: 'message', label: 'Mensaje' },
+          { key: 'created_at', label: 'Creado' },
+          { key: 'updated_at', label: 'Actualizado' },
+          { key: 'first_response_due_at', label: 'Vencimiento SLA' },
+          { key: 'resolved_at', label: 'Resuelto el' },
+          { key: 'closed_at', label: 'Cerrado el' },
+        ]
+      : [
+          { key: 'nombre', label: 'Nombre' },
+          { key: 'apellido', label: 'Apellido' },
+          { key: 'email', label: 'Email' },
+          { key: 'celular', label: 'Celular' },
+          ...(detail.document_type_name || detail.document_number ? [
+            { key: 'document_type_name', label: 'Tipo de Documento' },
+            { key: 'document_number', label: 'N° Documento' },
+          ] : []),
+          { key: 'servicio', label: 'Asunto' },
+          { key: 'message', label: 'Mensaje' },
+          { key: 'created_at', label: 'Creado' },
+          { key: 'updated_at', label: 'Actualizado' },
+          { key: 'first_response_due_at', label: 'Vencimiento SLA' },
+          { key: 'resolved_at', label: 'Resuelto el' },
+          { key: 'closed_at', label: 'Cerrado el' },
+        ];
+
     return (
       <div className="flex flex-col">
         <div className="p-6 lg:p-8 flex flex-col gap-8">
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
             <h2 className="text-xl font-semibold text-white/90">Detalle del Contacto</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border ${
+                  isB2B
+                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                }`}
+              >
+                {isB2B ? <Building2 size={13} /> : <User size={13} />}
+                {isB2B ? 'B2B' : 'B2C'}
+              </span>
+
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
                   {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
@@ -265,12 +331,12 @@ const Contactos: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {detailFields.map(({ key, label }) => (
+            {activeDetailFields.map(({ key, label }) => (
               <div key={key} className={key === 'message' ? 'sm:col-span-2' : ''}>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
-                  {key === 'created_at' || key === 'updated_at'
-                    ? formatDate(String(detail[key] ?? ''))
+                  {['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
+                    ? formatLocalDate(String(detail[key]))
                     : String(detail[key] ?? '-')}
                 </p>
               </div>
@@ -294,7 +360,7 @@ const Contactos: React.FC = () => {
           />
 
           <div className="pt-6 border-t border-white/5 flex flex-col gap-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Agente</label>
                 {isAssigning ? (
@@ -314,7 +380,7 @@ const Contactos: React.FC = () => {
                 <CustomDropdown
                           value={status}
                           placeholder="Seleccionar estado..."
-                          onChange={(val) => setStatus(val)}
+                          onChange={(val) => { setStatus(val); setReason(''); }}
                           options={statuses}
                           disabled={isReadOnly}
                         />
@@ -329,7 +395,31 @@ const Contactos: React.FC = () => {
                   disabled={isReadOnly}
                 />
               </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Categoría</label>
+                <CustomDropdown
+                  value={categoryId}
+                  placeholder="Sin Categoría"
+                  onChange={(val) => setCategoryId(val)}
+                  options={categories}
+                  disabled={isReadOnly}
+                />
+              </div>
             </div>
+            
+            {status !== (detail?.status || 'new') && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-[#06CFD6] font-semibold">Motivo del Cambio de Estado *</label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Ej. El cliente aprobó la cotización..."
+                  required={status !== (detail?.status || 'new')}
+                  className="w-full rounded-lg bg-[#06CFD6]/5 border border-[#06CFD6]/20 px-3 py-2 text-sm text-white/90 placeholder:text-white/20 focus:border-[#06CFD6]/50 focus:outline-none"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Notas</label>
               <textarea
@@ -398,9 +488,14 @@ const Contactos: React.FC = () => {
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Bandeja de mensajes de contacto</p>
           </div>
         </div>
-        <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
-          <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#06CFD6]/10 border border-[#06CFD6]/20 px-4 py-2 text-sm font-medium text-[#06CFD6] transition-colors hover:bg-[#06CFD6]/20">
+            <Plus className="h-4 w-4" /> <span>Nuevo Caso</span>
+          </button>
+          <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+            <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       <section className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -421,35 +516,70 @@ const Contactos: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => loadDetail(item.id)}
-                  className={`w-full grid gap-2 px-5 py-4 text-left transition-colors duration-200 md:grid-cols-[1fr_auto] border-l-2 ${selectedId === item.id ? 'bg-white/5 border-white/40' : 'border-transparent hover:bg-white/[0.02]'}`}
+                  className={`w-full flex flex-col gap-2 px-5 py-3.5 text-left transition-colors duration-200 border-l-2 ${
+                    selectedId === item.id ? 'bg-white/5 border-white/40' : 'border-transparent hover:bg-white/[0.02]'
+                  }`}
                 >
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
-                      {item.case_code || 'Sin código'} · {formatContactTitle(item)}
-                    </p>
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
-                      <BriefcaseBusiness className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{item.servicio || 'Servicio no especificado'}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5 text-[10px] text-white/30">
-                      <CalendarDays className="h-3 w-3 shrink-0" />
-                      {formatCardDate(item.created_at)}
-                    </span>
+                  {/* Bloque superior e intermedio: Info a la izquierda, Fecha y Agente a la derecha */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      {/* Segmento B2B/B2C y Nombre de Contacto */}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap border ${
+                            getContactB2Type(item) === 'B2B'
+                              ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                          }`}
+                        >
+                          {getContactB2Type(item)}
+                        </span>
+                        <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
+                          {formatContactTitle(item)}
+                        </p>
+                      </div>
+
+                      {/* Código de caso y Asunto / Servicio */}
+                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
+                        {item.case_code && (
+                          <span className="shrink-0 font-mono text-[11px] text-white/35">
+                            #{item.case_code} ·
+                          </span>
+                        )}
+                        <BriefcaseBusiness className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{item.servicio || 'Servicio no especificado'}</span>
+                      </div>
+                    </div>
+
+                    {/* Columna derecha: Fecha arriba, Badge de Agente debajo alineado a la derecha */}
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                      <span className="flex items-center justify-end gap-1 text-[10px] text-white/30 whitespace-nowrap self-end">
+                        <CalendarDays className="h-3 w-3 shrink-0" />
+                        {formatLocalDate(item.created_at, 'date-medium')}
+                      </span>
+                      {item.assigned_to === admin.id ? (
+                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)] whitespace-nowrap self-end" title="Asignado a ti">
+                          <UserCheck className="h-3 w-3" /> Mío
+                        </span>
+                      ) : item.assigned_to ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap self-end" title="Asignado a otro">
+                          <UserCheck className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5 justify-start">
+
+                  {/* Fila 3: Badges de Estado, Prioridad y Categoría en línea */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
                       {statusLabel(item.status)}
                     </span>
                     {item.priority && priorityBadge(item.priority, item.priority_name!)}
-                    {item.assigned_to === admin.id ? (
-                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
-                        <UserCheck className="w-3 h-3" /> Mío
+                    {item.category_name && (
+                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap">
+                        {item.category_name}
                       </span>
-                    ) : item.assigned_to ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
-                        <UserCheck className="h-3 w-3" />
-                      </span>
-                    ) : null}
+                    )}
                   </div>
                 </button>
               ))
@@ -497,6 +627,7 @@ const Contactos: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <CreateContactModal isOpen={isCreateModalOpen} onClose={() => setCreateModalOpen(false)} onSuccess={async (newId) => { await loadList(); if(newId){ await loadDetail(newId); } setCreateModalOpen(false); }} />
     </div>
   );
 };
