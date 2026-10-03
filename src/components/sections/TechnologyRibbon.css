@@ -23,7 +23,7 @@
 .home-tools h2:before, .home-tools h2:after {
   content:'';
   flex:1;
-  border-top:1px solid #888
+  border-top:2px solid rgba(60,60,59,0.4)
 }
 
 .home-tools-logos {
