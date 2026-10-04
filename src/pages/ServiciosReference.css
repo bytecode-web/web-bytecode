@@ -1,9 +1,20 @@
 ﻿.services-reference { background: white; color: white; font-family: var(--font-sansation); overflow: clip; }
 .services-viewer { position: relative; background: #000; }
 .services-viewer:focus-visible, .services-viewer a:focus-visible, .services-arrow:focus-visible { outline: 3px solid #0ca3c6; outline-offset: -4px; }
-.services-photo { position: relative; height: 63.5vw; touch-action: pan-y; }
-.services-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-.services-photo::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #0008, #0005), linear-gradient(0deg, #000 0%, transparent 40%); }
+.services-photo { position: relative; height: 63.5vw; overflow: hidden; isolation: isolate; touch-action: pan-y; }
+.services-photo img { position: absolute; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.services-photo img { animation: services-image-fade 650ms ease both; }
+.services-description h1, .services-description-text { animation: services-copy-in 600ms cubic-bezier(.22,.68,0,1) both; }
+.services-description-text { animation-delay: 70ms; }
+@keyframes services-image-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes services-copy-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.services-photo::after { content: ''; position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(90deg, #0008, #0005), linear-gradient(0deg, #000 0%, transparent 40%); }
 .services-arrow { position: absolute; z-index: 2; top: 26vw; width: 5vw; height: 9vw; display: grid; place-items: center; color: #aaa; cursor: pointer; background: none; border: 0; }
 .services-arrow-prev { left: 2.4%; }
 .services-arrow-next { right: 2.4%; }
@@ -22,6 +33,7 @@
 @media (max-width: 767px) {
   .services-photo { height: 114vw; }
   .services-photo img { object-position: 50% center; }
+
   .services-information { display: flex; flex-direction: column; margin-top: -3vw; padding: 0 8.3% 12.5vw; }
   .services-description { padding: 0; }
   .services-label { font-size: 5.6vw; text-align: center; margin: 0 0 1vw; }
@@ -131,6 +143,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .services-photo img, .services-description h1, .services-description-text { animation: none; }
   .services-arrow { animation: none; }
   .services-contact a, .services-arrow { transition: none; }
 }

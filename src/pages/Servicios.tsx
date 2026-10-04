@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/shared/SEO';
 import AltFooter from '../components/layout/AltFooter';
@@ -16,6 +16,16 @@ export default function Servicios() {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const service = services[active];
   const change = (direction: number) => setActive(value => (value + direction + services.length) % services.length);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const timer = window.setTimeout(() => {
+      setActive(value => (value + 1) % services.length);
+    }, 6500);
+
+    return () => window.clearTimeout(timer);
+  }, [active]);
   return <div className="services-reference">
     <SEO title="Servicios" description="Diseño y desarrollo de páginas web, aplicaciones móviles y software de escritorio a medida." />
     <section className="services-viewer" aria-label="Nuestros servicios" aria-roledescription="carrusel" tabIndex={0}
@@ -35,8 +45,8 @@ export default function Servicios() {
       <div className="services-information">
         <div className="services-description" aria-live="polite" aria-atomic="true">
           <p className="services-label">Servicios</p>
-          <h1 data-compact={active === 2}>{service.title}</h1>
-          <p className="services-description-text">{service.description}</p>
+          <h1 key={service.title} data-compact={active === 2}>{service.title}</h1>
+          <p key={service.description} className="services-description-text">{service.description}</p>
         </div>
         <div className="services-contact"><h2>Obtén mucha más información</h2><Link to="/contacto">Conectar</Link></div>
       </div>

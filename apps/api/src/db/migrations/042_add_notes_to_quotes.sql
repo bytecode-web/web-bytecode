@@ -1,4 +1,5 @@
 -- Migración 042: Agregar campo de observaciones internas independientes en quotes y separar datos existentes
+ALTER TABLE public.quotes ADD COLUMN IF NOT EXISTS exchange_rate NUMERIC(10,4) DEFAULT 1.0000;
 ALTER TABLE public.quotes ADD COLUMN IF NOT EXISTS notes TEXT;
 
 DO $$
