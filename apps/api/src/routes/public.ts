@@ -947,4 +947,14 @@ router.get('/catalog/channels', asyncHandler(async (_req: Request, res: Response
   res.json({ items: result.rows });
 }));
 
+router.get('/catalog/system-holidays', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query(`
+    SELECT sh.month, sh.day, sh.year 
+    FROM system_holidays sh 
+    JOIN countries c ON sh.country_id = c.id 
+    WHERE c.iso2 = 'PE'
+  `);
+  res.json({ items: result.rows });
+}));
+
 export default router;

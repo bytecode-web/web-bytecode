@@ -88,8 +88,15 @@ const Reclamos: React.FC = () => {
   const [priorities, setPriorities] = useState<{ value: string, label: string }[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [statuses, setStatuses] = useState<{ value: string, label: string }[]>([]);
+  const [globalHolidays, setGlobalHolidays] = useState<{ month: number, day: number, year: number | null }[]>([]);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryRecord[]>([]);
+  const [timeEvents, setTimeEvents] = useState<any[]>([]);
+  const [responses, setResponses] = useState<any[]>([]);
+  const [responseFormOpen, setResponseFormOpen] = useState(false);
+  const [responseBody, setResponseBody] = useState('');
+  const [resolutionType, setResolutionType] = useState('founded');
+  const [isResponding, setIsResponding] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -105,6 +112,8 @@ const Reclamos: React.FC = () => {
     try {
       const res = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=complaint');
       setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
+      const holRes = await apiRequest<{ items: { month: number, day: number, year: number | null }[] }>('/catalog/system-holidays');
+      setGlobalHolidays(holRes.items);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
       const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint');
@@ -134,14 +143,21 @@ const Reclamos: React.FC = () => {
   const loadDetail = async (id: string) => {
     setSelectedId(id);
     try {
-      const [result, historyResult, assignmentResult] = await Promise.all([
-        apiRequest<{ item: DetailItem }>(`/admin/complaints/${id}`),
-        apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
-        apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/complaints/${id}/assignment-history`),
-      ]);
-      setDetail(result.item);
-      setStatusHistory(historyResult.items);
-      setHistory(assignmentResult.items);
+      const [result, historyResult, assignmentResult, timeEventsResult, responsesResult] = await Promise.all([
+          apiRequest<{ item: DetailItem }>(`/admin/complaints/${id}`),
+          apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
+          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/assignment-history`),
+          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/time-events`),
+          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/responses`),
+        ]);
+        setDetail(result.item);
+        setStatusHistory(historyResult.items);
+        setHistory(assignmentResult.items);
+        setTimeEvents(timeEventsResult.items);
+        setResponses(responsesResult.items);
+        setResponseFormOpen(false);
+        setResponseBody('');
+        setResolutionType('founded');
       setStatus(String(result.item.status ?? 'registered'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));
@@ -227,6 +243,28 @@ const Reclamos: React.FC = () => {
     }
   };
 
+  const handleSendResponse = async () => {
+    if (!selectedId) return;
+    if (responseBody.trim().length < 10) {
+      addToast('La respuesta debe ser más detallada (mínimo 10 caracteres).', 'error');
+      return;
+    }
+    setIsResponding(true);
+    try {
+      await apiRequest(`/admin/complaints/${selectedId}/responses`, {
+        method: 'POST',
+        json: { response_body: responseBody, final_status_code: resolutionType }
+      });
+      addToast('Respuesta enviada y reclamo cerrado exitosamente.', 'success');
+      await loadList();
+      await loadDetail(selectedId);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al enviar la respuesta.', 'error');
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
   const renderDetailContent = () => {
     if (!detail) {
       return (
@@ -237,11 +275,63 @@ const Reclamos: React.FC = () => {
       );
     }
 
+    
+    let slaColorClass = 'bg-white/5 text-white/50 border-white/10';
+    let slaLabel = 'Cerrado / Respondido';
+
+    if (!isReadOnly && detail.legal_response_due_at) {
+      const dueDate = new Date(detail.legal_response_due_at);
+      const now = new Date();
+      let diffDays = 0;
+      const isOverdue = now > dueDate;
+      const startCalc = isOverdue ? new Date(dueDate) : new Date(now);
+      const endCalc = isOverdue ? new Date(now) : new Date(dueDate);
+      startCalc.setHours(0,0,0,0);
+      endCalc.setHours(0,0,0,0);
+      let current = new Date(startCalc);
+      while (current < endCalc) {
+        const day = current.getDay();
+        const offsetDate = new Date(current.getTime() - (current.getTimezoneOffset() * 60000));
+        
+        let isHoliday = false;
+        if (day !== 0 && day !== 6) {
+          const m = offsetDate.getMonth() + 1;
+          const d = offsetDate.getDate();
+          const y = offsetDate.getFullYear();
+          isHoliday = globalHolidays.some(h => h.month === m && h.day === d && (h.year === null || h.year === y));
+        }
+
+        if (day !== 0 && day !== 6 && !isHoliday) {
+          diffDays++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      diffDays = isOverdue ? -diffDays : diffDays;
+      
+      
+      if (diffDays > 7) {
+        slaColorClass = 'bg-green-500/20 text-green-400 border-green-500/30';
+        slaLabel = `Quedan ${diffDays} días hábiles`;
+      } else if (diffDays >= 3) {
+        slaColorClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+        slaLabel = `Quedan ${diffDays} días hábiles`;
+      } else {
+        slaColorClass = 'bg-red-500/20 text-red-400 border-red-500/30';
+        slaLabel = diffDays < 0 ? `Vencido hace ${Math.abs(diffDays)} días` : `¡Vence en ${diffDays} días!`;
+      }
+    }
+
     return (
       <div className="flex flex-col">
         <div className="p-6 lg:p-8 flex flex-col gap-8">
+          {/* Cabecera del expediente con semáforo SLA */}
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
-            <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
+            <div className="flex flex-col gap-1">
+              <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
+              <div className={"mt-1 w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border " + slaColorClass}>
+                {slaLabel}
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
@@ -347,29 +437,101 @@ const Reclamos: React.FC = () => {
           </div>
 
           <StatusHistoryTimeline records={statusHistory} />
+            
+            {timeEvents.length > 0 && (
+              <div className="mt-6">
+                <Timeline 
+                  heading="Trazabilidad SLA (Caja Negra)" 
+                  items={timeEvents.map(te => ({
+                    date: te.created_at,
+                    title: (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-cyan-400">{te.event_type}</span>
+                        {te.metadata && te.event_type === 'SUBMITTED_AND_CALCULATED' && (
+                          <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
+                            <p><strong className="text-white/90">Registro Oficial:</strong> {new Date(te.metadata.base_date || te.created_at).toLocaleString()}</p>
+                            <p><strong className="text-white/90">Plazo (Días Hábiles):</strong> {te.metadata.business_days_allotted || 15}</p>
+                            <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {te.metadata.skipped_weekends || 0}</p>
+                            <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(te.metadata.skipped_holidays) && te.metadata.skipped_holidays.length > 0 ? te.metadata.skipped_holidays.join(', ') : 'Ninguno'}</p>
+                            <p className="mt-2 pt-2 border-t border-white/10 text-amber-400 font-bold uppercase tracking-wider">
+                              Vencimiento: {te.metadata.calculated_due_date ? new Date(te.metadata.calculated_due_date).toLocaleString() : 'N/A'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }))} 
+                  emptyMessage="No hay eventos de SLA." 
+                />
+              </div>
+            )}
+            {responses.length > 0 && (
+              <div className="mt-6 border-t border-white/5 pt-6">
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/50">Historial de Respuestas Oficiales</h3>
+                <div className="flex flex-col gap-4">
+                  {responses.map(r => (
+                    <div key={r.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-cyan-400">{r.admin_name}</span>
+                        <span className="text-[10px] text-white/40">{new Date(r.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-sm text-white/80 whitespace-pre-wrap">{r.response_body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
         </div>
 
-        <div className="p-6 border-t border-white/5 bg-[#0a0a0a]">
-          <div className="grid grid-cols-2 gap-4">
-            {detail.email ? (
-              <a href={`mailto:${detail.email}`} className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition hover:bg-white/10 text-white/80">
-                <Mail className="h-4 w-4" /> Responder
-              </a>
+        <div className="p-6 border-t border-white/5 bg-[#0a0a0a] flex flex-col gap-4">
+            {responseFormOpen ? (
+              <div className="rounded-lg border border-white/10 p-4 bg-white/[0.02] flex flex-col gap-3">
+                <h4 className="text-sm font-semibold text-white/90">Respuesta Oficial</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex items-center gap-2 text-sm text-white/80">
+                    <input type="radio" checked={resolutionType === 'founded'} onChange={() => setResolutionType('founded')} className="accent-cyan-500" />
+                    Fundado (Procede)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-white/80">
+                    <input type="radio" checked={resolutionType === 'unfounded'} onChange={() => setResolutionType('unfounded')} className="accent-cyan-500" />
+                    Infundado (No Procede)
+                  </label>
+                </div>
+                <textarea
+                  value={responseBody}
+                  onChange={(e) => setResponseBody(e.target.value)}
+                  placeholder="Detalle de la resolución oficial a enviar al cliente..."
+                  className="min-h-[120px] w-full rounded-md border border-white/10 bg-black px-3 py-2 text-sm text-white placeholder-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 resize-y custom-scrollbar"
+                />
+                <div className="flex justify-end gap-3 mt-2">
+                  <button onClick={() => setResponseFormOpen(false)} className="px-4 py-2 text-sm text-white/70 hover:text-white transition">Cancelar</button>
+                  <button onClick={handleSendResponse} disabled={isResponding} className="flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50">
+                    {isResponding ? 'Enviando...' : 'Enviar y Cerrar Reclamo'}
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div />
-            )}
-            {isReadOnly ? (
-              <p className="text-red-400 font-bold text-xs flex items-center justify-center">Este caso está cerrado y no admite modificaciones.</p>
-            ) : (
-              <button onClick={handleSave} className="flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition hover:bg-white/90">
-              Guardar
-            </button>
+              <div className="grid grid-cols-2 gap-4">
+                {!isReadOnly && detail.email ? (
+                  <button onClick={() => setResponseFormOpen(true)} className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition hover:bg-white/10 text-white/80">
+                    <Mail className="h-4 w-4" /> Responder Oficialmente
+                  </button>
+                ) : (
+                  <div />
+                )}
+                {isReadOnly ? (
+                  <p className="text-red-400 font-bold text-xs flex items-center justify-center">Este caso está cerrado y no admite modificaciones.</p>
+                ) : (
+                  <button onClick={handleSave} className="flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition hover:bg-white/90">
+                    Guardar Cambios
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    };
 
   return (
     <div className="flex flex-col gap-6 min-h-[calc(100vh-120px)] font-sansation">

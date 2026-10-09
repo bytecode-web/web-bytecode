@@ -10,6 +10,8 @@ import { auditService } from '../../services/audit.js';
 import { sendDirectInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
+import { notifyCustomer } from '../../services/email.js';
+import { buildComplaintResolution } from '../../services/emailTemplates.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
@@ -168,7 +170,7 @@ const hasNormalizedContactSchema = async () => {
   return normalizedContactSchema;
 };
 
-const complaintColumns = `
+  const complaintColumns = `
   c.id, c.complaint_code as code, 
   COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres, 
   COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos, 
@@ -182,7 +184,8 @@ const complaintColumns = `
   cg.good_type, cg.claimed_amount as monto_cuantificable, cg.description as descripcion, 
   cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
-  sc.name as status_name,
+  sc.name as status_name, sc.is_terminal as is_terminal,
+  cd.customer_ip, cd.customer_user_agent, c.legal_response_due_at, c.legal_acceptance_at,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
   c.assigned_to, c.created_at, c.updated_at,
@@ -720,6 +723,11 @@ casesRouter.patch(
       }
 
       if (body.status) {
+        if (['resolved', 'closed', 'founded', 'unfounded'].includes(body.status)) {
+          const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
+          if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede cerrar un reclamo sin emitir previamente una respuesta oficial trazable.');
+        }
+
         const statusResult = await client.query(
           "SELECT id FROM status_catalog WHERE domain = 'complaint' AND code = $1 AND is_active = true",
           [body.status]
@@ -947,6 +955,132 @@ casesRouter.get(
       WHERE ca.complaint_id = $1
       ORDER BY ca.assigned_at DESC
       `,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/responses',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const bodySchema = z.object({
+      response_body: z.string().min(10, 'La respuesta debe ser más detallada.'),
+      final_status_code: z.enum(['founded', 'unfounded']),
+    });
+    
+    const body = bodySchema.parse(req.body);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const current = await client.query(`
+        SELECT c.id, c.complaint_code, c.status_id, cu.email, cu.nombres, cu.apellidos
+        FROM complaints c
+        JOIN customers cu ON c.customer_id = cu.id
+        WHERE c.id = $1 FOR UPDATE
+      `, [id]);
+      
+      if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+      const complaint = current.rows[0];
+
+      // Get new status ID
+      const statusRes = await client.query(
+        "SELECT id, label FROM status_catalog WHERE domain = 'complaint' AND code = $1",
+        [body.final_status_code]
+      );
+      
+      if (statusRes.rowCount === 0) throw new HttpError(400, 'Estado final inválido.');
+      const newStatusId = statusRes.rows[0].id;
+      const resolutionLabel = statusRes.rows[0].label;
+
+      // Insert response
+      await client.query(`
+        INSERT INTO complaint_responses (complaint_id, admin_user_id, response_body)
+        VALUES ($1, $2, $3)
+      `, [id, req.admin?.id, body.response_body]);
+
+      // Update complaint status
+      await client.query(`
+        UPDATE complaints SET status_id = $2, updated_at = NOW() WHERE id = $1
+      `, [id, newStatusId]);
+
+      // Record state history
+      await client.query(`
+        INSERT INTO complaint_status_history (complaint_id, old_status_id, new_status_id, changed_by)
+        VALUES ($1, $2, $3, $4)
+      `, [id, complaint.status_id, newStatusId, req.admin?.id]);
+
+      // Record time event
+      await client.query(`
+        INSERT INTO complaint_time_events (complaint_id, event_type, metadata)
+        VALUES ($1, 'OFFICIAL_RESPONSE_SENT', $2)
+      `, [id, JSON.stringify({
+        resolution_type: body.final_status_code,
+        admin_id: req.admin?.id,
+        sent_at: new Date().toISOString()
+      })]);
+      
+      await client.query('COMMIT');
+
+      // Send email
+      const clientName = `${complaint.nombres} ${complaint.apellidos}`.trim();
+      const adminName = req.admin?.name || 'Administrador de Bytecode';
+        const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
+        const emailHtml = buildComplaintResolution(clientName, complaint.complaint_code, resolutionLabel, body.response_body, adminName, adminRole);
+      
+      await notifyCustomer(
+        complaint.email,
+        `Respuesta Oficial a su Reclamación ${complaint.complaint_code}`,
+        emailHtml,
+        'complaint'
+      ).catch(e => console.error("Error enviando correo de respuesta:", e));
+
+      res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/time-events',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const result = await pool.query(
+      `
+      SELECT id, event_type, metadata, created_at
+      FROM complaint_time_events
+      WHERE complaint_id = $1
+      ORDER BY created_at ASC
+      `,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/responses',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const result = await pool.query(
+      `SELECT r.id, r.response_body, r.created_at, u.name as admin_name
+       FROM complaint_responses r
+       JOIN admin_users u ON r.admin_user_id = u.id
+       WHERE r.complaint_id = $1
+       ORDER BY r.created_at DESC`,
       [id]
     );
     res.json({ items: result.rows });
