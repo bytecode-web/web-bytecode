@@ -102,6 +102,8 @@ const complaintSchema = z.object({
   personType: z.string().trim().min(1).max(50),
   goodType: z.string().trim().min(1).max(50),
   montoCuantificable: z.string().trim().max(80).optional().default(''),
+  currencyCode: z.string().trim().length(3).optional().default('PEN'),
+  invoiceNumber: z.string().trim().max(50).optional().default(''),
   descripcion: z.string().trim().min(2).max(240),
   nombreUnidad: z.string().trim().max(160).optional().default(''),
   opcionBien: z.string().trim().max(120).optional().default(''),
@@ -110,14 +112,9 @@ const complaintSchema = z.object({
   detalle: z.string().trim().min(10).max(3000),
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
+  aceptaPoliticaDatos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la política de protección de datos.'),
   countryId: z.string().uuid().optional().nullable(),
 });
-
-const createComplaintCode = () => {
-  const date = new Date();
-  const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-  return `REC-${datePart}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-};
 
 const normalizeGoodType = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -166,7 +163,7 @@ router.get('/catalog/document-types', asyncHandler(async (_req: Request, res: Re
 }));
 
 router.get('/catalog/complaint-types', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, code, name FROM complaint_types WHERE is_active = true ORDER BY name ASC');
+  const result = await pool.query('SELECT id, code, name, legal_description FROM complaint_types WHERE is_active = true ORDER BY name ASC');
   res.json({ items: result.rows });
 }));
 
@@ -600,7 +597,6 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const body = complaintSchema.parse(req.body);
     const file: Express.Multer.File | undefined = req.file;
-    const code = createComplaintCode();
     let validatedFile: ValidatedUpload | null = null;
     let cloudinaryAsset: CloudinaryStoredAsset | null = null;
     let existingFileAssetId: string | null = null;
@@ -624,7 +620,7 @@ router.post(
           try {
             cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
               buffer: file.buffer,
-              complaintCode: code,
+              complaintCode: `TEMP-${Date.now()}`,
               originalName: validatedFile.originalName,
               mimeType: validatedFile.mimeType,
             });
@@ -779,16 +775,65 @@ router.post(
         fileAssetId = fileRes.rows[0].id;
       }
 
+      // 1. Snapshot and Sequence Generation
+      const currentYear = new Date().getFullYear();
+      const seqRes = await client.query(
+        `SELECT COALESCE(MAX(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), '')), '0')::int + 1 as next_val 
+         FROM complaints WHERE extract(year from created_at) = $1`,
+        [currentYear]
+      );
+      const code = `REC-${currentYear}-${String(seqRes.rows[0].next_val).padStart(5, '0')}`;
+
+      const customerSnapshot = JSON.stringify({
+        nombres: body.nombres,
+        apellidos: body.apellidos,
+        email: body.email,
+        telefono: `${body.prefijoTelefono} ${body.telefono}`,
+        tipoDoc: body.tipoDoc,
+        numeroDoc: body.numeroDoc,
+        domicilio: body.domicilio,
+        personType: body.personType
+      });
+
+      // 2. Calculate Legal Due Date (15 business days)
+      const holidaysRes = await client.query(
+        `SELECT month, day FROM system_holidays sh JOIN countries c ON sh.country_id = c.id
+         WHERE c.iso2 = 'PE' AND (year IS NULL OR year = $1)`,
+        [currentYear]
+      );
+      const holidays = holidaysRes.rows.map(r => `${String(r.month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`);
+      
+      let businessDaysAdded = 0;
+      let dueDate = new Date();
+      let skippedWeekends = 0;
+      let skippedHolidays = 0;
+
+      while (businessDaysAdded < 15) {
+        dueDate.setDate(dueDate.getDate() + 1);
+        const dayOfWeek = dueDate.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          skippedWeekends++;
+          continue;
+        }
+        const monthDay = `${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+        if (holidays.includes(monthDay)) {
+          skippedHolidays++;
+          continue;
+        }
+        businessDaysAdded++;
+      }
+
       const result = await client.query(
         `
         INSERT INTO complaints (
             complaint_code, customer_id, complaint_type_id, status_id, 
-            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id
+            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id,
+            customer_snapshot
           )
-          VALUES ($1, $2, $3, $4, $5, now(), now() + interval '15 days', '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
+          VALUES ($1, $2, $3, $4, $5, now(), $6, '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), $7)
         RETURNING id, complaint_code, created_at
         `,
-        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos],
+        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos, dueDate, customerSnapshot],
       );
 
       const complaintId = result.rows[0].id;
@@ -803,10 +848,10 @@ router.post(
 
       await client.query(
         `
-        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount, invoice_number, project_or_unit_name, currency_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `,
-        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable)]
+        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable), body.invoiceNumber, body.nombreUnidad, body.currencyCode]
       );
 
       if (fileAssetId) {
@@ -815,6 +860,20 @@ router.post(
           [complaintId, fileAssetId]
         );
       }
+
+      await client.query(
+        `
+        INSERT INTO complaint_time_events (complaint_id, event_type, metadata)
+        VALUES ($1, 'SUBMITTED_AND_CALCULATED', $2)
+        `,
+        [complaintId, JSON.stringify({
+          base_date: new Date().toISOString(),
+          business_days_allotted: 15,
+          calculated_due_date: dueDate.toISOString(),
+          skipped_weekends: skippedWeekends,
+          skipped_holidays: skippedHolidays
+        })]
+      );
 
       await client.query('COMMIT');
 

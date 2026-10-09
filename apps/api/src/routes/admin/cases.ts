@@ -169,11 +169,18 @@ const hasNormalizedContactSchema = async () => {
 };
 
 const complaintColumns = `
-  c.id, c.complaint_code as code, cu.first_name as nombres, cu.last_name as apellidos, 
-  '' as domicilio, '' as tipo_doc, '' as numero_doc, '' as prefijo_telefono, 
-  cu.primary_phone as telefono, cu.primary_email as email, '' as person_type, 
+  c.id, c.complaint_code as code, 
+  COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres, 
+  COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos, 
+  COALESCE(c.customer_snapshot->>'domicilio', '') as domicilio, 
+  COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
+  COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc, 
+  COALESCE(c.customer_snapshot->>'prefijoTelefono', '') as prefijo_telefono, 
+  COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
+  COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
+  COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
   cg.good_type, cg.claimed_amount as monto_cuantificable, cg.description as descripcion, 
-  '' as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
+  cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
   sc.name as status_name,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
