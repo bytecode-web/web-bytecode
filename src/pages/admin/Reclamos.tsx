@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone } from 'lucide-react';
+import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
 import { formatLocalDate } from '../../lib/dateFormatter';
@@ -30,6 +30,10 @@ export interface Complaint {
   attachment_original_name?: string;
   created_at: string;
   assigned_to?: string;
+  tipo_doc?: string;
+  person_type?: string;
+  legal_response_due_at?: string;
+  deleted_at?: string;
 }
 
 type ComplaintItem = Complaint;
@@ -93,12 +97,25 @@ const Reclamos: React.FC = () => {
   const [statusHistory, setStatusHistory] = useState<StatusHistoryRecord[]>([]);
   const [timeEvents, setTimeEvents] = useState<any[]>([]);
   const [responses, setResponses] = useState<any[]>([]);
+  const [evidences, setEvidences] = useState<any[]>([]);
+  const [complaintNotes, setComplaintNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [isAddingNote, setIsAddingNote] = useState(false);
   const [responseFormOpen, setResponseFormOpen] = useState(false);
   const [responseBody, setResponseBody] = useState('');
   const [resolutionType, setResolutionType] = useState('founded');
   const [isResponding, setIsResponding] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [metrics, setMetrics] = useState({ total_activos: 0, por_vencer: 0, avg_resolution_days: 0 });
+
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterUrgency, setFilterUrgency] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState('');
+  const [filterAgent, setFilterAgent] = useState('');
+  const [filterArchived, setFilterArchived] = useState('false');
 
   const [adminsList, setAdminsList] = useState<{ value: string, label: string }[]>([]);
   const [history, setHistory] = useState<AssignmentHistoryItem[]>([]);
@@ -111,14 +128,14 @@ const Reclamos: React.FC = () => {
   const loadCatalogs = async () => {
     try {
       const res = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=complaint');
-      setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
+      setStatuses([{ value: '', label: 'Todos los estados' }, ...res.items.map(s => ({ value: s.code, label: s.name }))]);
       const holRes = await apiRequest<{ items: { month: number, day: number, year: number | null }[] }>('/catalog/system-holidays');
       setGlobalHolidays(holRes.items);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
       setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
       const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint');
       setAdminsList([
-        { value: '', label: 'Sin Asignar' },
+        { value: '', label: 'Cualquier agente' },
         ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
       ]);
     } catch (err) {
@@ -129,10 +146,25 @@ const Reclamos: React.FC = () => {
   const loadList = async () => {
     setListLoading(true);
     try {
-      const result = await apiRequest<{ data: ComplaintItem[]; total: number }>(`/admin/complaints?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`);
+      const queryParams = new URLSearchParams({
+        limit: PAGE_SIZE.toString(),
+        offset: ((page - 1) * PAGE_SIZE).toString(),
+        archived: filterArchived
+      });
+      if (searchQuery) queryParams.append('search', searchQuery);
+      if (filterUrgency) queryParams.append('urgency', filterUrgency);
+      if (filterTipo) queryParams.append('tipo', filterTipo);
+      if (filterOrigin) queryParams.append('origin', filterOrigin);
+      if (filterAgent) queryParams.append('agent', filterAgent);
+
+      const [result, metricsRes] = await Promise.all([
+        apiRequest<{ data: ComplaintItem[]; total: number }>(`/admin/complaints?${queryParams.toString()}`),
+        apiRequest<{ data: any }>('/admin/complaints/metrics')
+      ]);
       if (result.data.length === 0 && result.total > 0 && page > 1) { setPage(page - 1); return; }
       setComplaints(result.data);
       setTotal(result.total);
+      setMetrics(metricsRes.data);
     } catch (requestError) {
       addToast(requestError instanceof Error ? requestError.message : 'No se pudo cargar la lista.', 'error');
     } finally {
@@ -143,18 +175,22 @@ const Reclamos: React.FC = () => {
   const loadDetail = async (id: string) => {
     setSelectedId(id);
     try {
-      const [result, historyResult, assignmentResult, timeEventsResult, responsesResult] = await Promise.all([
+      const [result, historyResult, assignmentResult, timeEventsResult, responsesResult, evidencesResult, notesResult] = await Promise.all([
           apiRequest<{ item: DetailItem }>(`/admin/complaints/${id}`),
           apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/assignment-history`),
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/time-events`),
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/responses`),
+          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/evidences`),
+          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/notes`),
         ]);
         setDetail(result.item);
         setStatusHistory(historyResult.items);
         setHistory(assignmentResult.items);
         setTimeEvents(timeEventsResult.items);
         setResponses(responsesResult.items);
+        setEvidences(evidencesResult.items);
+        setComplaintNotes(notesResult.items);
         setResponseFormOpen(false);
         setResponseBody('');
         setResolutionType('founded');
@@ -243,6 +279,49 @@ const Reclamos: React.FC = () => {
     }
   };
 
+  const [isUploadingEvidences, setIsUploadingEvidences] = useState(false);
+
+  const handleInternalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedId || !e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    const payload = new FormData();
+    files.forEach(f => payload.append('archivosAdjuntos', f));
+
+    setIsUploadingEvidences(true);
+    try {
+      await fetch(apiUrl(`/admin/complaints/${selectedId}/evidences`), {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': localStorage.getItem('csrf_token') || '' },
+        body: payload,
+      });
+      addToast('Evidencias subidas exitosamente.', 'success');
+      await loadDetail(selectedId);
+    } catch (err) {
+      addToast('Error al subir evidencias.', 'error');
+    } finally {
+      setIsUploadingEvidences(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!selectedId || !newNote.trim()) return;
+    setIsAddingNote(true);
+    try {
+      await apiRequest(`/admin/complaints/${selectedId}/notes`, {
+        method: 'POST',
+        json: { note_text: newNote },
+      });
+      setNewNote('');
+      addToast('Nota interna agregada.', 'success');
+      await loadDetail(selectedId);
+    } catch (err) {
+      addToast('Error al agregar nota.', 'error');
+    } finally {
+      setIsAddingNote(false);
+    }
+  };
+
   const handleSendResponse = async () => {
     if (!selectedId) return;
     if (responseBody.trim().length < 10) {
@@ -262,6 +341,37 @@ const Reclamos: React.FC = () => {
       addToast(err instanceof Error ? err.message : 'Error al enviar la respuesta.', 'error');
     } finally {
       setIsResponding(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!selectedId || !window.confirm('¿Está seguro de archivar este reclamo? Se ocultará de la lista principal.')) return;
+    try {
+      await apiRequest(`/admin/complaints/${selectedId}/archive`, { method: 'POST' });
+      addToast('Reclamo archivado.', 'success');
+      setSelectedId(null);
+      setDetail(null);
+      loadList();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al archivar', 'error');
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!selectedId || !detail?.code) return;
+    const confirmCode = window.prompt(`Esta acción DESTRUIRÁ FÍSICAMENTE el reclamo y todos sus datos forenses.\nEscriba el código exacto del reclamo (${detail.code}) para confirmar:`);
+    if (confirmCode !== detail.code) {
+      if (confirmCode !== null) addToast('Código incorrecto. Operación cancelada.', 'error');
+      return;
+    }
+    try {
+      await apiRequest(`/admin/complaints/${selectedId}/purge`, { method: 'DELETE' });
+      addToast('Reclamo purgado físicamente.', 'success');
+      setSelectedId(null);
+      setDetail(null);
+      loadList();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Error al purgar', 'error');
     }
   };
 
@@ -345,29 +455,100 @@ const Reclamos: React.FC = () => {
                 </span>
               )}
             </div>
-            {detail.attachment_original_name && selectedId && (
-              <button
-                onClick={() => forceDownload(apiUrl(`/admin/complaints/${selectedId}/attachment`), String(detail.attachment_original_name))}
-                className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20"
-              >
-                <Download className="h-3.5 w-3.5" /> Adjunto
-              </button>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {Object.entries(detail)
-              .filter(([key]) => !['admin_notes', 'status', 'attachment_path'].includes(key))
-              .map(([key, value]) => (
-                <div key={key} className={key === 'detalle' || key === 'pedido' ? 'sm:col-span-2' : ''}>
-                  <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{key.replace(/_/g, ' ')}</p>
-                  <p className="break-words text-sm text-white/80">
-                    {key === 'created_at' || key === 'updated_at'
-                      ? formatLocalDate(String(value ?? ''), 'datetime-medium')
-                      : String(value ?? '-')}
-                  </p>
+          <div className="flex flex-col gap-6">
+            {/* Ficha del Reclamante */}
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
+              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-white/50">Ficha del Reclamante</h3>
+                {String(detail.tipo_doc) === 'RUC' || String(detail.person_type) === 'company' ? (
+                  <span className="inline-flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-400 border border-blue-500/30 uppercase tracking-wide">
+                    B2B {String(detail.tipo_doc) === 'RUC' ? '- SUNAT: ACTIVO/HABIDO' : '- Entidad Extranjera Verificada'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded bg-purple-500/20 px-2 py-0.5 text-[10px] font-medium text-purple-400 border border-purple-500/30 uppercase tracking-wide">
+                    B2C Consumidor
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Nombre / Razón Social</p><p className="text-sm text-white/80 font-medium">{detail.nombres} {detail.apellidos}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Documento</p><p className="text-sm text-white/80">{detail.tipo_doc}: {detail.numero_doc}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Email</p><p className="text-sm text-white/80">{detail.email}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Teléfono</p><p className="text-sm text-white/80">{detail.prefijo_telefono} {detail.telefono}</p></div>
+                <div className="col-span-2"><p className="text-[10px] uppercase text-white/40 mb-1">Domicilio</p><p className="text-sm text-white/80">{detail.domicilio || 'No especificado'}</p></div>
+              </div>
+            </div>
+
+            {/* Ficha del Bien o Servicio */}
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/50 border-b border-white/5 pb-2">Ficha del Bien o Servicio</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Clasificación</p><p className="text-sm text-white/80">{detail.good_type === 'product' ? 'Producto' : detail.good_type === 'service' ? 'Servicio' : String(detail.good_type || '-')} / {detail.tipo_reclamo}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Proyecto / Unidad</p><p className="text-sm text-white/80">{detail.nombre_unidad || 'N/A'}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Monto Implicado</p><p className="text-sm font-mono text-cyan-400 font-medium">{detail.monto_cuantificable ? `${detail.currency_code || 'PEN'} ${detail.monto_cuantificable}` : 'No especificado'}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Comprobante (Factura/Boleta)</p><p className="text-sm text-white/80">{detail.invoice_number || 'N/A'}</p></div>
+                <div className="col-span-2"><p className="text-[10px] uppercase text-white/40 mb-1">Descripción de la Adquisición</p><p className="text-sm text-white/80">{detail.descripcion}</p></div>
+              </div>
+            </div>
+
+            {/* Cuerpo Fáctico y Petitorio */}
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-white/50 border-b border-white/5 pb-2">Cuerpo Fáctico y Petitorio</h3>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <p className="text-[10px] uppercase text-white/40 mb-1">Detalle del Reclamo/Queja</p>
+                  <div className="text-sm text-white/80 bg-white/5 p-4 rounded-md whitespace-pre-wrap leading-relaxed">{detail.detalle}</div>
                 </div>
-              ))}
+                <div>
+                  <p className="text-[10px] uppercase text-white/40 mb-1">Solución Solicitada (Petitorio)</p>
+                  <div className="text-sm text-white/90 bg-cyan-950/20 p-4 rounded-md whitespace-pre-wrap leading-relaxed border-l-2 border-cyan-500 font-medium">
+                    {detail.pedido}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Metadata Forense */}
+            <div className="grid grid-cols-2 gap-4">
+              <div><p className="text-[10px] uppercase text-white/40 mb-1">IP de Registro</p><p className="text-xs text-white/60 font-mono">{detail.customer_ip || '-'}</p></div>
+              <div><p className="text-[10px] uppercase text-white/40 mb-1">User Agent</p><p className="text-xs text-white/60 font-mono truncate" title={String(detail.customer_user_agent || '')}>{detail.customer_user_agent || '-'}</p></div>
+            </div>
+            
+            {/* Gestor de Evidencias */}
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
+              <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-widest text-white/50">Evidencias y Adjuntos</h3>
+                {!isReadOnly && (
+                  <button onClick={() => document.getElementById('internal-evidence-upload')?.click()} disabled={isUploadingEvidences} className="text-[10px] bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 px-3 py-1.5 rounded font-medium flex items-center gap-1 transition disabled:opacity-50">
+                    {isUploadingEvidences ? 'Subiendo...' : '+ Adjuntar Prueba Interna'}
+                  </button>
+                )}
+                <input id="internal-evidence-upload" type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleInternalUpload} />
+              </div>
+              
+              {(!evidences || evidences.length === 0) ? (
+                <p className="text-sm text-white/40 text-center py-4">No hay evidencias adjuntas.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {evidences.map(ev => (
+                    <div key={ev.id} className="flex items-center justify-between p-3 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 transition">
+                      <div className="flex flex-col overflow-hidden mr-3">
+                        <span className="text-xs font-medium text-white/90 truncate" title={ev.original_name}>{ev.original_name}</span>
+                        <span className="text-[10px] text-white/40 mt-0.5">{new Date(ev.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {(ev.mime_type?.startsWith('image/') || ev.mime_type === 'application/pdf') && (
+                          <button onClick={() => window.open(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), '_blank')} className="text-[10px] font-medium text-cyan-400 hover:bg-cyan-500/10 px-2 py-1 rounded transition">Ver</button>
+                        )}
+                        <button onClick={() => forceDownload(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), ev.original_name)} className="text-[10px] font-medium text-white/70 hover:bg-white/10 px-2 py-1 rounded transition">Descargar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <Timeline
@@ -423,16 +604,41 @@ const Reclamos: React.FC = () => {
                 />
               </div>
             </div>
-            <div>
-              <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Notas Internas</label>
-              <textarea
-                {...formProps}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={2}
-                placeholder="Observaciones..."
-                className="w-full resize-none rounded-lg bg-white/5 border border-white/5 px-3 py-2.5 text-sm text-white/80 outline-none focus:border-white/20 transition-colors custom-scrollbar"
-              />
+            {/* Bloc de Notas Internas */}
+            <div className="flex flex-col gap-3">
+              <label className="block text-xs font-semibold uppercase tracking-widest text-white/50">Bloc de Notas Internas</label>
+              
+              <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                {complaintNotes.map(note => (
+                  <div key={note.id} className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex flex-col gap-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-amber-400">{note.author_name || 'Sistema'}</span>
+                      <span className="text-[10px] text-white/40">{new Date(note.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-white/80 whitespace-pre-wrap">{note.note_text}</p>
+                  </div>
+                ))}
+                {complaintNotes.length === 0 && <p className="text-xs text-white/40 italic">No hay notas internas.</p>}
+              </div>
+
+              {!isReadOnly && (
+                <div className="flex gap-2 mt-2">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    rows={2}
+                    placeholder="Escribe una nueva nota interna..."
+                    className="flex-1 resize-none rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white/90 outline-none focus:border-amber-500/50 transition-colors custom-scrollbar"
+                  />
+                  <button 
+                    onClick={handleAddNote} 
+                    disabled={isAddingNote || !newNote.trim()} 
+                    className="shrink-0 bg-amber-500 hover:bg-amber-400 text-black font-semibold px-4 rounded-lg transition disabled:opacity-50 text-xs"
+                  >
+                    {isAddingNote ? 'Agregando...' : 'Agregar'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -511,20 +717,37 @@ const Reclamos: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {!isReadOnly && detail.email ? (
-                  <button onClick={() => setResponseFormOpen(true)} className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition hover:bg-white/10 text-white/80">
-                    <Mail className="h-4 w-4" /> Responder Oficialmente
-                  </button>
-                ) : (
-                  <div />
-                )}
-                {isReadOnly ? (
-                  <p className="text-red-400 font-bold text-xs flex items-center justify-center">Este caso está cerrado y no admite modificaciones.</p>
-                ) : (
-                  <button onClick={handleSave} className="flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition hover:bg-white/90">
-                    Guardar Cambios
-                  </button>
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {!isReadOnly && detail.email ? (
+                    <button onClick={() => setResponseFormOpen(true)} className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition hover:bg-white/10 text-white/80">
+                      <Mail className="h-4 w-4" /> Responder Oficialmente
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  {isReadOnly ? (
+                    <p className="text-red-400 font-bold text-xs flex items-center justify-center text-center">Este caso está cerrado y no admite modificaciones.</p>
+                  ) : (
+                    <button onClick={handleSave} className="flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition hover:bg-white/90">
+                      Guardar Cambios
+                    </button>
+                  )}
+                </div>
+                {/* Protocolo de Retención */}
+                {(isReadOnly || filterArchived === 'true') && (
+                  <div className="border-t border-white/10 pt-4 flex flex-col gap-2">
+                    {filterArchived === 'false' && (
+                      <button onClick={handleArchive} className="flex items-center justify-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 py-2.5 text-sm font-medium transition hover:bg-amber-500/20">
+                        <Tag className="h-4 w-4" /> Archivar Expediente (Retención Legal)
+                      </button>
+                    )}
+                    {filterArchived === 'true' && admin.roles.includes('super_admin') && (
+                      <button onClick={handlePurge} className="flex items-center justify-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 py-2.5 text-sm font-medium transition hover:bg-red-500/20">
+                        <FilterX className="h-4 w-4" /> Purga Física (Destrucción Total)
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -548,13 +771,99 @@ const Reclamos: React.FC = () => {
         </button>
       </div>
 
+      {/* Tarjetas de Métricas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white/[0.02] border border-white/10 rounded-lg p-4 flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-widest text-white/50 font-semibold">Total Activos</span>
+          <span className="text-2xl font-bold text-white/90">{metrics?.total_activos || 0}</span>
+        </div>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-widest text-red-400/80 font-semibold">Por Vencer (≤ 7 días)</span>
+          <span className="text-2xl font-bold text-red-400">{metrics?.por_vencer || 0}</span>
+        </div>
+        <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-4 flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-widest text-cyan-400/80 font-semibold">Tiempo Prom. Resolución</span>
+          <span className="text-2xl font-bold text-cyan-400">{Number(metrics?.avg_resolution_days || 0).toFixed(1)} días</span>
+        </div>
+      </div>
+
       <section className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
         
         {/* Panel Izquierdo: Lista */}
         <AdminPanel className="flex max-h-[calc(100vh-190px)] flex-col overflow-hidden lg:max-h-none">
-          <div className="border-b border-white/5 px-5 py-4 flex items-center justify-between bg-white/[0.01]">
-            <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">Reclamos</span>
-            <span className="bg-white/5 text-white/70 text-[10px] px-2 py-0.5 rounded font-medium">{complaints.length}</span>
+          <div className="border-b border-white/5 px-5 py-4 flex flex-col gap-4 bg-white/[0.01]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/50 uppercase tracking-widest">Reclamos</span>
+              <span className="bg-white/5 text-white/70 text-[10px] px-2 py-0.5 rounded font-medium">{total}</span>
+            </div>
+            
+            {/* Filter Bar */}
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                <input
+                  type="text"
+                  placeholder="Buscar por código, nombre, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && loadList()}
+                  className="w-full rounded-md border border-white/10 bg-black/50 pl-9 pr-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                <select
+                  value={filterUrgency}
+                  onChange={(e) => setFilterUrgency(e.target.value)}
+                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
+                >
+                  <option value="">Cualquier Urgencia (SLA)</option>
+                  <option value="vencido">Vencidos</option>
+                  <option value="proximo">Próximos a vencer (≤ 7 días)</option>
+                  <option value="en_plazo">En plazo (> 7 días)</option>
+                </select>
+                <select
+                  value={filterTipo}
+                  onChange={(e) => setFilterTipo(e.target.value)}
+                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
+                >
+                  <option value="">Cualquier Tipo</option>
+                  <option value="b2b">B2B (Empresas)</option>
+                  <option value="b2c">B2C (Consumidores)</option>
+                  <option value="reclamo">Reclamos</option>
+                  <option value="queja">Quejas</option>
+                </select>
+                <select
+                  value={filterOrigin}
+                  onChange={(e) => setFilterOrigin(e.target.value)}
+                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
+                >
+                  <option value="">Cualquier Origen</option>
+                  <option value="nacional">Nacional (PE)</option>
+                  <option value="internacional">Internacional</option>
+                </select>
+                <select
+                  value={filterAgent}
+                  onChange={(e) => setFilterAgent(e.target.value)}
+                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
+                >
+                  {adminsList.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <select
+                  value={filterArchived}
+                  onChange={(e) => setFilterArchived(e.target.value)}
+                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
+                >
+                  <option value="false">Activos</option>
+                  <option value="true">Archivados</option>
+                </select>
+                <button
+                  onClick={loadList}
+                  className="flex items-center justify-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/10"
+                >
+                  <FilterX className="h-3 w-3" /> Filtrar
+                </button>
+              </div>
+            </div>
           </div>
           <div className="divide-y divide-white/5 overflow-y-auto flex-1 custom-scrollbar">
             {listLoading ? (
@@ -576,7 +885,23 @@ const Reclamos: React.FC = () => {
                       <Tag className="h-3 w-3 shrink-0" />
                       <span className="truncate font-medium text-white/55">{item.tipo_reclamo || 'Tipo no especificado'}</span>
                     </span>
-                    <span className="flex items-center gap-1.5 text-[10px] text-white/30">
+                    <div className="flex gap-1.5 flex-wrap">
+                      {item.claim_type === 'Reclamo' && <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[9px] font-medium text-red-400 border border-red-500/30 uppercase">Reclamo</span>}
+                      {item.claim_type === 'Queja' && <span className="rounded bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-medium text-orange-400 border border-orange-500/30 uppercase">Queja</span>}
+                      
+                      {(item.tipo_doc === 'RUC' || item.person_type === 'company') ? (
+                        <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-medium text-blue-400 border border-blue-500/30 uppercase">B2B</span>
+                      ) : (
+                        <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-400 border border-purple-500/30 uppercase">B2C</span>
+                      )}
+
+                      {item.telefono?.startsWith('+51') ? (
+                        <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400 border border-emerald-500/30 uppercase">Nacional PE</span>
+                      ) : (
+                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-400 border border-amber-500/30 uppercase">Internacional</span>
+                      )}
+                    </div>
+                    <span className="flex items-center gap-1.5 text-[10px] text-white/30 mt-1">
                       <CalendarDays className="h-3 w-3 shrink-0" />
                       <span className="font-medium text-white/40">{formatLocalDate(item.created_at, 'date-medium')}</span>
                     </span>

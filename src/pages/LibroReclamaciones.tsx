@@ -42,7 +42,7 @@ const LibroReclamaciones: React.FC = () => {
     countryId: 'default',
   });
   
-  const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
+  const [archivosAdjuntos, setArchivosAdjuntos] = useState<File[]>([]);
   const [selectedCountryData, setSelectedCountryData] = useState<CountryData>({ id: 'default', iso: 'PE', name: 'Perú', dialCode: '+51', maxLength: 9 });
   const [allDocumentTypes, setAllDocumentTypes] = useState<DocumentTypeData[]>([]);
   const [selectedDocData, setSelectedDocData] = useState<DocumentTypeData | null>(null);
@@ -155,18 +155,23 @@ const LibroReclamaciones: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
+      const newFiles = Array.from(e.target.files);
       const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-      if (!allowedTypes.includes(selectedFile.type) || selectedFile.size > 10 * 1024 * 1024) {
-        setArchivoAdjunto(null);
-        setSubmitError('Adjunta un archivo PDF, PNG, JPG, JPEG o WEBP de maximo 10MB.');
-        e.target.value = '';
-        return;
+      
+      const validFiles = newFiles.filter(file => allowedTypes.includes(file.type) && file.size <= 10 * 1024 * 1024);
+      
+      if (validFiles.length !== newFiles.length) {
+        setSubmitError('Algunos archivos no fueron añadidos porque exceden los 10MB o no son PDF/PNG/JPG/WEBP.');
+      } else {
+        setSubmitError('');
       }
 
-      setSubmitError('');
-      setArchivoAdjunto(selectedFile);
+      setArchivosAdjuntos(prev => [...prev, ...validFiles].slice(0, 5)); // limit to 5
     }
+  };
+
+  const removeFile = (index: number) => {
+    setArchivosAdjuntos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCountrySelect = (country: CountryData) => {
@@ -232,8 +237,10 @@ const LibroReclamaciones: React.FC = () => {
     Object.entries(formData).forEach(([key, value]) => {
       payload.append(key, String(value));
     });
-    if (archivoAdjunto) {
-      payload.append('archivoAdjunto', archivoAdjunto);
+    if (archivosAdjuntos.length > 0) {
+      archivosAdjuntos.forEach(file => {
+        payload.append('archivosAdjuntos', file);
+      });
     }
 
     try {
@@ -438,17 +445,29 @@ const LibroReclamaciones: React.FC = () => {
             <div><Label text="Detalle de la queja/reclamo" required /><Textarea name="detalle" placeholder="Explique detalladamente lo sucedido..." rows={4} value={formData.detalle} onChange={handleChange} required minLength={10} maxLength={3000} /></div>
             <div><Label text="Pedido (Solución esperada)" required /><Textarea name="pedido" placeholder="¿Qué solución espera de nuestra parte?" rows={3} value={formData.pedido} onChange={handleChange}required minLength={5} maxLength={2000} /></div>
 
-            {/* ── Adjuntar Archivo ── */}
+          {/* ── Adjuntar Archivo ── */}
             <div className="pt-4">
               <Label text="Adjuntar documento o evidencia (Opcional)" />
               <div className="relative flex items-center justify-center w-full mt-2">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <label className="flex flex-col items-center justify-center w-full min-h-[8rem] border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10 p-4">
+                  <div className="flex flex-col items-center justify-center text-center">
                     <svg className="w-8 h-8 mb-3 text-[#06CFD6]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre el archivo</p>
-                    <p className="text-sm text-white/50">{archivoAdjunto ? archivoAdjunto.name : 'PDF, JPG, PNG o WEBP (Máx. 10MB)'}</p>
+                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre los archivos</p>
+                    <p className="text-sm text-white/50 mb-3">PDF, JPG, PNG o WEBP (Máx. 10MB por archivo)</p>
+                    {archivosAdjuntos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center mt-2 w-full max-w-md">
+                        {archivosAdjuntos.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-[#06CFD6]/10 border border-[#06CFD6]/30 rounded-md px-2 py-1 text-xs text-white/90">
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <button type="button" onClick={(e) => { e.preventDefault(); removeFile(idx); }} className="text-white/60 hover:text-red-400">
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <input type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
+                  <input type="file" className="hidden" multiple onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
                 </label>
               </div>
             </div>

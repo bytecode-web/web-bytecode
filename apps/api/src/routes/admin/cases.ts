@@ -12,6 +12,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { notifyCustomer } from '../../services/email.js';
 import { buildComplaintResolution } from '../../services/emailTemplates.js';
+import { upload, validateUpload, uploadComplaintEvidenceToCloudinary } from '../../services/upload.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
@@ -609,20 +610,111 @@ casesRouter.get(
 );
 
 casesRouter.get(
+  '/complaints/metrics',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE sc.is_terminal = false AND c.deleted_at IS NULL) as total_activos,
+        COUNT(*) FILTER (WHERE sc.is_terminal = false AND c.deleted_at IS NULL AND c.legal_response_due_at >= NOW() AND c.legal_response_due_at <= NOW() + INTERVAL '7 days') as por_vencer,
+        AVG(EXTRACT(EPOCH FROM (c.updated_at - c.created_at)) / 86400) FILTER (WHERE sc.is_terminal = true AND c.deleted_at IS NULL) as avg_resolution_days
+      FROM complaints c
+      JOIN status_catalog sc ON c.status_id = sc.id
+    `);
+    
+    res.json({ data: result.rows[0] });
+  })
+);
+
+export const complaintsQuerySchema = z.object({
+  status: z.string().optional(),
+  search: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(9),
+  offset: z.coerce.number().int().min(0).default(0),
+  urgency: z.string().optional(),
+  tipo: z.string().optional(),
+  origin: z.string().optional(),
+  agent: z.string().optional(),
+  archived: z.enum(['true', 'false']).optional().default('false')
+});
+
+casesRouter.get(
   '/complaints',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const query = listQuerySchema.parse(req.query);
+    const query = complaintsQuerySchema.parse(req.query);
     const { whereSql, params } = buildWhere(query.status, query.search, [
       'c.complaint_code',
       'cu.first_name',
       'cu.last_name',
       'cu.primary_email',
-      'cg.category'
+      'cg.category',
+      'c.customer_snapshot->>\'numeroDoc\'',
+      'c.customer_snapshot->>\'nombres\'',
+      'c.customer_snapshot->>\'apellidos\''
     ]);
+    
+    // Extend whereSql with specialized filters
+    let extraWhere = '';
+    
+    if (query.archived === 'true') {
+      extraWhere += ` AND c.deleted_at IS NOT NULL`;
+    } else {
+      extraWhere += ` AND c.deleted_at IS NULL`;
+    }
+
+    if (query.agent) {
+      params.push(query.agent);
+      extraWhere += ` AND c.assigned_to = $${params.length}`;
+    }
+    
+    if (query.urgency) {
+      // SLU urgency filters (SLA)
+      if (query.urgency === 'vencido') {
+        extraWhere += ` AND c.legal_response_due_at < NOW()`;
+      } else if (query.urgency === 'proximo') {
+        // En los próximos 5 días hábiles aprox, asumiremos <= 7 días calendario para la query
+        extraWhere += ` AND c.legal_response_due_at >= NOW() AND c.legal_response_due_at <= NOW() + INTERVAL '7 days'`;
+      } else if (query.urgency === 'en_plazo') {
+        extraWhere += ` AND c.legal_response_due_at > NOW() + INTERVAL '7 days'`;
+      }
+    }
+    
+    if (query.tipo) {
+      if (query.tipo === 'b2b') {
+        extraWhere += ` AND (c.customer_snapshot->>'tipoDoc' = 'RUC' OR c.customer_snapshot->>'personType' = 'company')`;
+      } else if (query.tipo === 'b2c') {
+        extraWhere += ` AND (c.customer_snapshot->>'tipoDoc' != 'RUC' AND (c.customer_snapshot->>'personType' IS NULL OR c.customer_snapshot->>'personType' != 'company'))`;
+      } else if (query.tipo === 'reclamo') {
+        extraWhere += ` AND ct.name = 'Reclamo'`;
+      } else if (query.tipo === 'queja') {
+        extraWhere += ` AND ct.name = 'Queja'`;
+      }
+    }
+    
+    if (query.origin) {
+      if (query.origin === 'nacional') {
+        extraWhere += ` AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) LIKE '+51 %'`;
+      } else if (query.origin === 'internacional') {
+        extraWhere += ` AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) NOT LIKE '+51 %' AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) LIKE '+%'`;
+      }
+    }
+    
+    const finalWhereSql = whereSql ? whereSql + extraWhere : 'WHERE 1=1 ' + extraWhere;
+
     const [result, countResult] = await Promise.all([pool.query(
       `
-      SELECT c.id, c.complaint_code as code, c.assigned_to, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
+      SELECT c.id, c.complaint_code as code, c.assigned_to, 
+             COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres, 
+             COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos, 
+             COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
+             COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
+             COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
+             COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
+             ct.name as claim_type, cg.category as tipo_reclamo, 
+             sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", 
+             pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, 
+             fa.original_name as attachment_original_name, c.created_at, c.updated_at, c.legal_response_due_at, c.deleted_at
       FROM complaints c
       JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
@@ -631,7 +723,7 @@ casesRouter.get(
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
       LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
       LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
-      ${whereSql}
+      ${finalWhereSql}
       ORDER BY pc.weight DESC NULLS LAST, c.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `,
@@ -643,8 +735,9 @@ casesRouter.get(
          JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
          LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+         JOIN complaint_types ct ON c.complaint_type_id = ct.id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-         ${whereSql}
+         ${finalWhereSql}
        ) records`,
       params,
     )]);
@@ -806,20 +899,47 @@ casesRouter.patch(
 );
 
 casesRouter.get(
-  '/complaints/:id/attachment',
+  '/complaints/:id/evidences',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const result = await pool.query(
       `
+      SELECT fa.id, fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url, ce.created_at
+      FROM complaints c
+      JOIN complaint_evidences ce ON c.id = ce.complaint_id
+      JOIN file_assets fa ON ce.file_asset_id = fa.id
+      WHERE c.id = $1
+      ORDER BY ce.created_at ASC
+      `,
+      [id],
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/attachment',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const fileId = req.query.fileId as string;
+
+    let query = `
       SELECT fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url
       FROM complaints c
       JOIN complaint_evidences ce ON c.id = ce.complaint_id
       JOIN file_assets fa ON ce.file_asset_id = fa.id
       WHERE c.id = $1
-      `,
-      [id],
-    );
+    `;
+    const params: any[] = [id];
+
+    if (fileId) {
+      query += ` AND fa.id = $2`;
+      params.push(fileId);
+    }
+
+    const result = await pool.query(query + " LIMIT 1", params);
 
     if (result.rowCount === 0) throw new HttpError(404, 'Reclamo o adjunto no encontrado.');
 
@@ -1084,5 +1204,149 @@ casesRouter.get(
       [id]
     );
     res.json({ items: result.rows });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/evidences',
+  requirePermission('admin.reclamos.manage'),
+  upload.array('archivosAdjuntos', 5),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (!files || files.length === 0) throw new HttpError(400, 'Debe adjuntar al menos un archivo.');
+
+    const client = await pool.connect();
+    const addedFiles = [];
+
+    try {
+      await client.query('BEGIN');
+      
+      const current = await client.query('SELECT id FROM complaints WHERE id =  FOR UPDATE', [id]);
+      if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+      for (const f of files) {
+        const validatedFile = await validateUpload(f);
+        let fileAssetId;
+
+        const fileLookup = await client.query(
+          'SELECT id FROM file_assets WHERE checksum_sha256 =  LIMIT 1',
+          [validatedFile.checksumSha256]
+        );
+
+        if ((fileLookup.rowCount ?? 0) > 0) {
+          fileAssetId = fileLookup.rows[0].id;
+        } else {
+          try {
+            const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+              buffer: f.buffer,
+              complaintCode: \INTERNAL-\\,
+              originalName: validatedFile.originalName,
+              mimeType: validatedFile.mimeType,
+            });
+            const fileRes = await client.query(
+              \INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
+              VALUES (\, 'cloudinary', \, \, \, \, \) RETURNING id\,
+              [validatedFile.originalName, cloudinaryAsset.publicId, cloudinaryAsset.secureUrl, validatedFile.mimeType, cloudinaryAsset.bytes || f.size, validatedFile.checksumSha256]
+            );
+            fileAssetId = fileRes.rows[0].id;
+          } catch (err) {
+            throw new HttpError(502, 'Error subiendo archivo interno.');
+          }
+        }
+
+        const evRes = await client.query(
+          \INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES (\, \) RETURNING id\,
+          [id, fileAssetId]
+        );
+        addedFiles.push(evRes.rows[0].id);
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, count: addedFiles.length });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/notes',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const result = await pool.query(
+      SELECT n.*, u.name as author_name FROM complaint_notes n LEFT JOIN admin_users u ON n.author_id = u.id WHERE n.complaint_id =  ORDER BY n.created_at DESC,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/notes',
+  requirePermission('admin.reclamos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const { note_text } = req.body;
+    if (!note_text) throw new HttpError(400, 'El texto es requerido.');
+    const result = await pool.query(
+      INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES (, , ) RETURNING *,
+      [id, req.admin?.id, note_text]
+    );
+    res.json({ item: result.rows[0] });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/archive',
+  requirePermission('admin.reclamos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    // Verificar si cumple los 30 meses (900 días aprox)
+    const checkRes = await pool.query(
+      `SELECT status_id, created_at, EXTRACT(DAY FROM (NOW() - created_at)) as age_days FROM complaints WHERE id = $1`,
+      [id]
+    );
+    if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    
+    // Check status terminal and age
+    const statusRes = await pool.query(`SELECT is_terminal FROM status_catalog WHERE id = $1`, [checkRes.rows[0].status_id]);
+    const isTerminal = statusRes.rows[0]?.is_terminal;
+    
+    if (!isTerminal || checkRes.rows[0].age_days < 900) {
+      throw new HttpError(400, 'El reclamo no cumple las condiciones para ser archivado (Debe estar cerrado y tener más de 30 meses de antigüedad).');
+    }
+
+    const result = await pool.query(
+      `UPDATE complaints SET deleted_at = NOW(), archived_at = NOW() WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    res.json({ success: true, message: 'Reclamo archivado exitosamente.' });
+  })
+);
+
+casesRouter.delete(
+  '/complaints/:id/purge',
+  requirePermission('admin.reclamos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL app.allow_physical_delete = 'true'");
+      const result = await client.query('DELETE FROM complaints WHERE id = $1 RETURNING id', [id]);
+      if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'Reclamo destruido físicamente.' });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   })
 );

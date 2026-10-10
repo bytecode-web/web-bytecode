@@ -12,6 +12,49 @@ import { listQuerySchema } from './shared.js';
 export const dashboardRouter = Router();
 export const auditLogsRouter = Router();
 export const governanceRouter = Router();
+export const systemHolidaysRouter = Router();
+
+const systemHolidaySchema = z.object({
+  country_id: z.string().uuid(),
+  month: z.number().int().min(1).max(12),
+  day: z.number().int().min(1).max(31),
+  year: z.number().int().nullable(),
+  description: z.string().min(1).max(255)
+});
+
+systemHolidaysRouter.get(
+  '/system-holidays',
+  requirePermission('admin.settings.view'),
+  asyncHandler(async (_req: Request, res: Response) => {
+    const result = await pool.query('SELECT sh.*, c.iso2 as country_code, c.name as country_name FROM system_holidays sh JOIN countries c ON sh.country_id = c.id ORDER BY sh.month ASC, sh.day ASC');
+    res.json({ items: result.rows });
+  })
+);
+
+systemHolidaysRouter.post(
+  '/system-holidays',
+  requireCsrf,
+  requirePermission('admin.settings.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = systemHolidaySchema.parse(req.body);
+    const result = await pool.query(
+      'INSERT INTO system_holidays (country_id, month, day, year, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [body.country_id, body.month, body.day, body.year, body.description]
+    );
+    res.json({ item: result.rows[0] });
+  })
+);
+
+systemHolidaysRouter.delete(
+  '/system-holidays/:id',
+  requireCsrf,
+  requirePermission('admin.settings.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid().parse(req.params.id);
+    await pool.query('DELETE FROM system_holidays WHERE id = $1', [id]);
+    res.json({ success: true });
+  })
+);
 
 dashboardRouter.get(
   '/stats',

@@ -593,40 +593,46 @@ router.post(
 router.post(
   '/complaints',
   publicFormLimiter,
-  upload.single('archivoAdjunto'),
+  upload.array('archivosAdjuntos', 5),
   asyncHandler(async (req: Request, res: Response) => {
     const body = complaintSchema.parse(req.body);
-    const file: Express.Multer.File | undefined = req.file;
-    let validatedFile: ValidatedUpload | null = null;
-    let cloudinaryAsset: CloudinaryStoredAsset | null = null;
-    let existingFileAssetId: string | null = null;
-
-    if (file) {
-      validatedFile = await validateUpload(file);
+    const files = req.files as Express.Multer.File[] | undefined;
+    
+    interface ProcessedFile {
+      validated: ValidatedUpload;
+      cloudinaryAsset?: CloudinaryStoredAsset;
+      existingId?: string;
+      file: Express.Multer.File;
     }
+    const processedFiles: ProcessedFile[] = [];
 
     const client = await pool.connect();
 
     try {
-      if (file && validatedFile) {
-        const fileLookup = await client.query(
-          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
-          [validatedFile.checksumSha256]
-        );
+      if (files && files.length > 0) {
+        for (const f of files) {
+          const validatedFile = await validateUpload(f);
+          
+          const fileLookup = await client.query(
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
+            [validatedFile.checksumSha256]
+          );
 
-        if ((fileLookup.rowCount ?? 0) > 0) {
-          existingFileAssetId = fileLookup.rows[0].id;
-        } else {
-          try {
-            cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
-              buffer: file.buffer,
-              complaintCode: `TEMP-${Date.now()}`,
-              originalName: validatedFile.originalName,
-              mimeType: validatedFile.mimeType,
-            });
-          } catch (error: unknown) {
-            console.error('Cloudinary complaint evidence upload failed:', error);
-            throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
+          if ((fileLookup.rowCount ?? 0) > 0) {
+            processedFiles.push({ validated: validatedFile, existingId: fileLookup.rows[0].id, file: f });
+          } else {
+            try {
+              const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+                buffer: f.buffer,
+                complaintCode: `TEMP-${Date.now()}`,
+                originalName: validatedFile.originalName,
+                mimeType: validatedFile.mimeType,
+              });
+              processedFiles.push({ validated: validatedFile, cloudinaryAsset, file: f });
+            } catch (error: unknown) {
+              console.error('Cloudinary complaint evidence upload failed:', error);
+              throw new HttpError(502, 'No se pudo almacenar uno de los archivos adjuntos.');
+            }
           }
         }
       }
@@ -752,27 +758,31 @@ router.post(
       const complaintTypeId = (typeRes.rowCount ?? 0) > 0 ? typeRes.rows[0].id : null;
       if (!complaintTypeId) throw new Error('Tipo de reclamo inválido.');
 
-      let fileAssetId = existingFileAssetId;
-      if (!fileAssetId && file && validatedFile && cloudinaryAsset) {
-        const fileRes = await client.query(
-          `
-          INSERT INTO file_assets (
-            original_name, storage_provider, storage_key, public_url,
-            mime_type, byte_size, checksum_sha256
-          )
-          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
-          RETURNING id
-          `,
-          [
-            validatedFile.originalName,
-            cloudinaryAsset.publicId,
-            cloudinaryAsset.secureUrl,
-            validatedFile.mimeType,
-            cloudinaryAsset.bytes || file.size,
-            validatedFile.checksumSha256,
-          ],
-        );
-        fileAssetId = fileRes.rows[0].id;
+      const fileAssetIds: string[] = [];
+      for (const pf of processedFiles) {
+        if (pf.existingId) {
+          fileAssetIds.push(pf.existingId);
+        } else if (pf.cloudinaryAsset) {
+          const fileRes = await client.query(
+            `
+            INSERT INTO file_assets (
+              original_name, storage_provider, storage_key, public_url,
+              mime_type, byte_size, checksum_sha256
+            )
+            VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
+            RETURNING id
+            `,
+            [
+              pf.validated.originalName,
+              pf.cloudinaryAsset.publicId,
+              pf.cloudinaryAsset.secureUrl,
+              pf.validated.mimeType,
+              pf.cloudinaryAsset.bytes || pf.file.size,
+              pf.validated.checksumSha256,
+            ],
+          );
+          fileAssetIds.push(fileRes.rows[0].id);
+        }
       }
 
       // 1. Snapshot and Sequence Generation
@@ -854,11 +864,13 @@ router.post(
         [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable), body.invoiceNumber, body.nombreUnidad, body.currencyCode]
       );
 
-      if (fileAssetId) {
-        await client.query(
-          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
-          [complaintId, fileAssetId]
-        );
+      if (fileAssetIds.length > 0) {
+        for (const fid of fileAssetIds) {
+          await client.query(
+            `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+            [complaintId, fid]
+          );
+        }
       }
 
       await client.query(
