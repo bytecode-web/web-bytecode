@@ -12,7 +12,9 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { notifyCustomer } from '../../services/email.js';
 import { buildComplaintResolution } from '../../services/emailTemplates.js';
-import { upload, validateUpload, uploadComplaintEvidenceToCloudinary } from '../../services/upload.js';
+import { upload } from './shared.js';
+import { validateUpload } from '../../lib/validateUpload.js';
+import { uploadComplaintEvidenceToCloudinary } from '../../lib/cloudinary.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
@@ -1222,7 +1224,7 @@ casesRouter.post(
     try {
       await client.query('BEGIN');
       
-      const current = await client.query('SELECT id FROM complaints WHERE id =  FOR UPDATE', [id]);
+      const current = await client.query('SELECT id FROM complaints WHERE id = $1 FOR UPDATE', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
 
       for (const f of files) {
@@ -1230,7 +1232,7 @@ casesRouter.post(
         let fileAssetId;
 
         const fileLookup = await client.query(
-          'SELECT id FROM file_assets WHERE checksum_sha256 =  LIMIT 1',
+          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
           [validatedFile.checksumSha256]
         );
 
@@ -1240,13 +1242,13 @@ casesRouter.post(
           try {
             const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
               buffer: f.buffer,
-              complaintCode: \INTERNAL-\\,
+              complaintCode: `INTERNAL-${id}`,
               originalName: validatedFile.originalName,
               mimeType: validatedFile.mimeType,
             });
             const fileRes = await client.query(
-              \INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
-              VALUES (\, 'cloudinary', \, \, \, \, \) RETURNING id\,
+              `INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
+              VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6) RETURNING id`,
               [validatedFile.originalName, cloudinaryAsset.publicId, cloudinaryAsset.secureUrl, validatedFile.mimeType, cloudinaryAsset.bytes || f.size, validatedFile.checksumSha256]
             );
             fileAssetId = fileRes.rows[0].id;
@@ -1256,7 +1258,7 @@ casesRouter.post(
         }
 
         const evRes = await client.query(
-          \INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES (\, \) RETURNING id\,
+          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2) RETURNING id`,
           [id, fileAssetId]
         );
         addedFiles.push(evRes.rows[0].id);
@@ -1279,7 +1281,7 @@ casesRouter.get(
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const result = await pool.query(
-      SELECT n.*, u.name as author_name FROM complaint_notes n LEFT JOIN admin_users u ON n.author_id = u.id WHERE n.complaint_id =  ORDER BY n.created_at DESC,
+      `SELECT n.*, u.name as author_name FROM complaint_notes n LEFT JOIN admin_users u ON n.author_id = u.id WHERE n.complaint_id = $1 ORDER BY n.created_at DESC`,
       [id]
     );
     res.json({ items: result.rows });
@@ -1294,7 +1296,7 @@ casesRouter.post(
     const { note_text } = req.body;
     if (!note_text) throw new HttpError(400, 'El texto es requerido.');
     const result = await pool.query(
-      INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES (, , ) RETURNING *,
+      `INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES ($1, $2, $3) RETURNING *`,
       [id, req.admin?.id, note_text]
     );
     res.json({ item: result.rows[0] });

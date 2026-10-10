@@ -908,7 +908,7 @@ router.post(
         'Monto Reclamado': body.montoCuantificable ? `S/ ${body.montoCuantificable}` : 'No especificado',
         'Detalle del Incidente': body.detalle,
         'Pedido del Cliente': body.pedido,
-        Adjunto: validatedFile?.originalName ?? 'Sin adjunto',
+        Adjunto: processedFiles.length > 0 ? processedFiles.map(pf => pf.validated.originalName).join(', ') : 'Sin adjunto',
       };
 
       const customerReceiptPayload = {
@@ -942,10 +942,14 @@ router.post(
       res.status(201).json({ id: complaintId, code: result.rows[0].complaint_code, createdAt: result.rows[0].created_at });
     } catch (error: unknown) {
       await client.query('ROLLBACK');
-      if (cloudinaryAsset) {
-        await deleteCloudinaryAsset(cloudinaryAsset.publicId, cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
-          console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
-        });
+      if (typeof processedFiles !== "undefined" && processedFiles.length > 0) {
+        for (const pf of processedFiles) {
+          if (pf.cloudinaryAsset) {
+            await deleteCloudinaryAsset(pf.cloudinaryAsset.publicId, pf.cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
+              console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
+            });
+          }
+        }
       }
       throw error;
     } finally {
