@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Download, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
+import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
 import { formatLocalDate } from '../../lib/dateFormatter';
@@ -85,7 +85,7 @@ const Reclamos: React.FC = () => {
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DetailItem | null>(null);
-  const { isReadOnly, formProps } = useTerminalState({ isTerminal: Boolean(detail?.isTerminal) });
+  const { isReadOnly } = useTerminalState({ isTerminal: Boolean(detail?.isTerminal) });
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('registered');
   const [priority, setPriority] = useState('normal');
@@ -819,7 +819,7 @@ const Reclamos: React.FC = () => {
                   <option value="">Cualquier Urgencia (SLA)</option>
                   <option value="vencido">Vencidos</option>
                   <option value="proximo">Próximos a vencer (≤ 7 días)</option>
-                  <option value="en_plazo">En plazo (> 7 días)</option>
+                  <option value="en_plazo">En plazo (&gt; 7 días)</option>
                 </select>
                 <select
                   value={filterTipo}
