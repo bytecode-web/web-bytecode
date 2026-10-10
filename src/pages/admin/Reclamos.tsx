@@ -364,8 +364,17 @@ const Reclamos: React.FC = () => {
       if (confirmCode !== null) addToast('Código incorrecto. Operación cancelada.', 'error');
       return;
     }
+    const adminPassword = window.prompt('Por seguridad, ingrese su contraseña de administrador para autorizar la purga:');
+    if (!adminPassword) {
+      addToast('Operación cancelada. Se requiere contraseña.', 'error');
+      return;
+    }
+    
     try {
-      await apiRequest(`/admin/complaints/${selectedId}/purge`, { method: 'DELETE' });
+      await apiRequest(`/admin/complaints/${selectedId}/purge`, { 
+        method: 'DELETE',
+        json: { password: adminPassword }
+      });
       addToast('Reclamo purgado físicamente.', 'success');
       setSelectedId(null);
       setDetail(null);
@@ -385,7 +394,6 @@ const Reclamos: React.FC = () => {
       );
     }
 
-    
     let slaColorClass = 'bg-white/5 text-white/50 border-white/10';
     let slaLabel = 'Cerrado / Respondido';
 
@@ -464,7 +472,7 @@ const Reclamos: React.FC = () => {
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-white/50">Ficha del Reclamante</h3>
                 {String(detail.tipo_doc) === 'RUC' || String(detail.person_type) === 'company' ? (
                   <span className="inline-flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-400 border border-blue-500/30 uppercase tracking-wide">
-                    B2B {String(detail.tipo_doc) === 'RUC' ? '- SUNAT: ACTIVO/HABIDO' : '- Entidad Extranjera Verificada'}
+                    B2B {String(detail.tipo_doc) === 'RUC' ? '- Empresa Local' : '- Entidad Extranjera'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded bg-purple-500/20 px-2 py-0.5 text-[10px] font-medium text-purple-400 border border-purple-500/30 uppercase tracking-wide">

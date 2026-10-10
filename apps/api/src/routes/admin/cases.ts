@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -1336,8 +1337,18 @@ casesRouter.delete(
   requirePermission('admin.reclamos.manage'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const password = req.body.password;
+    if (!password) throw new HttpError(400, 'Se requiere la contraseña de administrador para purgar.');
+    const adminId = (req as any).admin?.id;
+    if (!adminId) throw new HttpError(401, 'No autorizado.');
+
     const client = await pool.connect();
     try {
+      const adminRes = await client.query('SELECT password_hash FROM admin_users WHERE id = $1', [adminId]);
+      if (adminRes.rowCount === 0) throw new HttpError(401, 'Administrador no encontrado.');
+      const validPassword = await bcrypt.compare(password, adminRes.rows[0].password_hash);
+      if (!validPassword) throw new HttpError(401, 'Contraseña incorrecta.');
+
       await client.query('BEGIN');
       await client.query("SET LOCAL app.allow_physical_delete = 'true'");
       const result = await client.query('DELETE FROM complaints WHERE id = $1 RETURNING id', [id]);
@@ -1352,3 +1363,4 @@ casesRouter.delete(
     }
   })
 );
+
