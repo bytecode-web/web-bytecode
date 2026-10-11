@@ -112,6 +112,8 @@ const LibroReclamaciones: React.FC = () => {
     (dt) => dt.countryId === selectedCountryData?.id && dt.isCompanyDocument === true
   );
 
+  const isDocNumberDisabled = formData.personType === 'natural' && !formData.tipoDoc;
+
   const handleSmartValidation = (value: string, trigger: 'change' | 'blur', targetElement: HTMLInputElement, currentPersonType: 'natural' | 'empresa') => {
     if (!value) {
       setTaxIdError('');
@@ -394,21 +396,30 @@ const LibroReclamaciones: React.FC = () => {
               <div className="relative">
                 <Label text={formData.personType === 'empresa' ? (activeCompanyDoc?.name || 'Identificación Corporativa') : 'Número de Documento'} required />
                 <input
-                  name="numeroDoc" // Usa "documentNumber" en Contacto.tsx
+                  name="numeroDoc"
                   type="text"
-                  placeholder={formData.personType === 'empresa' ? (activeCompanyDoc?.placeholder || 'Ingrese su identificación fiscal') : (selectedDocData?.placeholder || 'Número')}
-                  value={formData.numeroDoc} // Usa formData.documentNumber en Contacto.tsx
+                  placeholder={
+                    formData.personType === 'empresa'
+                      ? (activeCompanyDoc?.placeholder || 'Ingrese su identificación fiscal')
+                      : isDocNumberDisabled
+                        ? 'Seleccione tipo de doc primero'
+                        : (selectedDocData?.placeholder || 'Número')
+                  }
+                  value={formData.numeroDoc}
                   onChange={handleDocumentChange}
                   onBlur={handleDocumentBlur}
-                  className={`w-full bg-white rounded-full px-5 lg:px-6 py-[0.6rem] text-[#333] placeholder-gray-400 focus:outline-none transition-all text-[18px] md:text-[20px] shadow-sm ${
-                    taxIdError 
-                      ? 'ring-2 ring-red-400 focus:ring-red-400' 
-                      : 'focus:ring-2 focus:ring-[#06CFD6]'
+                  disabled={isDocNumberDisabled}
+                  className={`w-full rounded-full px-5 lg:px-6 py-[0.6rem] transition-all text-[18px] md:text-[20px] shadow-sm focus:outline-none ${
+                    isDocNumberDisabled
+                      ? 'bg-white/60 text-gray-400 placeholder-gray-400/80 cursor-not-allowed border border-gray-200 opacity-80'
+                      : taxIdError 
+                        ? 'bg-white text-[#333] placeholder-gray-400 ring-2 ring-red-400 focus:ring-red-400' 
+                        : 'bg-white text-[#333] placeholder-gray-400 focus:ring-2 focus:ring-[#06CFD6]'
                   }`}
                   required
                   maxLength={formData.personType === 'empresa' ? (activeCompanyDoc?.maxLength || 40) : (selectedDocData?.maxLength || 40)}
                 />
-                {taxIdError && (
+                {taxIdError && !isDocNumberDisabled && (
                   <span className="absolute -bottom-5 left-4 text-xs font-bold text-red-400">
                     {taxIdError}
                   </span>
