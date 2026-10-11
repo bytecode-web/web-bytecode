@@ -238,3 +238,47 @@ export function buildSimpleEmail(name: string, title: string, message: string): 
   `;
   return masterLayout(content);
 }
+
+export function buildComplaintResolution(
+  clientName: string, 
+  complaintCode: string, 
+  resolutionType: string, 
+  resolutionBody: string,
+  adminName: string,
+  adminRole: string = "Equipo de Soporte - Bytecode"
+): string {
+  const content = `
+    <h2 style="color: #ffffff; margin-top: 0; text-align: center;">Respuesta a Reclamación</h2>
+    <p>Estimado/a <span class="highlight">${escapeHtml(clientName)}</span>,</p>
+    <p>Nos comunicamos con usted respecto a su hoja de reclamación registrada en nuestro Libro de Reclamaciones Virtual.</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <p style="font-size: 14px; margin: 0; color: #94a3b8;">Código de Seguimiento:</p>
+      <div style="display: inline-block; background-color: rgba(6, 207, 214, 0.1); border: 1px solid #06CFD6; padding: 10px 20px; border-radius: 4px; font-size: 20px; font-weight: bold; color: #06CFD6; letter-spacing: 1px; margin-top: 8px;">
+        ${escapeHtml(complaintCode)}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color: #ffffff; margin-top: 0; font-size: 16px;">Resolución: ${escapeHtml(resolutionType)}</h3>
+      <div style="margin-top: 20px;">
+        <p style="font-size: 14px; margin-bottom: 16px;"><strong style="color: #06CFD6;">Detalle de la Respuesta Oficial:</strong></p>
+        <blockquote style="margin: 0 0 20px 0; padding-left: 15px; border-left: 4px solid #06CFD6; font-style: normal; color: #cbd5e1; font-size: 14px; white-space: pre-wrap;">
+          ${escapeHtml(resolutionBody)}
+        </blockquote>
+      </div>
+    </div>
+
+    <div class="card">
+      <p style="margin: 0; font-size: 14px; color: #cbd5e1;">Agradecemos su retroalimentación, la cual nos ayuda a mejorar continuamente nuestros servicios.</p>
+    </div>
+
+    <div style="margin-top: 30px; border-top: 1px solid #334155; padding-top: 20px;">
+      <p style="margin: 0; color: #94a3b8; font-size: 14px;">Atentamente,</p>
+      <p style="margin: 8px 0 0 0; color: #ffffff; font-weight: bold; font-size: 16px;">${escapeHtml(adminName)}</p>
+      <p style="margin: 2px 0 0 0; color: #06CFD6; font-size: 14px;">${escapeHtml(adminRole)}</p>
+      <p style="margin: 2px 0 0 0; color: #64748b; font-size: 12px;">Bytecode - Innovación Tecnológica</p>
+    </div>
+  `;
+  return masterLayout(content);
+}

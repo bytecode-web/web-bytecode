@@ -36,10 +36,13 @@ const LibroReclamaciones: React.FC = () => {
     detalle: '',
     pedido: '',
     aceptaTerminos: false,
+    aceptaPoliticaDatos: false,
+    invoiceNumber: '',
+    currencyCode: 'PEN',
     countryId: 'default',
   });
   
-  const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
+  const [archivosAdjuntos, setArchivosAdjuntos] = useState<File[]>([]);
   const [selectedCountryData, setSelectedCountryData] = useState<CountryData>({ id: 'default', iso: 'PE', name: 'Perú', dialCode: '+51', maxLength: 9 });
   const [allDocumentTypes, setAllDocumentTypes] = useState<DocumentTypeData[]>([]);
   const [selectedDocData, setSelectedDocData] = useState<DocumentTypeData | null>(null);
@@ -49,7 +52,7 @@ const LibroReclamaciones: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [complaintTypes, setComplaintTypes] = useState<{ id: string, code: string, name: string }[]>([]);
+  const [complaintTypes, setComplaintTypes] = useState<{ id: string, code: string, name: string, legal_description?: string }[]>([]);
   const [serviceOptions, setServiceOptions] = useState<DropdownOption[]>([]);
   const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(true);
   const [allCountries, setAllCountries] = useState<CountryData[]>([]);
@@ -152,18 +155,23 @@ const LibroReclamaciones: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
+      const newFiles = Array.from(e.target.files);
       const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-      if (!allowedTypes.includes(selectedFile.type) || selectedFile.size > 10 * 1024 * 1024) {
-        setArchivoAdjunto(null);
-        setSubmitError('Adjunta un archivo PDF, PNG, JPG, JPEG o WEBP de maximo 10MB.');
-        e.target.value = '';
-        return;
+      
+      const validFiles = newFiles.filter(file => allowedTypes.includes(file.type) && file.size <= 10 * 1024 * 1024);
+      
+      if (validFiles.length !== newFiles.length) {
+        setSubmitError('Algunos archivos no fueron añadidos porque exceden los 10MB o no son PDF/PNG/JPG/WEBP.');
+      } else {
+        setSubmitError('');
       }
 
-      setSubmitError('');
-      setArchivoAdjunto(selectedFile);
+      setArchivosAdjuntos(prev => [...prev, ...validFiles].slice(0, 5)); // limit to 5
     }
+  };
+
+  const removeFile = (index: number) => {
+    setArchivosAdjuntos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCountrySelect = (country: CountryData) => {
@@ -229,8 +237,10 @@ const LibroReclamaciones: React.FC = () => {
     Object.entries(formData).forEach(([key, value]) => {
       payload.append(key, String(value));
     });
-    if (archivoAdjunto) {
-      payload.append('archivoAdjunto', archivoAdjunto);
+    if (archivosAdjuntos.length > 0) {
+      archivosAdjuntos.forEach(file => {
+        payload.append('archivosAdjuntos', file);
+      });
     }
 
     try {
@@ -373,7 +383,26 @@ const LibroReclamaciones: React.FC = () => {
               <Radio name="goodType" value="servicio" label="Servicio" checked={formData.goodType === 'servicio'} onChange={handleChange} />
             </div>
 
-            <div><Label text="Monto Reclamado (Opcional)" /><Input name="montoCuantificable" type="text" placeholder="Ej: S/ 1500.00" value={formData.montoCuantificable} onChange={handleChange} maxLength={80} /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label text="Monto Reclamado (Opcional)" />
+                <div className="flex gap-2">
+                  <div className="w-1/3">
+                    <CustomDropdown
+                      variant="public"
+                      value={formData.currencyCode}
+                      placeholder="Moneda"
+                      options={[{ value: 'PEN', label: 'PEN (S/)' }, { value: 'USD', label: 'USD ($)' }, { value: 'EUR', label: 'EUR (€)' }]}
+                      onChange={(val) => setFormData({ ...formData, currencyCode: val })}
+                    />
+                  </div>
+                  <div className="w-2/3">
+                    <Input name="montoCuantificable" type="text" placeholder="Ej: 1500.00" value={formData.montoCuantificable} onChange={handleChange} maxLength={80} />
+                  </div>
+                </div>
+              </div>
+              <div><Label text="Comprobante de Pago (Factura/Boleta)" /><Input name="invoiceNumber" type="text" placeholder="N° de comprobante (Opcional)" value={formData.invoiceNumber} onChange={handleChange} maxLength={50} /></div>
+            </div>
             <div><Label text="Descripción" required /><Input name="descripcion" type="text" placeholder="Descripción del producto o servicio" value={formData.descripcion} onChange={handleChange} required minLength={2} maxLength={240} /></div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -396,27 +425,49 @@ const LibroReclamaciones: React.FC = () => {
                 <Radio key={ct.id} name="claimType" value={ct.code} label={ct.name} checked={formData.claimType === ct.code} onChange={handleChange} />
               )) : (
                 <>
-                  <Radio name="claimType" value="queja" label="Queja (Malestar o descontento)" checked={formData.claimType === 'queja'} onChange={handleChange} />
-                  <Radio name="claimType" value="reclamo" label="Reclamo (Disconformidad con el servicio)" checked={formData.claimType === 'reclamo'} onChange={handleChange} />
+                  <Radio name="claimType" value="queja" label="Queja" checked={formData.claimType === 'queja'} onChange={handleChange} />
+                  <Radio name="claimType" value="reclamo" label="Reclamo" checked={formData.claimType === 'reclamo'} onChange={handleChange} />
                 </>
               )}
+            </div>
+            <div className="mb-4 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <p className="text-sm text-blue-200">
+                <strong className="text-blue-300 capitalize">{formData.claimType}:</strong>{' '}
+                {complaintTypes.find(ct => ct.code === formData.claimType)?.legal_description || (
+                  formData.claimType === 'reclamo' 
+                    ? 'Disconformidad relacionada a los productos o servicios contratados.' 
+                    : 'Disconformidad no relacionada a los productos o servicios, o malestar respecto a la atención al público.'
+                )}
+              </p>
             </div>
 
             <div><Label text="Motivo" required /><Input name="tipoReclamo" type="text" placeholder="Ej: Incumplimiento de plazos" value={formData.tipoReclamo} onChange={handleChange} required minLength={2} maxLength={160} /></div>
             <div><Label text="Detalle de la queja/reclamo" required /><Textarea name="detalle" placeholder="Explique detalladamente lo sucedido..." rows={4} value={formData.detalle} onChange={handleChange} required minLength={10} maxLength={3000} /></div>
             <div><Label text="Pedido (Solución esperada)" required /><Textarea name="pedido" placeholder="¿Qué solución espera de nuestra parte?" rows={3} value={formData.pedido} onChange={handleChange}required minLength={5} maxLength={2000} /></div>
 
-            {/* ── Adjuntar Archivo ── */}
+          {/* ── Adjuntar Archivo ── */}
             <div className="pt-4">
               <Label text="Adjuntar documento o evidencia (Opcional)" />
               <div className="relative flex items-center justify-center w-full mt-2">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <label className="flex flex-col items-center justify-center w-full min-h-[8rem] border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10 p-4">
+                  <div className="flex flex-col items-center justify-center text-center">
                     <svg className="w-8 h-8 mb-3 text-[#06CFD6]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre el archivo</p>
-                    <p className="text-sm text-white/50">{archivoAdjunto ? archivoAdjunto.name : 'PDF, JPG, PNG o WEBP (Máx. 10MB)'}</p>
+                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre los archivos</p>
+                    <p className="text-sm text-white/50 mb-3">PDF, JPG, PNG o WEBP (Máx. 10MB por archivo)</p>
+                    {archivosAdjuntos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center mt-2 w-full max-w-md">
+                        {archivosAdjuntos.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-[#06CFD6]/10 border border-[#06CFD6]/30 rounded-md px-2 py-1 text-xs text-white/90">
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <button type="button" onClick={(e) => { e.preventDefault(); removeFile(idx); }} className="text-white/60 hover:text-red-400">
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <input type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
+                  <input type="file" className="hidden" multiple onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
                 </label>
               </div>
             </div>
@@ -444,6 +495,20 @@ const LibroReclamaciones: React.FC = () => {
               }
             />
           </div>
+          <div className="mt-4 border-t border-[#06CFD6]/20 pt-4">
+            <AnimatedCheckbox
+              name="aceptaPoliticaDatos"
+              checked={formData.aceptaPoliticaDatos}
+              onChange={(checked) => setFormData({ ...formData, aceptaPoliticaDatos: checked })}
+              required
+              textSizeClassName="text-[14px] md:text-[16px]"
+              label={
+                <>
+                  He leído y acepto la <span className="font-bold underline cursor-pointer text-[#06CFD6]">Política de Protección de Datos Personales (Ley N° 29733)</span>. Autorizo el tratamiento de mis datos para la gestión de este requerimiento.
+                </>
+              }
+            />
+          </div>
 
           {/* ── Submit ── */}
           <div className="pt-4">
@@ -459,7 +524,7 @@ const LibroReclamaciones: React.FC = () => {
               text={isLoadingCatalogs ? "Conectando..." : "Enviar Reclamo"}
               loadingText="Enviando reclamo..."
               successText="¡Reclamo Enviado!"
-              disabled={!formData.aceptaTerminos || isLoadingCatalogs}
+              disabled={!formData.aceptaTerminos || !formData.aceptaPoliticaDatos || isLoadingCatalogs}
               className={`w-full text-white py-4 rounded-full text-[24px] md:text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-50 transition-all duration-300 ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-none lg:disabled:hover:scale-100'}`}
             />
           </div>

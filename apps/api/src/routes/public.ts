@@ -102,6 +102,8 @@ const complaintSchema = z.object({
   personType: z.string().trim().min(1).max(50),
   goodType: z.string().trim().min(1).max(50),
   montoCuantificable: z.string().trim().max(80).optional().default(''),
+  currencyCode: z.string().trim().length(3).optional().default('PEN'),
+  invoiceNumber: z.string().trim().max(50).optional().default(''),
   descripcion: z.string().trim().min(2).max(240),
   nombreUnidad: z.string().trim().max(160).optional().default(''),
   opcionBien: z.string().trim().max(120).optional().default(''),
@@ -110,14 +112,9 @@ const complaintSchema = z.object({
   detalle: z.string().trim().min(10).max(3000),
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
+  aceptaPoliticaDatos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la política de protección de datos.'),
   countryId: z.string().uuid().optional().nullable(),
 });
-
-const createComplaintCode = () => {
-  const date = new Date();
-  const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-  return `REC-${datePart}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-};
 
 const normalizeGoodType = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -166,7 +163,7 @@ router.get('/catalog/document-types', asyncHandler(async (_req: Request, res: Re
 }));
 
 router.get('/catalog/complaint-types', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, code, name FROM complaint_types WHERE is_active = true ORDER BY name ASC');
+  const result = await pool.query('SELECT id, code, name, legal_description FROM complaint_types WHERE is_active = true ORDER BY name ASC');
   res.json({ items: result.rows });
 }));
 
@@ -596,41 +593,62 @@ router.post(
 router.post(
   '/complaints',
   publicFormLimiter,
-  upload.single('archivoAdjunto'),
+  upload.fields([
+    { name: 'archivosAdjuntos', maxCount: 5 },
+    { name: 'archivoAdjunto', maxCount: 1 },
+  ]),
   asyncHandler(async (req: Request, res: Response) => {
     const body = complaintSchema.parse(req.body);
-    const file: Express.Multer.File | undefined = req.file;
-    const code = createComplaintCode();
-    let validatedFile: ValidatedUpload | null = null;
-    let cloudinaryAsset: CloudinaryStoredAsset | null = null;
-    let existingFileAssetId: string | null = null;
+    const filesRecord = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const files: Express.Multer.File[] = [
+      ...(filesRecord?.['archivosAdjuntos'] ?? []),
+      ...(filesRecord?.['archivoAdjunto'] ?? []),
+    ];
+    
+    interface ProcessedFile {
+      validated: ValidatedUpload;
+      cloudinaryAsset?: CloudinaryStoredAsset;
+      existingId?: string;
+      file: Express.Multer.File;
+    }
+    const processedFiles: ProcessedFile[] = [];
 
-    if (file) {
-      validatedFile = await validateUpload(file);
+    const validatedFiles: { file: Express.Multer.File; validated: ValidatedUpload }[] = [];
+    if (files && files.length > 0) {
+      for (const f of files) {
+        const validatedFile = await validateUpload(f);
+        validatedFiles.push({ file: f, validated: validatedFile });
+      }
     }
 
     const client = await pool.connect();
 
     try {
-      if (file && validatedFile) {
-        const fileLookup = await client.query(
-          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
-          [validatedFile.checksumSha256]
-        );
+      if (validatedFiles.length > 0) {
+        for (const item of validatedFiles) {
+          const f = item.file;
+          const validatedFile = item.validated;
+          
+          const fileLookup = await client.query(
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
+            [validatedFile.checksumSha256]
+          );
 
-        if ((fileLookup.rowCount ?? 0) > 0) {
-          existingFileAssetId = fileLookup.rows[0].id;
-        } else {
-          try {
-            cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
-              buffer: file.buffer,
-              complaintCode: code,
-              originalName: validatedFile.originalName,
-              mimeType: validatedFile.mimeType,
-            });
-          } catch (error: unknown) {
-            console.error('Cloudinary complaint evidence upload failed:', error);
-            throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
+          if ((fileLookup.rowCount ?? 0) > 0) {
+            processedFiles.push({ validated: validatedFile, existingId: fileLookup.rows[0].id, file: f });
+          } else {
+            try {
+              const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+                buffer: f.buffer,
+                complaintCode: `TEMP-${Date.now()}`,
+                originalName: validatedFile.originalName,
+                mimeType: validatedFile.mimeType,
+              });
+              processedFiles.push({ validated: validatedFile, cloudinaryAsset, file: f });
+            } catch (error: unknown) {
+              console.error('Cloudinary complaint evidence upload failed:', error);
+              throw new HttpError(502, 'No se pudo almacenar uno de los archivos adjuntos.');
+            }
           }
         }
       }
@@ -756,39 +774,100 @@ router.post(
       const complaintTypeId = (typeRes.rowCount ?? 0) > 0 ? typeRes.rows[0].id : null;
       if (!complaintTypeId) throw new Error('Tipo de reclamo inválido.');
 
-      let fileAssetId = existingFileAssetId;
-      if (!fileAssetId && file && validatedFile && cloudinaryAsset) {
-        const fileRes = await client.query(
-          `
-          INSERT INTO file_assets (
-            original_name, storage_provider, storage_key, public_url,
-            mime_type, byte_size, checksum_sha256
-          )
-          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
-          RETURNING id
-          `,
-          [
-            validatedFile.originalName,
-            cloudinaryAsset.publicId,
-            cloudinaryAsset.secureUrl,
-            validatedFile.mimeType,
-            cloudinaryAsset.bytes || file.size,
-            validatedFile.checksumSha256,
-          ],
-        );
-        fileAssetId = fileRes.rows[0].id;
+      const fileAssetIds: string[] = [];
+      for (const pf of processedFiles) {
+        if (pf.existingId) {
+          fileAssetIds.push(pf.existingId);
+        } else if (pf.cloudinaryAsset) {
+          const fileRes = await client.query(
+            `
+            INSERT INTO file_assets (
+              original_name, storage_provider, storage_key, public_url,
+              mime_type, byte_size, checksum_sha256
+            )
+            VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
+            RETURNING id
+            `,
+            [
+              pf.validated.originalName,
+              pf.cloudinaryAsset.publicId,
+              pf.cloudinaryAsset.secureUrl,
+              pf.validated.mimeType,
+              pf.cloudinaryAsset.bytes || pf.file.size,
+              pf.validated.checksumSha256,
+            ],
+          );
+          fileAssetIds.push(fileRes.rows[0].id);
+        }
+      }
+
+      // 1. Snapshot and Atomic Sequence Generation
+      const currentYear = new Date().getFullYear();
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS complaint_sequences (
+          year INT PRIMARY KEY,
+          last_value INT NOT NULL DEFAULT 0
+        )
+      `);
+      const seqRes = await client.query(
+        `INSERT INTO complaint_sequences (year, last_value)
+         VALUES ($1, COALESCE((SELECT MAX(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), ''))::int FROM complaints WHERE extract(year from created_at) = $1), 0) + 1)
+         ON CONFLICT (year) DO UPDATE SET last_value = complaint_sequences.last_value + 1
+         RETURNING last_value`,
+        [currentYear]
+      );
+      const code = `REC-${currentYear}-${String(seqRes.rows[0].last_value).padStart(5, '0')}`;
+
+      const customerSnapshot = JSON.stringify({
+        nombres: body.nombres,
+        apellidos: body.apellidos,
+        email: body.email,
+        telefono: `${body.prefijoTelefono} ${body.telefono}`,
+        tipoDoc: body.tipoDoc,
+        numeroDoc: body.numeroDoc,
+        domicilio: body.domicilio,
+        personType: body.personType
+      });
+
+      // 2. Calculate Legal Due Date (15 business days)
+      const holidaysRes = await client.query(
+        `SELECT month, day FROM system_holidays sh JOIN countries c ON sh.country_id = c.id
+         WHERE c.iso2 = 'PE' AND (year IS NULL OR year = $1)`,
+        [currentYear]
+      );
+      const holidays = holidaysRes.rows.map(r => `${String(r.month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`);
+      
+      let businessDaysAdded = 0;
+      let dueDate = new Date();
+      let skippedWeekends = 0;
+      let skippedHolidays = 0;
+
+      while (businessDaysAdded < 15) {
+        dueDate.setDate(dueDate.getDate() + 1);
+        const dayOfWeek = dueDate.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          skippedWeekends++;
+          continue;
+        }
+        const monthDay = `${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+        if (holidays.includes(monthDay)) {
+          skippedHolidays++;
+          continue;
+        }
+        businessDaysAdded++;
       }
 
       const result = await client.query(
         `
         INSERT INTO complaints (
             complaint_code, customer_id, complaint_type_id, status_id, 
-            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id
+            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id,
+            customer_snapshot
           )
-          VALUES ($1, $2, $3, $4, $5, now(), now() + interval '15 days', '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
+          VALUES ($1, $2, $3, $4, $5, now(), $6, '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), $7)
         RETURNING id, complaint_code, created_at
         `,
-        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos],
+        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos, dueDate, customerSnapshot],
       );
 
       const complaintId = result.rows[0].id;
@@ -803,18 +882,34 @@ router.post(
 
       await client.query(
         `
-        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount, invoice_number, project_or_unit_name, currency_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `,
-        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable)]
+        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable), body.invoiceNumber, body.nombreUnidad, body.currencyCode]
       );
 
-      if (fileAssetId) {
-        await client.query(
-          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
-          [complaintId, fileAssetId]
-        );
+      if (fileAssetIds.length > 0) {
+        for (const fid of fileAssetIds) {
+          await client.query(
+            `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+            [complaintId, fid]
+          );
+        }
       }
+
+      await client.query(
+        `
+        INSERT INTO complaint_time_events (complaint_id, event_type, metadata)
+        VALUES ($1, 'SUBMITTED_AND_CALCULATED', $2)
+        `,
+        [complaintId, JSON.stringify({
+          base_date: new Date().toISOString(),
+          business_days_allotted: 15,
+          calculated_due_date: dueDate.toISOString(),
+          skipped_weekends: skippedWeekends,
+          skipped_holidays: skippedHolidays
+        })]
+      );
 
       await client.query('COMMIT');
 
@@ -837,7 +932,7 @@ router.post(
         'Monto Reclamado': body.montoCuantificable ? `S/ ${body.montoCuantificable}` : 'No especificado',
         'Detalle del Incidente': body.detalle,
         'Pedido del Cliente': body.pedido,
-        Adjunto: validatedFile?.originalName ?? 'Sin adjunto',
+        Adjunto: processedFiles.length > 0 ? processedFiles.map(pf => pf.validated.originalName).join(', ') : 'Sin adjunto',
       };
 
       const customerReceiptPayload = {
@@ -871,10 +966,14 @@ router.post(
       res.status(201).json({ id: complaintId, code: result.rows[0].complaint_code, createdAt: result.rows[0].created_at });
     } catch (error: unknown) {
       await client.query('ROLLBACK');
-      if (cloudinaryAsset) {
-        await deleteCloudinaryAsset(cloudinaryAsset.publicId, cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
-          console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
-        });
+      if (processedFiles.length > 0) {
+        for (const pf of processedFiles) {
+          if (pf.cloudinaryAsset) {
+            await deleteCloudinaryAsset(pf.cloudinaryAsset.publicId, pf.cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
+              console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
+            });
+          }
+        }
       }
       throw error;
     } finally {
@@ -885,6 +984,16 @@ router.post(
 
 router.get('/catalog/channels', asyncHandler(async (_req: Request, res: Response) => {
   const result = await pool.query('SELECT id, code, name, icon_name, color_hex FROM channel_catalog WHERE is_active = true ORDER BY sort_order ASC, name ASC');
+  res.json({ items: result.rows });
+}));
+
+router.get('/catalog/system-holidays', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query(`
+    SELECT sh.month, sh.day, sh.year 
+    FROM system_holidays sh 
+    JOIN countries c ON sh.country_id = c.id 
+    WHERE c.iso2 = 'PE'
+  `);
   res.json({ items: result.rows });
 }));
 
