@@ -185,6 +185,16 @@ const hasNormalizedContactSchema = async () => {
   COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
   COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
   COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
+  c.organization_id,
+  COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+  CASE
+    WHEN c.organization_id IS NOT NULL 
+      OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
+      OR cu.person_type IN ('company', 'company_contact')
+      OR c.customer_snapshot->>'tipoDoc' = 'RUC'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
   cg.good_type, cg.claimed_amount as monto_cuantificable, cg.currency_code as currency_code, cg.invoice_number as invoice_number, cg.description as descripcion, 
   cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
@@ -705,9 +715,9 @@ casesRouter.get(
     
     if (query.tipo) {
       if (query.tipo === 'b2b') {
-        extraWhere += ` AND (c.customer_snapshot->>'tipoDoc' = 'RUC' OR c.customer_snapshot->>'personType' = 'company')`;
+        extraWhere += ` AND (c.organization_id IS NOT NULL OR c.customer_snapshot->>'tipoDoc' = 'RUC' OR c.customer_snapshot->>'personType' IN ('empresa', 'company') OR cu.person_type IN ('company', 'company_contact'))`;
       } else if (query.tipo === 'b2c') {
-        extraWhere += ` AND (c.customer_snapshot->>'tipoDoc' != 'RUC' AND (c.customer_snapshot->>'personType' IS NULL OR c.customer_snapshot->>'personType' != 'company'))`;
+        extraWhere += ` AND (c.organization_id IS NULL AND c.customer_snapshot->>'tipoDoc' != 'RUC' AND (c.customer_snapshot->>'personType' IS NULL OR c.customer_snapshot->>'personType' NOT IN ('empresa', 'company')) AND cu.person_type NOT IN ('company', 'company_contact'))`;
       } else if (query.tipo === 'reclamo') {
         extraWhere += ` AND ct.name = 'Reclamo'`;
       } else if (query.tipo === 'queja') {
@@ -734,6 +744,16 @@ casesRouter.get(
              COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
              COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
              COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
+             c.organization_id,
+             COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+             CASE
+               WHEN c.organization_id IS NOT NULL 
+                 OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
+                 OR cu.person_type IN ('company', 'company_contact')
+                 OR c.customer_snapshot->>'tipoDoc' = 'RUC'
+               THEN 'B2B'
+               ELSE 'B2C'
+             END as b2_type,
              ct.name as claim_type, cg.category as tipo_reclamo, 
              sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", 
              pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, 
@@ -742,6 +762,7 @@ casesRouter.get(
       JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+      LEFT JOIN organizations o ON c.organization_id = o.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
       LEFT JOIN LATERAL (
@@ -764,6 +785,7 @@ casesRouter.get(
          JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
          LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+         LEFT JOIN organizations o ON c.organization_id = o.id
          JOIN complaint_types ct ON c.complaint_type_id = ct.id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
          ${finalWhereSql}
@@ -799,6 +821,7 @@ casesRouter.get(
       JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+      LEFT JOIN organizations o ON c.organization_id = o.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
@@ -927,6 +950,7 @@ casesRouter.patch(
          JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+      LEFT JOIN organizations o ON c.organization_id = o.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
          LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
@@ -1095,6 +1119,7 @@ casesRouter.post(
         JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
         JOIN status_catalog sc ON c.status_id = sc.id
         LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+        LEFT JOIN organizations o ON c.organization_id = o.id
         JOIN complaint_types ct ON c.complaint_type_id = ct.id
         LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
         LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id

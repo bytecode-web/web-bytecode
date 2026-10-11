@@ -32,9 +32,29 @@ export interface Complaint {
   assigned_to?: string;
   tipo_doc?: string;
   person_type?: string;
+  b2_type?: string;
+  organization_id?: string;
+  legal_name?: string;
   legal_response_due_at?: string;
   deleted_at?: string;
 }
+
+export const isComplaintB2B = (item: {
+  b2_type?: string;
+  person_type?: string;
+  tipo_doc?: string;
+  organization_id?: string | null;
+}): boolean => {
+  if (item.b2_type === 'B2B') return true;
+  if (item.b2_type === 'B2C') return false;
+  return Boolean(
+    item.organization_id ||
+    item.person_type === 'empresa' ||
+    item.person_type === 'company' ||
+    item.person_type === 'company_contact' ||
+    item.tipo_doc === 'RUC'
+  );
+};
 
 type ComplaintItem = Complaint;
 
@@ -475,9 +495,9 @@ const Reclamos: React.FC = () => {
             <div className="rounded-lg border border-white/10 bg-white/[0.02] p-5">
               <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
                 <h3 className="text-xs font-semibold uppercase tracking-widest text-white/50">Ficha del Reclamante</h3>
-                {String(detail.tipo_doc) === 'RUC' || String(detail.person_type) === 'company' ? (
+                {isComplaintB2B(detail as any) ? (
                   <span className="inline-flex items-center gap-1.5 rounded bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-400 border border-blue-500/30 uppercase tracking-wide">
-                    B2B {String(detail.tipo_doc) === 'RUC' ? '- Empresa Local' : '- Entidad Extranjera'}
+                    B2B {String(detail.tipo_doc) === 'RUC' || !detail.tipo_doc ? '- Empresa Local' : '- Entidad Extranjera'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded bg-purple-500/20 px-2 py-0.5 text-[10px] font-medium text-purple-400 border border-purple-500/30 uppercase tracking-wide">
@@ -486,8 +506,18 @@ const Reclamos: React.FC = () => {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-[10px] uppercase text-white/40 mb-1">Nombre / Razón Social</p><p className="text-sm text-white/80 font-medium">{detail.nombres} {detail.apellidos}</p></div>
-                <div><p className="text-[10px] uppercase text-white/40 mb-1">Documento</p><p className="text-sm text-white/80">{detail.tipo_doc}: {detail.numero_doc}</p></div>
+                {isComplaintB2B(detail as any) ? (
+                  <>
+                    <div><p className="text-[10px] uppercase text-white/40 mb-1">Razón Social</p><p className="text-sm text-white/80 font-medium">{detail.nombres || detail.legal_name || 'No especificado'}</p></div>
+                    <div><p className="text-[10px] uppercase text-white/40 mb-1">Representante Legal</p><p className="text-sm text-white/80 font-medium">{detail.apellidos || 'No especificado'}</p></div>
+                    <div><p className="text-[10px] uppercase text-white/40 mb-1">Identificación Fiscal</p><p className="text-sm text-white/80">{detail.tipo_doc ? `${detail.tipo_doc}: ` : ''}{detail.numero_doc}</p></div>
+                  </>
+                ) : (
+                  <>
+                    <div><p className="text-[10px] uppercase text-white/40 mb-1">Nombre / Consumidor</p><p className="text-sm text-white/80 font-medium">{detail.nombres} {detail.apellidos}</p></div>
+                    <div><p className="text-[10px] uppercase text-white/40 mb-1">Documento de Identidad</p><p className="text-sm text-white/80">{detail.tipo_doc ? `${detail.tipo_doc}: ` : ''}{detail.numero_doc}</p></div>
+                  </>
+                )}
                 <div><p className="text-[10px] uppercase text-white/40 mb-1">Email</p><p className="text-sm text-white/80">{detail.email}</p></div>
                 <div><p className="text-[10px] uppercase text-white/40 mb-1">Teléfono</p><p className="text-sm text-white/80">{detail.prefijo_telefono} {detail.telefono}</p></div>
                 <div className="col-span-2"><p className="text-[10px] uppercase text-white/40 mb-1">Domicilio</p><p className="text-sm text-white/80">{detail.domicilio || 'No especificado'}</p></div>
@@ -902,7 +932,7 @@ const Reclamos: React.FC = () => {
                       {item.claim_type === 'Reclamo' && <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[9px] font-medium text-red-400 border border-red-500/30 uppercase">Reclamo</span>}
                       {item.claim_type === 'Queja' && <span className="rounded bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-medium text-orange-400 border border-orange-500/30 uppercase">Queja</span>}
                       
-                      {(item.tipo_doc === 'RUC' || item.person_type === 'company') ? (
+                      {isComplaintB2B(item) ? (
                         <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-medium text-blue-400 border border-blue-500/30 uppercase">B2B</span>
                       ) : (
                         <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-400 border border-purple-500/30 uppercase">B2C</span>

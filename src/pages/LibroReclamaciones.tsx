@@ -88,7 +88,17 @@ const LibroReclamaciones: React.FC = () => {
         const peCountry = countriesData.find((c: CountryData) => c.iso === 'PE');
         if (peCountry) {
           setSelectedCountryData(peCountry);
-          setFormData(prev => ({ ...prev, countryId: peCountry.id }));
+          const peCompDoc = docTypesData.find((dt: any) => 
+            (dt.countryId === peCountry.id || dt.country_id === peCountry.id) && 
+            (dt.isCompanyDocument === true || dt.is_company_document === true)
+          );
+          setFormData(prev => ({ 
+            ...prev, 
+            countryId: peCountry.id,
+            tipoDoc: prev.personType === 'empresa' && !prev.tipoDoc
+              ? (peCompDoc?.code || 'RUC')
+              : prev.tipoDoc
+          }));
         }
       } catch (error) {
         console.error('Error fetching catalogs:', error);
@@ -109,7 +119,9 @@ const LibroReclamaciones: React.FC = () => {
   };
 
   const activeCompanyDoc = allDocumentTypes.find(
-    (dt) => dt.countryId === selectedCountryData?.id && dt.isCompanyDocument === true
+    (dt: any) => 
+      (dt.countryId === selectedCountryData?.id || dt.country_id === selectedCountryData?.id) && 
+      (dt.isCompanyDocument === true || dt.is_company_document === true)
   );
 
   const isDocNumberDisabled = formData.personType === 'natural' && !formData.tipoDoc;
@@ -233,25 +245,30 @@ const LibroReclamaciones: React.FC = () => {
     setSelectedCountryData(country);
     setSelectedDocData(null);
     const newActiveCompanyDoc = allDocumentTypes.find(
-      (dt) => dt.countryId === country.id && dt.isCompanyDocument === true
+      (dt: any) => (dt.countryId === country.id || dt.country_id === country.id) && (dt.isCompanyDocument === true || dt.is_company_document === true)
     );
     setFormData((prev) => ({
       ...prev,
       countryId: country.id,
       prefijoTelefono: country.dialCode,
       numeroDoc: '',
-      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.code || '') : '',
+      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.code || (country.iso === 'PE' ? 'RUC' : '')) : '',
     }));
     setTaxIdError('');
   };
 
   const handlePersonTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newType = e.target.value as 'natural' | 'empresa';
+    const compDoc = allDocumentTypes.find(
+      (dt: any) => 
+        (dt.countryId === selectedCountryData?.id || dt.country_id === selectedCountryData?.id) && 
+        (dt.isCompanyDocument === true || dt.is_company_document === true)
+    );
     setFormData((prev) => ({
       ...prev,
       personType: newType,
       numeroDoc: '',
-      tipoDoc: newType === 'empresa' ? (activeCompanyDoc?.code || '') : '',
+      tipoDoc: newType === 'empresa' ? (compDoc?.code || activeCompanyDoc?.code || 'RUC') : '',
     }));
     setSelectedDocData(null);
     setTaxIdError('');
@@ -288,8 +305,12 @@ const LibroReclamaciones: React.FC = () => {
     setIsSuccess(false);
     setSubmitError('');
 
+    const finalTipoDoc = formData.personType === 'empresa' && !formData.tipoDoc
+      ? (activeCompanyDoc?.code || 'RUC')
+      : formData.tipoDoc;
+
     const payload = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
+    Object.entries({ ...formData, tipoDoc: finalTipoDoc }).forEach(([key, value]) => {
       payload.append(key, String(value));
     });
     if (archivosAdjuntos.length > 0) {

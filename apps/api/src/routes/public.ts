@@ -656,12 +656,14 @@ router.post(
       await client.query('BEGIN');
 
       let customerId: string;
+      let organizationId: string | null = null;
       const personTypeVal = body.personType === 'empresa' ? 'company_contact' : 'natural';
       const isCompany = body.personType === 'empresa';
       
+      const effectiveDocType = body.tipoDoc || (isCompany ? 'RUC' : '');
       const docTypeRes = await client.query(
         "SELECT id FROM document_types WHERE code = $1 LIMIT 1",
-        [body.tipoDoc]
+        [effectiveDocType]
       );
       const docTypeId = (docTypeRes.rowCount ?? 0) > 0 ? docTypeRes.rows[0].id : null;
 
@@ -727,7 +729,7 @@ router.post(
           [body.numeroDoc],
         );
         
-        const organizationId = existingOrganization.rowCount
+        organizationId = existingOrganization.rowCount
           ? existingOrganization.rows[0].id
           : (await client.query(
               'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
@@ -879,12 +881,12 @@ router.post(
         INSERT INTO complaints (
             complaint_code, customer_id, complaint_type_id, status_id, 
             legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id,
-            customer_snapshot
+            customer_snapshot, organization_id
           )
-          VALUES ($1, $2, $3, $4, $5, now(), $6, '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), $7)
+          VALUES ($1, $2, $3, $4, $5, now(), $6, '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), $7, $8)
         RETURNING id, complaint_code, created_at
         `,
-        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos, dueDate, customerSnapshot],
+        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos, dueDate, customerSnapshot, organizationId],
       );
 
       const complaintId = result.rows[0].id;
