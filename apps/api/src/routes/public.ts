@@ -811,7 +811,24 @@ router.post(
       `);
       const seqRes = await client.query(
         `INSERT INTO complaint_sequences (year, last_value)
-         VALUES ($1::int, COALESCE((SELECT MAX(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), ''))::int FROM complaints WHERE extract(year from created_at)::int = $1::int), 0) + 1)
+         VALUES (
+           $1::int,
+           COALESCE(
+             (
+               SELECT MAX(
+                 CASE 
+                   WHEN complaint_code ~ '^REC-\\d{4}-\\d+$' 
+                   THEN (regexp_replace(complaint_code, '^REC-\\d{4}-', ''))::int 
+                   ELSE 0 
+                 END
+               )
+               FROM complaints
+               WHERE extract(year from created_at)::int = $1::int
+                 AND complaint_code ~ '^REC-\\d{4}-\\d+$'
+             ),
+             0
+           ) + 1
+         )
          ON CONFLICT (year) DO UPDATE SET last_value = complaint_sequences.last_value + 1
          RETURNING last_value`,
         [currentYear]
