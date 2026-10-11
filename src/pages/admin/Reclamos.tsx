@@ -435,7 +435,7 @@ const Reclamos: React.FC = () => {
         slaLabel = `Quedan ${diffDays} días hábiles`;
       } else {
         slaColorClass = 'bg-red-500/20 text-red-400 border-red-500/30';
-        slaLabel = diffDays < 0 ? `Vencido hace ${Math.abs(diffDays)} días` : `¡Vence en ${diffDays} días!`;
+        slaLabel = diffDays < 0 ? `Vencido hace ${Math.abs(diffDays)} días` : diffDays === 0 ? '¡Vence hoy!' : `¡Vence en ${diffDays} días!`;
       }
     }
 

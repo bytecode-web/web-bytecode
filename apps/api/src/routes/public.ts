@@ -614,7 +614,7 @@ router.post(
           const validatedFile = await validateUpload(f);
           
           const fileLookup = await client.query(
-            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
             [validatedFile.checksumSha256]
           );
 
@@ -785,14 +785,22 @@ router.post(
         }
       }
 
-      // 1. Snapshot and Sequence Generation
+      // 1. Snapshot and Atomic Sequence Generation
       const currentYear = new Date().getFullYear();
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS complaint_sequences (
+          year INT PRIMARY KEY,
+          last_value INT NOT NULL DEFAULT 0
+        )
+      `);
       const seqRes = await client.query(
-        `SELECT COALESCE(MAX(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), '')), '0')::int + 1 as next_val 
-         FROM complaints WHERE extract(year from created_at) = $1`,
+        `INSERT INTO complaint_sequences (year, last_value)
+         VALUES ($1, COALESCE((SELECT MAX(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), ''))::int FROM complaints WHERE extract(year from created_at) = $1), 0) + 1)
+         ON CONFLICT (year) DO UPDATE SET last_value = complaint_sequences.last_value + 1
+         RETURNING last_value`,
         [currentYear]
       );
-      const code = `REC-${currentYear}-${String(seqRes.rows[0].next_val).padStart(5, '0')}`;
+      const code = `REC-${currentYear}-${String(seqRes.rows[0].last_value).padStart(5, '0')}`;
 
       const customerSnapshot = JSON.stringify({
         nombres: body.nombres,
@@ -942,7 +950,7 @@ router.post(
       res.status(201).json({ id: complaintId, code: result.rows[0].complaint_code, createdAt: result.rows[0].created_at });
     } catch (error: unknown) {
       await client.query('ROLLBACK');
-      if (typeof processedFiles !== "undefined" && processedFiles.length > 0) {
+      if (processedFiles.length > 0) {
         for (const pf of processedFiles) {
           if (pf.cloudinaryAsset) {
             await deleteCloudinaryAsset(pf.cloudinaryAsset.publicId, pf.cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {

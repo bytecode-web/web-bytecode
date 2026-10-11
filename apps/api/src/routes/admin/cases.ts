@@ -819,7 +819,10 @@ casesRouter.patch(
       }
 
       if (body.status) {
-        if (['resolved', 'closed', 'founded', 'unfounded'].includes(body.status)) {
+        if (['founded', 'unfounded'].includes(body.status)) {
+          const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
+          if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede establecer el estado a "Fundado" o "Infundado" sin emitir previamente una respuesta oficial trazable.');
+        } else if (['resolved', 'closed'].includes(body.status)) {
           const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
           if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede cerrar un reclamo sin emitir previamente una respuesta oficial trazable.');
         }
@@ -1233,7 +1236,7 @@ casesRouter.post(
         let fileAssetId;
 
         const fileLookup = await client.query(
-          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
+          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
           [validatedFile.checksumSha256]
         );
 
@@ -1363,4 +1366,5 @@ casesRouter.delete(
     }
   })
 );
+
 
