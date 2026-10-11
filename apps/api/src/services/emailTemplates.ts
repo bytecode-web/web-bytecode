@@ -36,7 +36,7 @@ export function masterLayout(contentHTML: string): string {
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://www.bytecode.com.pe/vectors/designs/logo_en_blanco.svg" alt="Bytecode Logo" width="130" style="display: block; margin: 0 auto; max-width: 100%;">
+        <img src="https://www.bytecode.com.pe/vectors/designs/logo_en_blanco.png" alt="Bytecode Logo" width="130" style="display: block; margin: 0 auto; max-width: 100%; height: auto;">
       </div>
       <div class="content">
         ${contentHTML}
@@ -104,7 +104,7 @@ export function buildContactReceipt(name: string, lastName: string, caseCode: st
 
     <div class="card">
       <h3 style="color: #ffffff; margin-top: 0; font-size: 16px;">Resumen de tu solicitud</h3>
-      <p><strong style="color: #06CFD6;">Servicio de interés:</strong> ${escapeHtml(capitalize(service))}</p>
+      <p><strong style="color: #06CFD6;">Servicio de interés:</strong> ${escapeHtml(service)}</p>
       <blockquote style="margin: 0; padding-left: 15px; border-left: 4px solid #06CFD6; font-style: italic; color: #cbd5e1;">
         "${escapeHtml(message)}"
       </blockquote>

@@ -562,7 +562,7 @@ router.post(
         Apellido: body.apellido,
         Email: body.email,
         Celular: body.celular,
-        Servicio: capitalize(body.servicio),
+        Servicio: serviceName,
         Mensaje: body.mensaje,
       };
 
@@ -576,7 +576,7 @@ router.post(
         name: body.nombre,
         lastName: body.apellido,
         caseCode: caseCode,
-        service: capitalize(body.servicio),
+        service: serviceName,
         message: body.mensaje
       }, 'contact_cases', result.rows[0].id).catch(console.error);
 
