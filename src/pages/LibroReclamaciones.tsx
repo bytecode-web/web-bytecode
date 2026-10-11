@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ContactFooter from '../components/layout/ContactFooter';
@@ -7,6 +7,7 @@ import CustomDropdown, { type DropdownOption } from '../components/ui/CustomDrop
 import AnimatedCheckbox from '../components/ui/AnimatedCheckbox';
 import AnimatedSubmitButton from '../components/ui/AnimatedSubmitButton';
 import PhoneInputGroup from '../components/ui/PhoneInputGroup';
+import CurrencyInputGroup from '../components/ui/CurrencyInputGroup';
 import { Label } from '../components/ui/Label';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
@@ -43,6 +44,8 @@ const LibroReclamaciones: React.FC = () => {
   });
   
   const [archivosAdjuntos, setArchivosAdjuntos] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCountryData, setSelectedCountryData] = useState<CountryData>({ id: 'default', iso: 'PE', name: 'Perú', dialCode: '+51', maxLength: 9 });
   const [allDocumentTypes, setAllDocumentTypes] = useState<DocumentTypeData[]>([]);
   const [selectedDocData, setSelectedDocData] = useState<DocumentTypeData | null>(null);
@@ -153,25 +156,75 @@ const LibroReclamaciones: React.FC = () => {
     handleSmartValidation(e.target.value, 'blur', e.target, formData.personType as 'natural' | 'empresa');
   };
 
+  const processFiles = (newFiles: File[]) => {
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+    const validFiles: File[] = [];
+    let hasInvalidTypeOrSize = false;
+
+    newFiles.forEach((file) => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const isAllowedExt = ext ? ['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(ext) : false;
+      const isAllowedMime = allowedTypes.includes(file.type);
+
+      if ((isAllowedMime || isAllowedExt) && file.size <= 10 * 1024 * 1024) {
+        validFiles.push(file);
+      } else {
+        hasInvalidTypeOrSize = true;
+      }
+    });
+
+    if (hasInvalidTypeOrSize) {
+      setSubmitError('Algunos archivos no fueron añadidos porque exceden los 10MB o no son PDF/PNG/JPG/WEBP.');
+    } else {
+      setSubmitError('');
+    }
+
+    setArchivosAdjuntos((prev) => {
+      const combined = [...prev, ...validFiles];
+      if (combined.length > 5) {
+        setSubmitError('Solo se permite adjuntar hasta un máximo de 5 archivos.');
+        return combined.slice(0, 5);
+      }
+      return combined;
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-      
-      const validFiles = newFiles.filter(file => allowedTypes.includes(file.type) && file.size <= 10 * 1024 * 1024);
-      
-      if (validFiles.length !== newFiles.length) {
-        setSubmitError('Algunos archivos no fueron añadidos porque exceden los 10MB o no son PDF/PNG/JPG/WEBP.');
-      } else {
-        setSubmitError('');
-      }
+      processFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  };
 
-      setArchivosAdjuntos(prev => [...prev, ...validFiles].slice(0, 5)); // limit to 5
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(Array.from(e.dataTransfer.files));
     }
   };
 
   const removeFile = (index: number) => {
-    setArchivosAdjuntos(prev => prev.filter((_, i) => i !== index));
+    setArchivosAdjuntos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCountrySelect = (country: CountryData) => {
@@ -386,20 +439,13 @@ const LibroReclamaciones: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <Label text="Monto Reclamado (Opcional)" />
-                <div className="flex gap-2">
-                  <div className="w-1/3">
-                    <CustomDropdown
-                      variant="public"
-                      value={formData.currencyCode}
-                      placeholder="Moneda"
-                      options={[{ value: 'PEN', label: 'PEN (S/)' }, { value: 'USD', label: 'USD ($)' }, { value: 'EUR', label: 'EUR (€)' }]}
-                      onChange={(val) => setFormData({ ...formData, currencyCode: val })}
-                    />
-                  </div>
-                  <div className="w-2/3">
-                    <Input name="montoCuantificable" type="text" placeholder="Ej: 1500.00" value={formData.montoCuantificable} onChange={handleChange} maxLength={80} />
-                  </div>
-                </div>
+                <CurrencyInputGroup
+                  currencyValue={formData.currencyCode}
+                  amountValue={formData.montoCuantificable}
+                  onCurrencyChange={(val) => setFormData((prev) => ({ ...prev, currencyCode: val }))}
+                  onAmountChange={handleChange}
+                  placeholder="Ej: 1500.00"
+                />
               </div>
               <div><Label text="Comprobante de Pago (Factura/Boleta)" /><Input name="invoiceNumber" type="text" placeholder="N° de comprobante (Opcional)" value={formData.invoiceNumber} onChange={handleChange} maxLength={50} /></div>
             </div>
@@ -448,28 +494,92 @@ const LibroReclamaciones: React.FC = () => {
           {/* ── Adjuntar Archivo ── */}
             <div className="pt-4">
               <Label text="Adjuntar documento o evidencia (Opcional)" />
-              <div className="relative flex items-center justify-center w-full mt-2">
-                <label className="flex flex-col items-center justify-center w-full min-h-[8rem] border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10 p-4">
-                  <div className="flex flex-col items-center justify-center text-center">
-                    <svg className="w-8 h-8 mb-3 text-[#06CFD6]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre los archivos</p>
-                    <p className="text-sm text-white/50 mb-3">PDF, JPG, PNG o WEBP (Máx. 10MB por archivo)</p>
-                    {archivosAdjuntos.length > 0 && (
-                      <div className="flex flex-wrap gap-2 justify-center mt-2 w-full max-w-md">
-                        {archivosAdjuntos.map((file, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-[#06CFD6]/10 border border-[#06CFD6]/30 rounded-md px-2 py-1 text-xs text-white/90">
-                            <span className="truncate max-w-[150px]">{file.name}</span>
-                            <button type="button" onClick={(e) => { e.preventDefault(); removeFile(idx); }} className="text-white/60 hover:text-red-400">
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative flex flex-col items-center justify-center w-full min-h-[7.5rem] mt-2 border-2 border-dashed rounded-2xl cursor-pointer transition-all p-5 select-none ${
+                  isDragging
+                    ? 'border-[#06CFD6] bg-[#06CFD6]/20 shadow-[0_0_25px_rgba(6,207,214,0.35)] scale-[1.01]'
+                    : 'border-[#06CFD6]/30 bg-white/5 lg:hover:bg-white/10 lg:hover:border-[#06CFD6]/60'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  onChange={handleFileChange}
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+                />
+                <div className="flex flex-col items-center justify-center text-center pointer-events-none">
+                  <svg
+                    className={`w-8 h-8 mb-2 transition-transform duration-200 ${
+                      isDragging ? 'text-[#06CFD6] scale-125' : 'text-[#06CFD6]'
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <p className="mb-1 text-base text-white/80">
+                    {isDragging ? (
+                      <span className="font-bold text-[#06CFD6]">Suelte los archivos aquí</span>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre los archivos
+                      </>
                     )}
-                  </div>
-                  <input type="file" className="hidden" multiple onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
-                </label>
+                  </p>
+                  <p className="text-xs md:text-sm text-white/50">
+                    PDF, JPG, PNG o WEBP (Máx. 10MB por archivo, hasta 5 archivos)
+                  </p>
+                </div>
               </div>
+
+              {/* Lista de archivos adjuntos (Separada de la dropzone para hover independiente) */}
+              {archivosAdjuntos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2.5">
+                  {archivosAdjuntos.map((file, idx) => (
+                    <div
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center gap-2 bg-[#06CFD6]/10 border border-[#06CFD6]/30 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white/90 backdrop-blur-sm shadow-sm"
+                    >
+                      <svg className="w-4 h-4 text-[#06CFD6] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="truncate max-w-[200px] font-medium" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-[11px] text-white/40 shrink-0">
+                        ({(file.size / (1024 * 1024)).toFixed(1)} MB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          removeFile(idx);
+                        }}
+                        title="Eliminar archivo"
+                        className="ml-1 p-1 rounded-full text-white/40 hover:text-red-400 hover:bg-red-500/20 transition-all focus:outline-none"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -480,34 +590,36 @@ const LibroReclamaciones: React.FC = () => {
             </p>
           </div>
 
-          {/* ── Checkbox Términos ── */}
-          <div className="px-2">
-            <AnimatedCheckbox
-              name="aceptaTerminos"
-              checked={formData.aceptaTerminos}
-              onChange={(checked) => setFormData({ ...formData, aceptaTerminos: checked })}
-              required
-              textSizeClassName="text-[16px] md:text-[18px]"
-              label={
-                <>
-                  Declaro que los datos consignados son correctos y <span className="font-bold">acepto estar de acuerdo con el contenido</span> de mi reclamo o queja.
-                </>
-              }
-            />
-          </div>
-          <div className="mt-4 border-t border-[#06CFD6]/20 pt-4">
-            <AnimatedCheckbox
-              name="aceptaPoliticaDatos"
-              checked={formData.aceptaPoliticaDatos}
-              onChange={(checked) => setFormData({ ...formData, aceptaPoliticaDatos: checked })}
-              required
-              textSizeClassName="text-[14px] md:text-[16px]"
-              label={
-                <>
-                  He leído y acepto la <span className="font-bold underline cursor-pointer text-[#06CFD6]">Política de Protección de Datos Personales (Ley N° 29733)</span>. Autorizo el tratamiento de mis datos para la gestión de este requerimiento.
-                </>
-              }
-            />
+          {/* ── Checkboxes de Consentimiento ── */}
+          <div className="space-y-4 pt-2">
+            <div>
+              <AnimatedCheckbox
+                name="aceptaTerminos"
+                checked={formData.aceptaTerminos}
+                onChange={(checked) => setFormData({ ...formData, aceptaTerminos: checked })}
+                required
+                textSizeClassName="text-[15px] md:text-[17px]"
+                label={
+                  <>
+                    Declaro que los datos consignados son correctos y <span className="font-bold">acepto estar de acuerdo con el contenido</span> de mi reclamo o queja.
+                  </>
+                }
+              />
+            </div>
+            <div className="border-t border-[#06CFD6]/20 pt-4">
+              <AnimatedCheckbox
+                name="aceptaPoliticaDatos"
+                checked={formData.aceptaPoliticaDatos}
+                onChange={(checked) => setFormData({ ...formData, aceptaPoliticaDatos: checked })}
+                required
+                textSizeClassName="text-[15px] md:text-[17px]"
+                label={
+                  <>
+                    He leído y acepto la <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-bold underline text-[#06CFD6] hover:text-[#0CA3C6] transition-colors" onClick={(e) => e.stopPropagation()}>Política de Protección de Datos Personales (Ley N° 29733)</a>. Autorizo el tratamiento de mis datos para la gestión de este requerimiento.
+                  </>
+                }
+              />
+            </div>
           </div>
 
           {/* ── Submit ── */}
