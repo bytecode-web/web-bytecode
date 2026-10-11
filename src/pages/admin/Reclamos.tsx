@@ -162,7 +162,8 @@ const Reclamos: React.FC = () => {
         apiRequest<{ data: any }>('/admin/complaints/metrics')
       ]);
       if (result.data.length === 0 && result.total > 0 && page > 1) { setPage(page - 1); return; }
-      setComplaints(result.data);
+      const uniqueComplaints = Array.from(new Map(result.data.map((item) => [item.id, item])).values());
+      setComplaints(uniqueComplaints);
       setTotal(result.total);
       setMetrics(metricsRes.data);
     } catch (requestError) {

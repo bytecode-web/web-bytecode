@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS complaint_sequences (
 INSERT INTO complaint_sequences (year, last_value)
 SELECT 
   extract(year from created_at)::int as year,
-  MAX(COALESCE(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-', ''), '')::int, 0)) as last_value
+  MAX(COALESCE(NULLIF(regexp_replace(complaint_code, '^REC-\\d{4}-(BC-)?', ''), '')::int, 0)) as last_value
 FROM complaints
-WHERE complaint_code ~ '^REC-\\d{4}-\\d+$'
+WHERE complaint_code ~ '^REC-\\d{4}-(BC-)?\\d+$'
 GROUP BY extract(year from created_at)::int
 ON CONFLICT (year) DO UPDATE 
 SET last_value = GREATEST(complaint_sequences.last_value, EXCLUDED.last_value);

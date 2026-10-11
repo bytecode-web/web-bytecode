@@ -817,14 +817,14 @@ router.post(
              (
                SELECT MAX(
                  CASE 
-                   WHEN complaint_code ~ '^REC-\\d{4}-\\d+$' 
-                   THEN (regexp_replace(complaint_code, '^REC-\\d{4}-', ''))::int 
+                   WHEN complaint_code ~ '^REC-\\d{4}-(BC-)?\\d+$' 
+                   THEN (regexp_replace(complaint_code, '^REC-\\d{4}-(BC-)?', ''))::int 
                    ELSE 0 
                  END
                )
                FROM complaints
                WHERE extract(year from created_at)::int = $1::int
-                 AND complaint_code ~ '^REC-\\d{4}-\\d+$'
+                 AND complaint_code ~ '^REC-\\d{4}-(BC-)?\\d+$'
              ),
              0
            ) + 1
@@ -833,7 +833,7 @@ router.post(
          RETURNING last_value`,
         [currentYear]
       );
-      const code = `REC-${currentYear}-${String(seqRes.rows[0].last_value).padStart(5, '0')}`;
+      const code = `REC-${currentYear}-BC-${String(seqRes.rows[0].last_value).padStart(5, '0')}`;
 
       const customerSnapshot = JSON.stringify({
         nombres: body.nombres,

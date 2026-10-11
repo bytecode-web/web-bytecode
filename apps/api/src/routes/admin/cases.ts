@@ -185,7 +185,7 @@ const hasNormalizedContactSchema = async () => {
   COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
   COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
   COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
-  cg.good_type, cg.claimed_amount as monto_cuantificable, cg.description as descripcion, 
+  cg.good_type, cg.claimed_amount as monto_cuantificable, cg.currency_code as currency_code, cg.invoice_number as invoice_number, cg.description as descripcion, 
   cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
   sc.name as status_name, sc.is_terminal as is_terminal,
@@ -744,8 +744,14 @@ casesRouter.get(
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-      LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-      LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+      LEFT JOIN LATERAL (
+        SELECT fa.original_name
+        FROM complaint_evidences ce
+        JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE ce.complaint_id = c.id
+        ORDER BY ce.created_at ASC
+        LIMIT 1
+      ) fa ON true
       ${finalWhereSql}
       ORDER BY pc.weight DESC NULLS LAST, c.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -796,8 +802,14 @@ casesRouter.get(
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-      LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-      LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+      LEFT JOIN LATERAL (
+        SELECT fa.original_name, fa.mime_type, fa.byte_size
+        FROM complaint_evidences ce
+        JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE ce.complaint_id = c.id
+        ORDER BY ce.created_at ASC
+        LIMIT 1
+      ) fa ON true
       WHERE c.id = $1`, 
       [id]
     );
@@ -918,8 +930,14 @@ casesRouter.patch(
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
          LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-         LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-         LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+         LEFT JOIN LATERAL (
+           SELECT fa.original_name, fa.mime_type, fa.byte_size
+           FROM complaint_evidences ce
+           JOIN file_assets fa ON ce.file_asset_id = fa.id
+           WHERE ce.complaint_id = c.id
+           ORDER BY ce.created_at ASC
+           LIMIT 1
+         ) fa ON true
          WHERE c.id = $1`,
         [id],
       );
@@ -1080,8 +1098,14 @@ casesRouter.post(
         JOIN complaint_types ct ON c.complaint_type_id = ct.id
         LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
         LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-        LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-        LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+        LEFT JOIN LATERAL (
+          SELECT fa.original_name, fa.mime_type, fa.byte_size
+          FROM complaint_evidences ce
+          JOIN file_assets fa ON ce.file_asset_id = fa.id
+          WHERE ce.complaint_id = c.id
+          ORDER BY ce.created_at ASC
+          LIMIT 1
+        ) fa ON true
         WHERE c.id = $1`, 
         [id]
       );
