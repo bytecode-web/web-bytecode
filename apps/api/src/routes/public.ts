@@ -593,10 +593,17 @@ router.post(
 router.post(
   '/complaints',
   publicFormLimiter,
-  upload.array('archivosAdjuntos', 5),
+  upload.fields([
+    { name: 'archivosAdjuntos', maxCount: 5 },
+    { name: 'archivoAdjunto', maxCount: 1 },
+  ]),
   asyncHandler(async (req: Request, res: Response) => {
     const body = complaintSchema.parse(req.body);
-    const files = req.files as Express.Multer.File[] | undefined;
+    const filesRecord = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const files: Express.Multer.File[] = [
+      ...(filesRecord?.['archivosAdjuntos'] ?? []),
+      ...(filesRecord?.['archivoAdjunto'] ?? []),
+    ];
     
     interface ProcessedFile {
       validated: ValidatedUpload;
@@ -606,12 +613,21 @@ router.post(
     }
     const processedFiles: ProcessedFile[] = [];
 
+    const validatedFiles: { file: Express.Multer.File; validated: ValidatedUpload }[] = [];
+    if (files && files.length > 0) {
+      for (const f of files) {
+        const validatedFile = await validateUpload(f);
+        validatedFiles.push({ file: f, validated: validatedFile });
+      }
+    }
+
     const client = await pool.connect();
 
     try {
-      if (files && files.length > 0) {
-        for (const f of files) {
-          const validatedFile = await validateUpload(f);
+      if (validatedFiles.length > 0) {
+        for (const item of validatedFiles) {
+          const f = item.file;
+          const validatedFile = item.validated;
           
           const fileLookup = await client.query(
             'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
