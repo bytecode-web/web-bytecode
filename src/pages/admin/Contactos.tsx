@@ -178,10 +178,10 @@ const Contactos: React.FC = () => {
     }
   };
 
-  const loadDetail = async (id: string) => {
+  const loadDetail = async (id: string, syncPage = false) => {
     setSelectedId(id);
     try {
-      const result = await apiRequest<{ item: DetailItem }>(`/admin/contacts/${id}`);
+      const result = await apiRequest<{ item: DetailItem; page?: number }>(`/admin/contacts/${id}?limit=${PAGE_SIZE}`);
       setDetail(result.item);
       setStatus(String(result.item.status ?? 'new'));
       setPriority(String(result.item.priority ?? 'normal'));
@@ -189,6 +189,14 @@ const Contactos: React.FC = () => {
       setCategoryId(String(result.item.category_id || ''));
       setReason('');
       
+      if (syncPage) {
+        if (result.page && result.page !== page) {
+          setPage(result.page);
+        } else {
+          void loadList();
+        }
+      }
+
       const [assignmentResult, statusResult] = await Promise.all([
         apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/contacts/${id}/assignment-history`),
         apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/contacts/${id}/history`),
@@ -222,10 +230,7 @@ const Contactos: React.FC = () => {
       
       if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
         processedAutoOpenId.current = uniqueId;
-        void (async () => {
-          await loadList();
-          await loadDetail(autoOpenId);
-        })();
+        void loadDetail(autoOpenId, true);
         window.history.replaceState({}, '');
       }
     }

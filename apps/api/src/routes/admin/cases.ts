@@ -342,13 +342,33 @@ casesRouter.get(
   requirePermission('admin.contactos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
     const normalized = await hasNormalizedContactSchema();
     const result = await pool.query(
       `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
       [id]
     );
     if (result.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
-    res.json({ item: result.rows[0] });
+
+    const posResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM contact_cases c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE (
+        COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM contact_cases c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+        OR (
+          COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM contact_cases c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          AND c2.created_at > (SELECT created_at FROM contact_cases WHERE id = $1)
+        )
+      )
+      `,
+      [id]
+    );
+    const countBefore = posResult.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({ item: result.rows[0], page });
   }),
 );
 
@@ -766,6 +786,7 @@ casesRouter.get(
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
     const result = await pool.query(
       `SELECT ${complaintColumns} 
       FROM complaints c
@@ -781,7 +802,27 @@ casesRouter.get(
       [id]
     );
     if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
-    res.json({ item: result.rows[0] });
+
+    const posResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM complaints c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE c2.deleted_at IS NULL
+        AND (
+          COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          OR (
+            COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+            AND c2.created_at > (SELECT created_at FROM complaints WHERE id = $1)
+          )
+        )
+      `,
+      [id]
+    );
+    const countBefore = posResult.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({ item: result.rows[0], page });
   }),
 );
 

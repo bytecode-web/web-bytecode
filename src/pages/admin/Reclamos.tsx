@@ -172,11 +172,11 @@ const Reclamos: React.FC = () => {
     }
   };
 
-  const loadDetail = async (id: string) => {
+  const loadDetail = async (id: string, syncPage = false) => {
     setSelectedId(id);
     try {
       const [result, historyResult, assignmentResult, timeEventsResult, responsesResult, evidencesResult, notesResult] = await Promise.all([
-          apiRequest<{ item: DetailItem }>(`/admin/complaints/${id}`),
+          apiRequest<{ item: DetailItem; page?: number }>(`/admin/complaints/${id}?limit=${PAGE_SIZE}`),
           apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/assignment-history`),
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/time-events`),
@@ -185,6 +185,13 @@ const Reclamos: React.FC = () => {
           apiRequest<{ items: any[] }>(`/admin/complaints/${id}/notes`),
         ]);
         setDetail(result.item);
+        if (syncPage) {
+          if (result.page && result.page !== page) {
+            setPage(result.page);
+          } else {
+            void loadList();
+          }
+        }
         setStatusHistory(historyResult.items);
         setHistory(assignmentResult.items);
         setTimeEvents(timeEventsResult.items);
@@ -241,7 +248,7 @@ const Reclamos: React.FC = () => {
     const queryId = searchParams.get('id');
     if (queryId && queryId !== processedAutoOpenId.current) {
       processedAutoOpenId.current = queryId;
-      void loadDetail(queryId);
+      void loadDetail(queryId, true);
     }
   }, [searchParams]);
 
@@ -253,10 +260,7 @@ const Reclamos: React.FC = () => {
       
       if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
         processedAutoOpenId.current = uniqueId;
-        void (async () => {
-          await loadList();
-          await loadDetail(autoOpenId);
-        })();
+        void loadDetail(autoOpenId, true);
         window.history.replaceState({}, '');
       }
     }
