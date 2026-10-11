@@ -40,7 +40,7 @@ const Confirmacion: React.FC = () => {
       
       {/* Fondo espacio */}
       <div className="fixed inset-0" style={{ backgroundColor: '#040e1f' }}>
-        <LazyGalaxyBackground /> 
+        <LazyGalaxyBackground luminousPoints /> 
         <div className="absolute inset-0 bg-[#040e1f]/40" />
         <div className="absolute inset-0 bg-[#040e1f]/70" />
 
@@ -52,6 +52,7 @@ const Confirmacion: React.FC = () => {
           className="absolute inset-0 opacity-50 rotate-180 mix-blend-screen"
           style={{ backgroundImage: `url(${import.meta.env.BASE_URL}vectors/designs/stardust.png)` }}
         />
+        <div className="absolute inset-0 bg-[#040e1f]/50" />
       </div>
 
       <div className="relative z-10 w-full max-w-[750px] mx-auto px-6 py-20 pointer-events-auto flex-1 flex flex-col justify-center items-center">
