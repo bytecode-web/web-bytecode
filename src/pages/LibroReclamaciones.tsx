@@ -423,8 +423,8 @@ const LibroReclamaciones: React.FC = () => {
                     formData.personType === 'empresa'
                       ? (activeCompanyDoc?.placeholder || 'Ingrese su identificación fiscal')
                       : isDocNumberDisabled
-                        ? 'Seleccione tipo de doc primero'
-                        : (selectedDocData?.placeholder || 'Número')
+                        ? 'Número de documento'
+                        : (selectedDocData?.placeholder || 'Número de documento')
                   }
                   value={formData.numeroDoc}
                   onChange={handleDocumentChange}
@@ -432,7 +432,7 @@ const LibroReclamaciones: React.FC = () => {
                   disabled={isDocNumberDisabled}
                   className={`w-full rounded-full px-5 lg:px-6 py-[0.6rem] transition-all text-[18px] md:text-[20px] shadow-sm focus:outline-none ${
                     isDocNumberDisabled
-                      ? 'bg-white/60 text-gray-400 placeholder-gray-400/80 cursor-not-allowed border border-gray-200 opacity-80'
+                      ? 'bg-white/70 text-gray-700 placeholder:text-gray-600 placeholder:opacity-100 cursor-not-allowed border border-gray-200'
                       : taxIdError 
                         ? 'bg-white text-[#333] placeholder-gray-400 ring-2 ring-red-400 focus:ring-red-400' 
                         : 'bg-white text-[#333] placeholder-gray-400 focus:ring-2 focus:ring-[#06CFD6]'
