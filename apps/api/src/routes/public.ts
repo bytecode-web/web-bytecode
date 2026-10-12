@@ -804,7 +804,25 @@ router.post(
       }
 
       // 1. Snapshot and Atomic Sequence Generation
-      const currentYear = new Date().getFullYear();
+      const submissionDate = new Date();
+      const limaFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Lima',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const limaParts = Object.fromEntries(limaFormatter.formatToParts(submissionDate).map(p => [p.type, p.value]));
+      const currentYear = parseInt(limaParts.year, 10);
+      const startMonth = parseInt(limaParts.month, 10);
+      const startDay = parseInt(limaParts.day, 10);
+      const startHour = limaParts.hour;
+      const startMin = limaParts.minute;
+      const startSec = limaParts.second;
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS complaint_sequences (
           year INT PRIMARY KEY,
@@ -848,33 +866,58 @@ router.post(
         personType: body.personType
       });
 
-      // 2. Calculate Legal Due Date (15 business days)
+      // 2. Calculate Legal Due Date (15 business days anchored to America/Lima timezone)
       const holidaysRes = await client.query(
-        `SELECT month, day FROM system_holidays sh JOIN countries c ON sh.country_id = c.id
-         WHERE c.iso2 = 'PE' AND (year IS NULL OR year = $1)`,
-        [currentYear]
+        `SELECT month, day, year, description FROM system_holidays sh JOIN countries c ON sh.country_id = c.id
+         WHERE c.iso2 = 'PE' AND (year IS NULL OR year = $1 OR year = $2)`,
+        [currentYear, currentYear + 1]
       );
-      const holidays = holidaysRes.rows.map(r => `${String(r.month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`);
-      
+      const holidaysList: Array<{ month: number; day: number; year: number | null; description: string }> = holidaysRes.rows;
+
+      const findHoliday = (y: number, m: number, d: number) => {
+        return holidaysList.find(h => {
+          if (h.month !== m || h.day !== d) return false;
+          return h.year === null || h.year === undefined || h.year === y;
+        });
+      };
+
+      let currentCal = new Date(Date.UTC(currentYear, startMonth - 1, startDay, 12, 0, 0));
       let businessDaysAdded = 0;
-      let dueDate = new Date();
       let skippedWeekends = 0;
-      let skippedHolidays = 0;
+      const skippedHolidaysList: string[] = [];
 
       while (businessDaysAdded < 15) {
-        dueDate.setDate(dueDate.getDate() + 1);
-        const dayOfWeek = dueDate.getDay();
+        currentCal.setUTCDate(currentCal.getUTCDate() + 1);
+        const dayOfWeek = currentCal.getUTCDay();
+        const curYear = currentCal.getUTCFullYear();
+        const curMonth = currentCal.getUTCMonth() + 1;
+        const curDay = currentCal.getUTCDate();
+
+        const holiday = findHoliday(curYear, curMonth, curDay);
+
         if (dayOfWeek === 0 || dayOfWeek === 6) {
           skippedWeekends++;
+          if (holiday && !skippedHolidaysList.includes(`${holiday.description} (${curDay}/${curMonth})`)) {
+            skippedHolidaysList.push(`${holiday.description} (${curDay}/${curMonth})`);
+          }
           continue;
         }
-        const monthDay = `${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
-        if (holidays.includes(monthDay)) {
-          skippedHolidays++;
+
+        if (holiday) {
+          if (!skippedHolidaysList.includes(`${holiday.description} (${curDay}/${curMonth})`)) {
+            skippedHolidaysList.push(`${holiday.description} (${curDay}/${curMonth})`);
+          }
           continue;
         }
+
         businessDaysAdded++;
       }
+
+      const finalYear = currentCal.getUTCFullYear();
+      const finalMonth = String(currentCal.getUTCMonth() + 1).padStart(2, '0');
+      const finalDay = String(currentCal.getUTCDate()).padStart(2, '0');
+      const dueIsoString = `${finalYear}-${finalMonth}-${finalDay}T${startHour}:${startMin}:${startSec}-05:00`;
+      const dueDate = new Date(dueIsoString);
 
       const result = await client.query(
         `
@@ -922,11 +965,11 @@ router.post(
         VALUES ($1, 'SUBMITTED_AND_CALCULATED', $2)
         `,
         [complaintId, JSON.stringify({
-          base_date: new Date().toISOString(),
+          base_date: submissionDate.toISOString(),
           business_days_allotted: 15,
           calculated_due_date: dueDate.toISOString(),
           skipped_weekends: skippedWeekends,
-          skipped_holidays: skippedHolidays
+          skipped_holidays: skippedHolidaysList
         })]
       );
 
