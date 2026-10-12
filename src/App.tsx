@@ -51,8 +51,12 @@ const ScrollToTop = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
 
+    const isAdmin = pathname.startsWith('/admin');
+    document.documentElement.classList.toggle('admin-scope', isAdmin);
+    document.body.classList.toggle('admin-scope', isAdmin);
+
     // Google Analytics: Track page views manually (excluding admin routes)
-    if (!pathname.startsWith('/admin') && typeof (window as any).gtag === 'function') {
+    if (!isAdmin && typeof (window as any).gtag === 'function') {
       setTimeout(() => {
         (window as any).gtag('event', 'page_view', {
           page_path: pathname,

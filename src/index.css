@@ -11,25 +11,56 @@
 }
 
 @layer base {
-  /* Evita seleccionar contenido visual o arrastrar imágenes en las vistas. */
-  *,
-  *::before,
-  *::after {
+  /* Evita seleccionar contenido visual o arrastrar imágenes en la sección pública de la web. */
+  body:not(.admin-scope) *,
+  body:not(.admin-scope) *::before,
+  body:not(.admin-scope) *::after {
     -webkit-user-select: none;
     user-select: none;
   }
 
-  input,
-  textarea,
-  [contenteditable="true"],
-  [contenteditable="true"] * {
+  body:not(.admin-scope) input,
+  body:not(.admin-scope) textarea,
+  body:not(.admin-scope) [contenteditable="true"],
+  body:not(.admin-scope) [contenteditable="true"] * {
     -webkit-user-select: text;
     user-select: text;
   }
 
-  img {
+  body:not(.admin-scope) img {
     -webkit-user-drag: none;
     user-drag: none;
+  }
+
+  /* Rutas del panel / admin: recupera la selección, resaltado y arrastre normal de elementos */
+  body.admin-scope,
+  body.admin-scope *,
+  body.admin-scope *::before,
+  body.admin-scope *::after,
+  .admin-scope,
+  .admin-scope *,
+  .admin-scope *::before,
+  .admin-scope *::after {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
+  body.admin-scope input,
+  body.admin-scope textarea,
+  body.admin-scope [contenteditable="true"],
+  body.admin-scope [contenteditable="true"] *,
+  .admin-scope input,
+  .admin-scope textarea,
+  .admin-scope [contenteditable="true"],
+  .admin-scope [contenteditable="true"] * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  body.admin-scope img,
+  .admin-scope img {
+    -webkit-user-drag: auto;
+    user-drag: auto;
   }
 
   body {

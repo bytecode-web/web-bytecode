@@ -46,7 +46,7 @@ const VerifyAccount: React.FC = () => {
   }, [token]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90">
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 admin-scope">
       <div className="w-full max-w-md rounded-2xl border border-white/5 bg-[#0a0a0a] p-8 shadow-2xl text-center">
         <div className="mb-6 flex justify-center">
           <img src="/vectors/designs/logo_en_blanco.svg" alt="Bytecode" className="h-10 opacity-90" />
