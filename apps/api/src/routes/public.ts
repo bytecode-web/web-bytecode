@@ -922,9 +922,9 @@ router.post(
       const finalMonth = String(finalMonthIndex + 1).padStart(2, '0');
       const finalDay = String(finalDayNum).padStart(2, '0');
 
-      // Calcular dueDate sumando las 5 horas de offset de Perú a UTC (UTC = PET + 5h)
-      // Garantiza un objeto Date válido sin depender del parsing de strings
-      let dueDate = new Date(Date.UTC(finalYear, finalMonthIndex, finalDayNum, numHour + 5, numMin, numSec));
+      // Calcular dueDate al término del 15° día hábil (23:59:59 en Hora Oficial de Perú - UTC-5)
+      // En UTC (PET + 5h): 23:59:59 PET equivale a las 28:59:59 UTC (04:59:59 UTC del día siguiente)
+      let dueDate = new Date(Date.UTC(finalYear, finalMonthIndex, finalDayNum, 23 + 5, 59, 59));
       if (isNaN(dueDate.getTime())) {
         dueDate = new Date(submissionDate.getTime() + 15 * 24 * 60 * 60 * 1000);
       }
@@ -990,7 +990,7 @@ router.post(
         : 'Persona natural';
 
       const formattedSubmissionTime = `${String(startDay).padStart(2, '0')}/${String(startMonth).padStart(2, '0')}/${currentYear}, ${startHour}:${startMin}:${startSec} (Hora Oficial de Perú - UTC-5)`;
-      const formattedDueDate = `${finalDay}/${finalMonth}/${finalYear} (Hora Oficial de Perú - UTC-5)`;
+      const formattedDueDate = `${finalDay}/${finalMonth}/${finalYear}, 23:59:59 (Hora Oficial de Perú - UTC-5)`;
 
       const complaintNotificationPayload = {
         Código: code,
@@ -1015,7 +1015,7 @@ router.post(
       const customerReceiptPayload = {
         Cliente: body.personType === 'company' ? body.nombres : `${body.nombres} ${body.apellidos}`,
         'Fecha de Registro': formattedSubmissionTime,
-        'Plazo Legal de Atención': `15 días hábiles — Vence el ${finalDay}/${finalMonth}/${finalYear} (Ley N° 29571 / D.S. N° 011-2011-PCM)`,
+        'Plazo Legal de Atención': `15 días hábiles — Vence el ${finalDay}/${finalMonth}/${finalYear} a las 23:59:59 (Ley N° 29571 / D.S. N° 011-2011-PCM)`,
         Nombres: body.nombres,
         'Representante Legal': body.apellidos,
         'Tipo de Documento': body.tipoDoc,
