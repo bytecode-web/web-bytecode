@@ -37,6 +37,10 @@ export interface Complaint {
   legal_name?: string;
   legal_response_due_at?: string;
   deleted_at?: string;
+  country_id?: string | null;
+  country_name?: string | null;
+  country_iso2?: string | null;
+  country_dial_code?: string | null;
 }
 
 export const isComplaintB2B = (item: {
@@ -98,7 +102,36 @@ const channelIconMap: Record<string, { icon: any, color: string }> = {
   admin: { icon: IconShield, color: '#64748b' }
 };
 
-// ... (skip to the component rendering)
+const formatPhone = (phone?: string | null, dialCode?: string | null): React.ReactNode => {
+  if (!phone) return '-';
+  let rawPhone = String(phone).trim();
+  if (!rawPhone) return '-';
+
+  let prefix = dialCode ? dialCode.trim() : '';
+
+  const match = rawPhone.match(/^(\+\d{1,4})\s*(.*)$/);
+  if (match) {
+    prefix = match[1];
+    rawPhone = match[2];
+  } else if (prefix) {
+    const dialDigits = prefix.replace(/\D/g, '');
+    if (dialDigits && rawPhone.startsWith(dialDigits)) {
+      rawPhone = rawPhone.substring(dialDigits.length).trim();
+    }
+  }
+
+  if (prefix) {
+    const formattedPrefix = prefix.startsWith('(') ? prefix : `(${prefix.startsWith('+') ? prefix : `+${prefix}`})`;
+    return (
+      <>
+        <span className="text-white/45 font-normal mr-1.5">{formattedPrefix}</span>
+        <span>{rawPhone}</span>
+      </>
+    );
+  }
+
+  return rawPhone;
+};
 
 const Reclamos: React.FC = () => {
   const { addToast } = useToastStore();
@@ -494,6 +527,21 @@ const Reclamos: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {(detail.country_iso2 || detail.country_iso) && (
+                <span
+                  className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10 text-white/90"
+                  title={detail.country_name ? String(detail.country_name) : String(detail.country_iso2 || detail.country_iso)}
+                >
+                  <img
+                    src={`https://flagcdn.com/w20/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png`}
+                    srcSet={`https://flagcdn.com/w40/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png 2x`}
+                    alt={String(detail.country_iso2 || detail.country_iso)}
+                    className="w-4 h-auto object-contain rounded-sm shadow-sm"
+                  />
+                  <span>{String(detail.country_iso2 || detail.country_iso).toUpperCase()}</span>
+                </span>
+              )}
+
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
                   {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
@@ -537,7 +585,7 @@ const Reclamos: React.FC = () => {
                   </>
                 )}
                 <div><p className="text-[10px] uppercase text-white/40 mb-1">Email</p><p className="text-sm text-white/80">{detail.email}</p></div>
-                <div><p className="text-[10px] uppercase text-white/40 mb-1">Teléfono</p><p className="text-sm text-white/80">{detail.prefijo_telefono} {detail.telefono}</p></div>
+                <div><p className="text-[10px] uppercase text-white/40 mb-1">Teléfono</p><p className="text-sm text-white/80">{formatPhone(detail.telefono ? String(detail.telefono) : '', detail.prefijo_telefono ? String(detail.prefijo_telefono) : (detail.country_dial_code ? String(detail.country_dial_code) : null))}</p></div>
                 <div className="col-span-2"><p className="text-[10px] uppercase text-white/40 mb-1">Domicilio</p><p className="text-sm text-white/80">{detail.domicilio || 'No especificado'}</p></div>
               </div>
             </div>

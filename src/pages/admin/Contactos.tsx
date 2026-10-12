@@ -39,6 +39,10 @@ export interface ContactCase {
   organization_id?: string | null;
   document_type_name?: string | null;
   document_number?: string | null;
+  country_id?: string | null;
+  country_name?: string | null;
+  country_iso2?: string | null;
+  country_dial_code?: string | null;
 }
 
 export const getContactB2Type = (item: {
@@ -84,7 +88,36 @@ const formatFullName = (item: Pick<ContactItem, 'nombre' | 'apellido'>) =>
 const formatContactTitle = (item: ContactItem) =>
   formatFullName(item) || item.empresa || 'Sin nombre';
 
+const formatPhone = (phone?: string | null, dialCode?: string | null): React.ReactNode => {
+  if (!phone) return '-';
+  let rawPhone = String(phone).trim();
+  if (!rawPhone) return '-';
 
+  let prefix = dialCode ? dialCode.trim() : '';
+
+  const match = rawPhone.match(/^(\+\d{1,4})\s*(.*)$/);
+  if (match) {
+    prefix = match[1];
+    rawPhone = match[2];
+  } else if (prefix) {
+    const dialDigits = prefix.replace(/\D/g, '');
+    if (dialDigits && rawPhone.startsWith(dialDigits)) {
+      rawPhone = rawPhone.substring(dialDigits.length).trim();
+    }
+  }
+
+  if (prefix) {
+    const formattedPrefix = prefix.startsWith('(') ? prefix : `(${prefix.startsWith('+') ? prefix : `+${prefix}`})`;
+    return (
+      <>
+        <span className="text-white/45 font-normal mr-1.5">{formattedPrefix}</span>
+        <span>{rawPhone}</span>
+      </>
+    );
+  }
+
+  return rawPhone;
+};
 
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -275,7 +308,7 @@ const Contactos: React.FC = () => {
           { key: 'apellido', label: 'Apellido' },
           { key: 'cargo', label: 'Cargo' },
           { key: 'email', label: 'Email' },
-          { key: 'celular', label: 'Celular' },
+          { key: 'celular', label: 'Teléfono' },
           { key: 'empresa', label: 'Empresa' },
           { key: 'ruc', label: 'RUC' },
           { key: 'servicio', label: 'Asunto' },
@@ -290,7 +323,7 @@ const Contactos: React.FC = () => {
           { key: 'nombre', label: 'Nombre' },
           { key: 'apellido', label: 'Apellido' },
           { key: 'email', label: 'Email' },
-          { key: 'celular', label: 'Celular' },
+          { key: 'celular', label: 'Teléfono' },
           ...(detail.document_type_name || detail.document_number ? [
             { key: 'document_type_name', label: 'Tipo de Documento' },
             { key: 'document_number', label: 'N° Documento' },
@@ -321,6 +354,21 @@ const Contactos: React.FC = () => {
                 {isB2B ? 'B2B' : 'B2C'}
               </span>
 
+              {(detail.country_iso2 || detail.country_iso) && (
+                <span
+                  className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10 text-white/90"
+                  title={detail.country_name ? String(detail.country_name) : String(detail.country_iso2 || detail.country_iso)}
+                >
+                  <img
+                    src={`https://flagcdn.com/w20/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png`}
+                    srcSet={`https://flagcdn.com/w40/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png 2x`}
+                    alt={String(detail.country_iso2 || detail.country_iso)}
+                    className="w-4 h-auto object-contain rounded-sm"
+                  />
+                  <span>{String(detail.country_iso2 || detail.country_iso).toUpperCase()}</span>
+                </span>
+              )}
+
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
                   {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
@@ -340,7 +388,9 @@ const Contactos: React.FC = () => {
               <div key={key} className={key === 'message' ? 'sm:col-span-2' : ''}>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
-                  {['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
+                  {key === 'celular'
+                    ? formatPhone(detail.celular ? String(detail.celular) : '', detail.country_dial_code ? String(detail.country_dial_code) : null)
+                    : ['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
                     ? formatLocalDate(String(detail[key]))
                     : String(detail[key] ?? '-')}
                 </p>

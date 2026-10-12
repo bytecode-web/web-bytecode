@@ -81,7 +81,12 @@ const contactColumns = `
     FROM customer_documents cd
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
-  ) as document_number
+  ) as document_number,
+  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_id,
+  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_name,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso2,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso,
+  COALESCE(cty.dial_code, substring(cu.primary_phone from '^\+\d+')) as country_dial_code
 `;
 
 const contactJoins = `
@@ -94,6 +99,7 @@ const contactJoins = `
     AND co.organization_id = c.organization_id
     AND co.deleted_at IS NULL
   LEFT JOIN contact_categories cat ON c.category_id = cat.id
+  LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
 `;
 
 const legacyContactColumns = `
@@ -134,7 +140,12 @@ const legacyContactColumns = `
     FROM customer_documents cd
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
-  ) as document_number
+  ) as document_number,
+  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_id,
+  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_name,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso2,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso,
+  COALESCE(cty.dial_code, substring(cu.primary_phone from '^\+\d+')) as country_dial_code
 `;
 
 const legacyContactJoins = `
@@ -142,6 +153,7 @@ const legacyContactJoins = `
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
   LEFT JOIN contact_categories cat ON c.category_id = cat.id
+  LEFT JOIN countries cty ON cu.country_id = cty.id
 `;
 
 let normalizedContactSchema: boolean | null = null;
@@ -181,12 +193,17 @@ const hasNormalizedContactSchema = async () => {
   COALESCE(c.customer_snapshot->>'domicilio', '') as domicilio, 
   COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
   COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc, 
-  COALESCE(c.customer_snapshot->>'prefijoTelefono', '') as prefijo_telefono, 
+  COALESCE(NULLIF(c.customer_snapshot->>'prefijoTelefono', ''), cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+'), '') as prefijo_telefono, 
   COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
   COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
   COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
   c.organization_id,
   COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_id,
+  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_name,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso2,
+  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso,
+  COALESCE(cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+')) as country_dial_code,
   CASE
     WHEN c.organization_id IS NOT NULL 
       OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
@@ -204,6 +221,25 @@ const hasNormalizedContactSchema = async () => {
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
   c.assigned_to, c.created_at, c.updated_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+`;
+
+const complaintJoins = `
+  JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
+  JOIN status_catalog sc ON c.status_id = sc.id
+  LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+  LEFT JOIN organizations o ON c.organization_id = o.id
+  JOIN complaint_types ct ON c.complaint_type_id = ct.id
+  LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
+  LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
+  LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
+  LEFT JOIN LATERAL (
+    SELECT fa.original_name, fa.mime_type, fa.byte_size
+    FROM complaint_evidences ce
+    JOIN file_assets fa ON ce.file_asset_id = fa.id
+    WHERE ce.complaint_id = c.id
+    ORDER BY ce.created_at ASC
+    LIMIT 1
+  ) fa ON true
 `;
 
 const buildWhere = (status?: string, search?: string, fields: string[] = []) => {
@@ -746,6 +782,11 @@ casesRouter.get(
              COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
              c.organization_id,
              COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+             COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_id,
+             COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_name,
+             COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso2,
+             COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso,
+             COALESCE(cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+')) as country_dial_code,
              CASE
                WHEN c.organization_id IS NOT NULL 
                  OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
@@ -765,6 +806,7 @@ casesRouter.get(
       LEFT JOIN organizations o ON c.organization_id = o.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
+      LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
       LEFT JOIN LATERAL (
         SELECT fa.original_name
         FROM complaint_evidences ce
@@ -818,21 +860,7 @@ casesRouter.get(
     const result = await pool.query(
       `SELECT ${complaintColumns} 
       FROM complaints c
-      JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-      JOIN status_catalog sc ON c.status_id = sc.id
-      LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-      LEFT JOIN organizations o ON c.organization_id = o.id
-      JOIN complaint_types ct ON c.complaint_type_id = ct.id
-      LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-      LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-      LEFT JOIN LATERAL (
-        SELECT fa.original_name, fa.mime_type, fa.byte_size
-        FROM complaint_evidences ce
-        JOIN file_assets fa ON ce.file_asset_id = fa.id
-        WHERE ce.complaint_id = c.id
-        ORDER BY ce.created_at ASC
-        LIMIT 1
-      ) fa ON true
+      ${complaintJoins}
       WHERE c.id = $1`, 
       [id]
     );
@@ -947,21 +975,7 @@ casesRouter.patch(
       const updated = await client.query(
         `SELECT ${complaintColumns}
          FROM complaints c
-         JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-         JOIN status_catalog sc ON c.status_id = sc.id
-      LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-      LEFT JOIN organizations o ON c.organization_id = o.id
-      JOIN complaint_types ct ON c.complaint_type_id = ct.id
-         LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-         LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-         LEFT JOIN LATERAL (
-           SELECT fa.original_name, fa.mime_type, fa.byte_size
-           FROM complaint_evidences ce
-           JOIN file_assets fa ON ce.file_asset_id = fa.id
-           WHERE ce.complaint_id = c.id
-           ORDER BY ce.created_at ASC
-           LIMIT 1
-         ) fa ON true
+         ${complaintJoins}
          WHERE c.id = $1`,
         [id],
       );
@@ -1116,21 +1130,7 @@ casesRouter.post(
       const updated = await client.query(
         `SELECT ${complaintColumns} 
         FROM complaints c
-        JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-        JOIN status_catalog sc ON c.status_id = sc.id
-        LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-        LEFT JOIN organizations o ON c.organization_id = o.id
-        JOIN complaint_types ct ON c.complaint_type_id = ct.id
-        LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-        LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-        LEFT JOIN LATERAL (
-          SELECT fa.original_name, fa.mime_type, fa.byte_size
-          FROM complaint_evidences ce
-          JOIN file_assets fa ON ce.file_asset_id = fa.id
-          WHERE ce.complaint_id = c.id
-          ORDER BY ce.created_at ASC
-          LIMIT 1
-        ) fa ON true
+        ${complaintJoins}
         WHERE c.id = $1`, 
         [id]
       );

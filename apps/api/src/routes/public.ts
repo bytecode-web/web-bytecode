@@ -113,7 +113,7 @@ const complaintSchema = z.object({
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
   aceptaPoliticaDatos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la política de protección de datos.'),
-  countryId: z.string().uuid().optional().nullable(),
+  countryId: z.preprocess((value) => value === '' || value === 'default' ? undefined : value, z.string().uuid().optional().nullable()),
 });
 
 const normalizeGoodType = (value: string) => {
@@ -466,8 +466,8 @@ router.post(
 
         if (existingOrganization.rowCount) {
           await client.query(
-            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
-            [organizationId, body.empresa],
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, country_id = COALESCE($3, country_id), updated_at = now() WHERE id = $1',
+            [organizationId, body.empresa, body.countryId ?? null],
           );
         }
 
@@ -655,6 +655,13 @@ router.post(
 
       await client.query('BEGIN');
 
+      if (!body.countryId && body.prefijoTelefono) {
+        const cRes = await client.query('SELECT id FROM countries WHERE dial_code = $1 LIMIT 1', [body.prefijoTelefono]);
+        if ((cRes.rowCount ?? 0) > 0) {
+          body.countryId = cRes.rows[0].id;
+        }
+      }
+
       let customerId: string;
       let organizationId: string | null = null;
       const personTypeVal = body.personType === 'empresa' ? 'company_contact' : 'natural';
@@ -738,8 +745,8 @@ router.post(
 
         if (existingOrganization.rowCount) {
           await client.query(
-            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
-            [organizationId, body.nombres],
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, country_id = COALESCE($3, country_id), updated_at = now() WHERE id = $1',
+            [organizationId, body.nombres, body.countryId ?? null],
           );
         }
 
@@ -862,7 +869,8 @@ router.post(
         nombres: body.nombres,
         apellidos: body.apellidos,
         email: body.email,
-        telefono: `${body.prefijoTelefono} ${body.telefono}`,
+        prefijoTelefono: body.prefijoTelefono,
+        telefono: `${body.prefijoTelefono} ${body.telefono}`.trim(),
         tipoDoc: body.tipoDoc,
         numeroDoc: body.numeroDoc,
         domicilio: body.domicilio,
