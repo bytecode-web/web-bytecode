@@ -82,11 +82,11 @@ const contactColumns = `
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
   ) as document_number,
-  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_id,
-  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_name,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso2,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso,
-  COALESCE(cty.dial_code, substring(cu.primary_phone from '^\+\d+')) as country_dial_code
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code
 `;
 
 const contactJoins = `
@@ -141,11 +141,11 @@ const legacyContactColumns = `
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
   ) as document_number,
-  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_id,
-  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_name,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso2,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(cu.primary_phone from '^\+\d+') LIMIT 1)) as country_iso,
-  COALESCE(cty.dial_code, substring(cu.primary_phone from '^\+\d+')) as country_dial_code
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code
 `;
 
 const legacyContactJoins = `
@@ -193,17 +193,17 @@ const hasNormalizedContactSchema = async () => {
   COALESCE(c.customer_snapshot->>'domicilio', '') as domicilio, 
   COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
   COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc, 
-  COALESCE(NULLIF(c.customer_snapshot->>'prefijoTelefono', ''), cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+'), '') as prefijo_telefono, 
+  COALESCE(NULLIF(c.customer_snapshot->>'prefijoTelefono', ''), cty.dial_code, '') as prefijo_telefono, 
   COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
   COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
   COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
   c.organization_id,
   COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
-  COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_id,
-  COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_name,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso2,
-  COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso,
-  COALESCE(cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+')) as country_dial_code,
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code,
   CASE
     WHEN c.organization_id IS NOT NULL 
       OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
@@ -782,11 +782,11 @@ casesRouter.get(
              COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
              c.organization_id,
              COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
-             COALESCE(cty.id, (SELECT id FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_id,
-             COALESCE(cty.name, (SELECT name FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_name,
-             COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso2,
-             COALESCE(cty.iso2, (SELECT iso2 FROM countries WHERE dial_code = substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+') LIMIT 1)) as country_iso,
-             COALESCE(cty.dial_code, substring(COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) from '^\+\d+')) as country_dial_code,
+             cty.id as country_id,
+             cty.name as country_name,
+             cty.iso2 as country_iso2,
+             cty.iso2 as country_iso,
+             cty.dial_code as country_dial_code,
              CASE
                WHEN c.organization_id IS NOT NULL 
                  OR c.customer_snapshot->>'personType' IN ('empresa', 'company')

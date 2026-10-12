@@ -870,7 +870,7 @@ router.post(
         apellidos: body.apellidos,
         email: body.email,
         prefijoTelefono: body.prefijoTelefono,
-        telefono: `${body.prefijoTelefono} ${body.telefono}`.trim(),
+        telefono: body.telefono,
         tipoDoc: body.tipoDoc,
         numeroDoc: body.numeroDoc,
         domicilio: body.domicilio,
