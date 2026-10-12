@@ -807,21 +807,24 @@ router.post(
       const submissionDate = new Date();
       const limaFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Lima',
+        hourCycle: 'h23',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false
       });
       const limaParts = Object.fromEntries(limaFormatter.formatToParts(submissionDate).map(p => [p.type, p.value]));
       const currentYear = parseInt(limaParts.year, 10);
       const startMonth = parseInt(limaParts.month, 10);
       const startDay = parseInt(limaParts.day, 10);
-      const startHour = limaParts.hour;
-      const startMin = limaParts.minute;
-      const startSec = limaParts.second;
+      const numHour = parseInt(limaParts.hour, 10) % 24;
+      const numMin = parseInt(limaParts.minute, 10);
+      const numSec = parseInt(limaParts.second, 10);
+      const startHour = String(numHour).padStart(2, '0');
+      const startMin = String(numMin).padStart(2, '0');
+      const startSec = String(numSec).padStart(2, '0');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS complaint_sequences (
@@ -914,10 +917,17 @@ router.post(
       }
 
       const finalYear = currentCal.getUTCFullYear();
-      const finalMonth = String(currentCal.getUTCMonth() + 1).padStart(2, '0');
-      const finalDay = String(currentCal.getUTCDate()).padStart(2, '0');
-      const dueIsoString = `${finalYear}-${finalMonth}-${finalDay}T${startHour}:${startMin}:${startSec}-05:00`;
-      const dueDate = new Date(dueIsoString);
+      const finalMonthIndex = currentCal.getUTCMonth();
+      const finalDayNum = currentCal.getUTCDate();
+      const finalMonth = String(finalMonthIndex + 1).padStart(2, '0');
+      const finalDay = String(finalDayNum).padStart(2, '0');
+
+      // Calcular dueDate sumando las 5 horas de offset de Perú a UTC (UTC = PET + 5h)
+      // Garantiza un objeto Date válido sin depender del parsing de strings
+      let dueDate = new Date(Date.UTC(finalYear, finalMonthIndex, finalDayNum, numHour + 5, numMin, numSec));
+      if (isNaN(dueDate.getTime())) {
+        dueDate = new Date(submissionDate.getTime() + 15 * 24 * 60 * 60 * 1000);
+      }
 
       const result = await client.query(
         `
