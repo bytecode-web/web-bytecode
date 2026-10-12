@@ -979,9 +979,14 @@ router.post(
         ? 'Empresa' 
         : 'Persona natural';
 
+      const formattedSubmissionTime = `${String(startDay).padStart(2, '0')}/${String(startMonth).padStart(2, '0')}/${currentYear}, ${startHour}:${startMin}:${startSec} (Hora Oficial de Perú - UTC-5)`;
+      const formattedDueDate = `${finalDay}/${finalMonth}/${finalYear} (Hora Oficial de Perú - UTC-5)`;
+
       const complaintNotificationPayload = {
         Código: code,
         'Tipo de cliente': displayPersonType,
+        'Fecha de Registro': formattedSubmissionTime,
+        'Vencimiento Legal SLA': formattedDueDate,
         Nombres: body.nombres,
         'Representante Legal': body.apellidos,
         'Tipo de Documento': body.tipoDoc,
@@ -999,6 +1004,8 @@ router.post(
 
       const customerReceiptPayload = {
         Cliente: body.personType === 'company' ? body.nombres : `${body.nombres} ${body.apellidos}`,
+        'Fecha de Registro': formattedSubmissionTime,
+        'Plazo Legal de Atención': `15 días hábiles — Vence el ${finalDay}/${finalMonth}/${finalYear} (Ley N° 29571 / D.S. N° 011-2011-PCM)`,
         Nombres: body.nombres,
         'Representante Legal': body.apellidos,
         'Tipo de Documento': body.tipoDoc,

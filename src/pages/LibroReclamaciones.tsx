@@ -377,10 +377,9 @@ const LibroReclamaciones: React.FC = () => {
             </p>
           </div>
           
-          {/* Columna 3  */}
           <div className="flex-1 text-center">
-            <p className="text-white font-medium text-[15px] sm:text-[20px] md:text-[24px] tracking-wide">
-              {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+            <p className="text-white font-medium text-[15px] sm:text-[20px] md:text-[24px] tracking-wide" title="Fecha Oficial de Registro (Hora Oficial de Perú - UTC-5)">
+              {new Date().toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: '2-digit' })}
             </p>
           </div>
         </motion.div>
@@ -652,6 +651,9 @@ const LibroReclamaciones: React.FC = () => {
                 }
               />
             </div>
+            <p className="text-white/40 text-xs mt-3 leading-relaxed">
+              * Conforme a la Ley N° 29571 y el D.S. N° 011-2011-PCM, el cómputo de plazos y atención de reclamos se rige según el horario oficial y calendario de días hábiles de la República del Perú (UTC-5).
+            </p>
           </div>
 
           {/* ── Submit ── */}

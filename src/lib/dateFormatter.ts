@@ -67,3 +67,81 @@ export const formatLocalDate = (value?: string | null, style: DateFormatStyle = 
     return value; // Fallback al valor crudo en caso de parseo inválido
   }
 };
+
+/**
+ * Formatea una fecha estrictamente en la zona horaria oficial de Perú (America/Lima, UTC-5).
+ */
+export const formatPeruDate = (
+  value?: string | number | Date | null,
+  includeSeconds = true,
+  style: 'short' | 'medium' = 'short'
+): string => {
+  if (value === undefined || value === null || value === '') return '';
+  try {
+    const d = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
+    if (isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('es-PE', {
+      timeZone: 'America/Lima',
+      dateStyle: style,
+      timeStyle: includeSeconds ? 'medium' : 'short',
+      hour12: true,
+    }).format(d);
+  } catch (error) {
+    console.error('Error formateando fecha Perú:', error);
+    return String(value);
+  }
+};
+
+/**
+ * Retorna true si la zona horaria del navegador es distinta a la oficial de Perú (America/Lima).
+ */
+export const isNonPeruTimezone = (): boolean => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz !== 'America/Lima';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Formatea una fecha legalmente en Hora de Perú (PET / UTC-5) y, si el agente o usuario está en otro país,
+ * provee también la hora local de su navegador para evitar discrepancias operativas.
+ */
+export const formatLegalDualDate = (
+  value?: string | number | Date | null,
+  includeSeconds = true
+): { peruText: string; localText?: string; isDifferentTimezone: boolean } => {
+  if (value === undefined || value === null || value === '') return { peruText: '', isDifferentTimezone: false };
+  const d = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
+  if (isNaN(d.getTime())) return { peruText: '', isDifferentTimezone: false };
+
+  const peruFormatted = new Intl.DateTimeFormat('es-PE', {
+    timeZone: 'America/Lima',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeStyle: includeSeconds ? 'medium' : 'short',
+    hour12: true,
+  }).format(d);
+
+  const peruText = `${peruFormatted} (PET / Hora Perú)`;
+  const different = isNonPeruTimezone();
+
+  if (different) {
+    const localFormatted = new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeStyle: includeSeconds ? 'medium' : 'short',
+      hour12: true,
+    }).format(d);
+    return {
+      peruText,
+      localText: `${localFormatted} (Tu hora local)`,
+      isDifferentTimezone: true,
+    };
+  }
+
+  return { peruText, isDifferentTimezone: false };
+};

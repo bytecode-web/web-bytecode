@@ -158,7 +158,7 @@ export function buildComplaintReceipt(complaintCode: string, payload: Record<str
     </div>
 
     <div class="card">
-      <p style="margin: 0; font-size: 14px; color: #cbd5e1;">Según lo establecido por la normativa vigente, estaremos brindándole una respuesta en el plazo de ley estipulado. Adjuntamos a este correo los detalles remitidos para su control y seguimiento.</p>
+      <p style="margin: 0; font-size: 14px; color: #cbd5e1;">Según lo establecido por la normativa vigente (Ley N° 29571 / D.S. N° 011-2011-PCM), estaremos brindándole una respuesta formal en un plazo no mayor a quince (15) días hábiles, contabilizados conforme al calendario oficial y hora legal de la República del Perú (UTC-5). Adjuntamos a este correo los detalles remitidos para su control y seguimiento.</p>
     </div>
     <p>Atentamente,<br><strong>El Equipo de Atención al Cliente - Bytecode</strong></p>
   `;

@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
-import { formatLocalDate } from '../../lib/dateFormatter';
+import { formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -425,32 +425,43 @@ const Reclamos: React.FC = () => {
     if (!isReadOnly && detail.legal_response_due_at) {
       const dueDate = new Date(detail.legal_response_due_at);
       const now = new Date();
-      let diffDays = 0;
       const isOverdue = now > dueDate;
-      const startCalc = isOverdue ? new Date(dueDate) : new Date(now);
-      const endCalc = isOverdue ? new Date(now) : new Date(dueDate);
-      startCalc.setHours(0,0,0,0);
-      endCalc.setHours(0,0,0,0);
+
+      // Anclar el cálculo de días hábiles restantes al calendario oficial de Perú (America/Lima)
+      const getLimaCal = (d: Date) => {
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Lima',
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric'
+          }).formatToParts(d).map(p => [p.type, p.value])
+        );
+        return new Date(Date.UTC(parseInt(parts.year, 10), parseInt(parts.month, 10) - 1, parseInt(parts.day, 10), 12, 0, 0));
+      };
+
+      const nowCal = getLimaCal(now);
+      const dueCal = getLimaCal(dueDate);
+
+      let diffDays = 0;
+      const startCalc = isOverdue ? new Date(dueCal) : new Date(nowCal);
+      const endCalc = isOverdue ? new Date(nowCal) : new Date(dueCal);
+
       let current = new Date(startCalc);
       while (current < endCalc) {
-        const day = current.getDay();
-        const offsetDate = new Date(current.getTime() - (current.getTimezoneOffset() * 60000));
-        
-        let isHoliday = false;
-        if (day !== 0 && day !== 6) {
-          const m = offsetDate.getMonth() + 1;
-          const d = offsetDate.getDate();
-          const y = offsetDate.getFullYear();
-          isHoliday = globalHolidays.some(h => h.month === m && h.day === d && (h.year === null || h.year === y));
-        }
+        current.setUTCDate(current.getUTCDate() + 1);
+        const day = current.getUTCDay();
+        const y = current.getUTCFullYear();
+        const m = current.getUTCMonth() + 1;
+        const d = current.getUTCDate();
+
+        const isHoliday = (day !== 0 && day !== 6) && globalHolidays.some(h => h.month === m && h.day === d && (h.year === null || h.year === y));
 
         if (day !== 0 && day !== 6 && !isHoliday) {
           diffDays++;
         }
-        current.setDate(current.getDate() + 1);
       }
       diffDays = isOverdue ? -diffDays : diffDays;
-      
       
       if (diffDays > 7) {
         slaColorClass = 'bg-green-500/20 text-green-400 border-green-500/30';
@@ -471,8 +482,15 @@ const Reclamos: React.FC = () => {
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
             <div className="flex flex-col gap-1">
               <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
-              <div className={"mt-1 w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border " + slaColorClass}>
-                {slaLabel}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={"w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border " + slaColorClass}>
+                  {slaLabel}
+                </div>
+                {detail.legal_response_due_at && (
+                  <span className="text-xs text-white/50" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
+                    Vencimiento Legal: <strong className="text-amber-400 font-semibold">{formatLegalDualDate(detail.legal_response_due_at, false).peruText}</strong>
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -698,13 +716,31 @@ const Reclamos: React.FC = () => {
                         <span className="text-sm font-semibold text-cyan-400">{te.event_type}</span>
                         {te.metadata && te.event_type === 'SUBMITTED_AND_CALCULATED' && (
                           <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
-                            <p><strong className="text-white/90">Registro Oficial:</strong> {new Date(te.metadata.base_date || te.created_at).toLocaleString()}</p>
-                            <p><strong className="text-white/90">Plazo (Días Hábiles):</strong> {te.metadata.business_days_allotted || 15}</p>
-                            <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {te.metadata.skipped_weekends || 0}</p>
-                            <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(te.metadata.skipped_holidays) && te.metadata.skipped_holidays.length > 0 ? te.metadata.skipped_holidays.join(', ') : 'Ninguno'}</p>
-                            <p className="mt-2 pt-2 border-t border-white/10 text-amber-400 font-bold uppercase tracking-wider">
-                              Vencimiento: {te.metadata.calculated_due_date ? new Date(te.metadata.calculated_due_date).toLocaleString() : 'N/A'}
-                            </p>
+                            {(() => {
+                              const baseDual = formatLegalDualDate(te.metadata.base_date || te.created_at, true);
+                              const dueDual = formatLegalDualDate(te.metadata.calculated_due_date, true);
+                              return (
+                                <>
+                                  <div className="mb-1.5">
+                                    <strong className="text-white/90">Registro Oficial:</strong> {baseDual.peruText}
+                                    {baseDual.isDifferentTimezone && (
+                                      <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {baseDual.localText}</span>
+                                    )}
+                                  </div>
+                                  <p><strong className="text-white/90">Plazo (Días Hábiles):</strong> {te.metadata.business_days_allotted || 15}</p>
+                                  <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {te.metadata.skipped_weekends || 0}</p>
+                                  <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(te.metadata.skipped_holidays) && te.metadata.skipped_holidays.length > 0 ? te.metadata.skipped_holidays.join(', ') : 'Ninguno'}</p>
+                                  <div className="mt-2 pt-2 border-t border-white/10">
+                                    <span className="text-amber-400 font-bold uppercase tracking-wider">
+                                      Vencimiento: {dueDual.peruText || 'N/A'}
+                                    </span>
+                                    {dueDual.isDifferentTimezone && (
+                                      <span className="block text-[11px] text-amber-300/80 font-sans mt-0.5 font-normal">↳ {dueDual.localText}</span>
+                                    )}
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -944,9 +980,9 @@ const Reclamos: React.FC = () => {
                         <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-400 border border-amber-500/30 uppercase">Internacional</span>
                       )}
                     </div>
-                    <span className="flex items-center gap-1.5 text-[10px] text-white/30 mt-1">
+                    <span className="flex items-center gap-1.5 text-[10px] text-white/30 mt-1" title="Fecha en horario oficial de Perú (UTC-5)">
                       <CalendarDays className="h-3 w-3 shrink-0" />
-                      <span className="font-medium text-white/40">{formatLocalDate(item.created_at, 'date-medium')}</span>
+                      <span className="font-medium text-white/40">{formatPeruDate(item.created_at, false, 'medium')}</span>
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 justify-start">
