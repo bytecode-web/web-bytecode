@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
-import { formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
+import { formatLocalDate, formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -597,7 +597,9 @@ const Reclamos: React.FC = () => {
                     <div key={ev.id} className="flex items-center justify-between p-3 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 transition">
                       <div className="flex flex-col overflow-hidden mr-3">
                         <span className="text-xs font-medium text-white/90 truncate" title={ev.original_name}>{ev.original_name}</span>
-                        <span className="text-[10px] text-white/40 mt-0.5">{new Date(ev.created_at).toLocaleString()}</span>
+                        <span className="text-[10px] text-white/40 mt-0.5" title={formatLocalDate(ev.created_at, 'datetime-12h-seconds')}>
+                          {formatLocalDate(ev.created_at, 'datetime-12h')}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {(ev.mime_type?.startsWith('image/') || ev.mime_type === 'application/pdf') && (
@@ -674,7 +676,9 @@ const Reclamos: React.FC = () => {
                   <div key={note.id} className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg flex flex-col gap-1">
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-bold text-amber-400">{note.author_name || 'Sistema'}</span>
-                      <span className="text-[10px] text-white/40">{new Date(note.created_at).toLocaleString()}</span>
+                      <span className="text-[10px] text-white/40" title={formatLocalDate(note.created_at, 'datetime-12h-seconds')}>
+                        {formatLocalDate(note.created_at, 'datetime-12h')}
+                      </span>
                     </div>
                     <p className="text-sm text-white/80 whitespace-pre-wrap">{note.note_text}</p>
                   </div>
@@ -743,6 +747,22 @@ const Reclamos: React.FC = () => {
                             })()}
                           </div>
                         )}
+                        {te.metadata && te.event_type === 'OFFICIAL_RESPONSE_SENT' && (
+                          <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
+                            <p><strong className="text-white/90">Tipo de Resolución:</strong> {te.metadata.resolution_type === 'founded' ? 'Fundado' : te.metadata.resolution_type === 'unfounded' ? 'Infundado' : te.metadata.resolution_type || 'Concluido'}</p>
+                            {te.metadata.sent_at && (() => {
+                              const sentDual = formatLegalDualDate(te.metadata.sent_at, true);
+                              return (
+                                <div className="mt-1.5 pt-1.5 border-t border-white/10">
+                                  <strong className="text-white/90">Notificado Oficial:</strong> {sentDual.peruText}
+                                  {sentDual.isDifferentTimezone && (
+                                    <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {sentDual.localText}</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
                     )
                   }))} 
@@ -758,7 +778,9 @@ const Reclamos: React.FC = () => {
                     <div key={r.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-cyan-400">{r.admin_name}</span>
-                        <span className="text-[10px] text-white/40">{new Date(r.created_at).toLocaleString()}</span>
+                        <span className="text-[10px] text-white/40" title={formatLocalDate(r.created_at, 'datetime-12h-seconds')}>
+                          {formatLocalDate(r.created_at, 'datetime-12h')}
+                        </span>
                       </div>
                       <p className="text-sm text-white/80 whitespace-pre-wrap">{r.response_body}</p>
                     </div>
