@@ -1206,7 +1206,7 @@ casesRouter.post(
                COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos
         FROM complaints c
         LEFT JOIN customers cu ON c.customer_id = cu.id
-        WHERE c.id = $1 FOR UPDATE
+        WHERE c.id = $1 FOR UPDATE OF c
       `, [id]);
       
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
