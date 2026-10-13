@@ -127,12 +127,13 @@ export async function notifyAdmins(
   }));
 }
 
-// 3. NUEVA FUNCIÓN: NOTIFICACIONES A CLIENTES (Lista para usar los alias de Zoho)
+// 3. NOTIFICACIONES A CLIENTES (Lista para usar los alias de Zoho y adjuntos reales)
 export async function sendCustomerAcknowledgement(
   toEmail: string,
   subject: string,
   htmlBody: string,
   moduleType: EmailModuleType,
+  attachments?: nodemailer.SendMailOptions['attachments'],
 ) {
   const transporter = await getTransporter();
   if (!transporter) {
@@ -141,12 +142,13 @@ export async function sendCustomerAcknowledgement(
   }
 
   const sender = getSenderConfig(moduleType);
-  const message = {
+  const message: nodemailer.SendMailOptions = {
     from: sender,
     to: toEmail,
     bcc: sender,
     subject,
     html: htmlBody,
+    attachments,
   };
 
   let lastError: unknown;
@@ -172,3 +174,52 @@ export async function sendCustomerAcknowledgement(
 }
 
 export const notifyCustomer = sendCustomerAcknowledgement;
+
+// 4. NOTIFICACIÓN INTERNA DE RESOLUCIÓN A SUPER_ADMIN Y LEGAL_REVIEWER
+export async function sendStaffResolutionNotification(
+  subject: string,
+  htmlBody: string,
+  attachments?: nodemailer.SendMailOptions['attachments'],
+) {
+  const transporter = await getTransporter();
+  if (!transporter) {
+    console.log(`Staff resolution email skipped: ${subject}`);
+    return;
+  }
+
+  const to = await getAdminNotificationEmails(['super_admin', 'legal_reviewer']);
+  if (to.length === 0) {
+    console.log(`Staff resolution email skipped (no active super_admin or legal_reviewer found): ${subject}`);
+    return;
+  }
+
+  const sender = getSenderConfig('complaint');
+  const message: nodemailer.SendMailOptions = {
+    from: sender,
+    to,
+    subject,
+    html: htmlBody,
+    attachments,
+  };
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= SMTP_MAX_RETRIES; attempt += 1) {
+    try {
+      await transporter.sendMail(message);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < SMTP_MAX_RETRIES) {
+        await wait(500 * (attempt + 1));
+      }
+    }
+  }
+
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'error',
+    subsystem: 'smtp',
+    subject,
+    message: lastError instanceof Error ? lastError.message : 'SMTP staff resolution send failed.',
+  }));
+}

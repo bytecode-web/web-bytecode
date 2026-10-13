@@ -11,8 +11,8 @@ import { auditService } from '../../services/audit.js';
 import { sendDirectInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
-import { notifyCustomer } from '../../services/email.js';
-import { buildComplaintResolution } from '../../services/emailTemplates.js';
+import { notifyCustomer, sendStaffResolutionNotification } from '../../services/email.js';
+import { buildComplaintResolution, buildComplaintResolutionStaffNotification } from '../../services/emailTemplates.js';
 import { upload } from './shared.js';
 import { validateUpload } from '../../lib/validateUpload.js';
 import { uploadComplaintEvidenceToCloudinary } from '../../lib/cloudinary.js';
@@ -1186,6 +1186,7 @@ casesRouter.post(
   requireCsrf,
   requirePermission('admin.reclamos.manage'),
   requireNonTerminalState('complaints'),
+  upload.array('archivosAdjuntos', 5),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const bodySchema = z.object({
@@ -1194,18 +1195,27 @@ casesRouter.post(
     });
     
     const body = bodySchema.parse(req.body);
+    const files = req.files as Express.Multer.File[] | undefined;
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
       const current = await client.query(`
-        SELECT c.id, c.complaint_code, c.status_id,
+        SELECT c.id, c.complaint_code, c.status_id, c.organization_id,
+               c.customer_snapshot,
                COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
                COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres,
-               COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos
+               COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos,
+               COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+               COALESCE(c.customer_snapshot->>'personType', cu.person_type, '') as person_type,
+               COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc,
+               COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc,
+               ct.name as claim_type
         FROM complaints c
         LEFT JOIN customers cu ON c.customer_id = cu.id
+        LEFT JOIN organizations o ON c.organization_id = o.id
+        LEFT JOIN complaint_types ct ON c.complaint_type_id = ct.id
         WHERE c.id = $1 FOR UPDATE OF c
       `, [id]);
       
@@ -1222,6 +1232,55 @@ casesRouter.post(
       if (statusRes.rowCount === 0) throw new HttpError(400, 'Estado final inválido.');
       const newStatusId = statusRes.rows[0].id;
       const resolutionLabel = statusRes.rows[0].name;
+
+      // Procesar y asociar archivos adjuntos (si fueron enviados)
+      const attachedFileNames: string[] = [];
+      if (files && files.length > 0) {
+        for (const f of files) {
+          const validatedFile = await validateUpload(f);
+          attachedFileNames.push(validatedFile.originalName);
+          let fileAssetId: string;
+
+          const fileLookup = await client.query(
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
+            [validatedFile.checksumSha256]
+          );
+
+          if ((fileLookup.rowCount ?? 0) > 0) {
+            fileAssetId = fileLookup.rows[0].id;
+          } else {
+            try {
+              const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+                buffer: f.buffer,
+                complaintCode: `RESPONSE-${complaint.complaint_code || id}`,
+                originalName: validatedFile.originalName,
+                mimeType: validatedFile.mimeType,
+              });
+              const fileRes = await client.query(
+                `INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
+                VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6) RETURNING id`,
+                [
+                  validatedFile.originalName,
+                  cloudinaryAsset.publicId,
+                  cloudinaryAsset.secureUrl,
+                  validatedFile.mimeType,
+                  cloudinaryAsset.bytes || f.size,
+                  validatedFile.checksumSha256,
+                ]
+              );
+              fileAssetId = fileRes.rows[0].id;
+            } catch (err) {
+              console.error('Error subiendo archivo adjunto de respuesta a Cloudinary:', err);
+              throw new HttpError(502, 'Error al subir el archivo adjunto de la respuesta.');
+            }
+          }
+
+          await client.query(
+            `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+            [id, fileAssetId]
+          );
+        }
+      }
 
       // Insert response dynamically adapting to all schema columns
       const cols = await getComplaintResponseColumns(client);
@@ -1289,25 +1348,77 @@ casesRouter.post(
       `, [id, JSON.stringify({
         resolution_type: body.final_status_code,
         admin_id: req.admin?.id,
-        sent_at: new Date().toISOString()
+        sent_at: new Date().toISOString(),
+        attachments_count: attachedFileNames.length,
       })]);
       
       await client.query('COMMIT');
 
-      // Send email
+      // Detectar persona jurídica vs natural
+      const isCompany = Boolean(
+        complaint.organization_id ||
+        ['empresa', 'company', 'company_contact'].includes(String(complaint.person_type).toLowerCase()) ||
+        String(complaint.tipo_doc).toUpperCase() === 'RUC'
+      );
+      const companyName = complaint.legal_name || complaint.nombres || 'Empresa';
+      const representativeName = complaint.apellidos || '';
       const clientName = `${complaint.nombres || ''} ${complaint.apellidos || ''}`.trim() || 'Cliente';
+
       const adminName = req.admin?.name || 'Administrador de Bytecode';
       const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
-      const emailHtml = buildComplaintResolution(clientName, complaint.complaint_code, resolutionLabel, body.response_body, adminName, adminRole);
+
+      const emailAttachments = files && files.length > 0 ? files.map(f => ({
+        filename: f.originalname,
+        content: f.buffer,
+        contentType: f.mimetype,
+      })) : undefined;
+
+      // 1. Notificación al Reclamante
+      const emailHtml = buildComplaintResolution({
+        isCompany,
+        companyName,
+        representativeName,
+        clientName,
+        complaintCode: complaint.complaint_code,
+        resolutionType: resolutionLabel,
+        resolutionBody: body.response_body,
+        adminName,
+        adminRole,
+        attachedFileNames,
+      });
       
       if (complaint.email) {
         await notifyCustomer(
           complaint.email,
           `Respuesta Oficial a su Reclamación ${complaint.complaint_code}`,
           emailHtml,
-          'complaint'
-        ).catch(e => console.error("Error enviando correo de respuesta:", e));
+          'complaint',
+          emailAttachments,
+        ).catch(e => console.error("Error enviando correo de respuesta al cliente:", e));
       }
+
+      // 2. Notificación interna para Super Admin y Legal Reviewer
+      const staffEmailHtml = buildComplaintResolutionStaffNotification({
+        complaintCode: complaint.complaint_code,
+        claimType: complaint.claim_type || 'Reclamación',
+        isCompany,
+        clientOrCompanyName: isCompany ? companyName : clientName,
+        representativeName: isCompany && representativeName ? representativeName : undefined,
+        docType: complaint.tipo_doc || undefined,
+        docNumber: complaint.numero_doc || undefined,
+        resolutionType: resolutionLabel,
+        resolutionBody: body.response_body,
+        adminName,
+        adminEmail: req.admin?.email,
+        adminRole,
+        attachedFileNames,
+      });
+
+      await sendStaffResolutionNotification(
+        `[Resolución Oficial] ${complaint.complaint_code} - ${resolutionLabel}`,
+        staffEmailHtml,
+        emailAttachments,
+      ).catch(e => console.error("Error enviando notificación interna de resolución a staff:", e));
 
       res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
     } catch (err) {

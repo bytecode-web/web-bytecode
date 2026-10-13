@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX } from 'lucide-react';
+import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
 import { formatLocalDate, formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
@@ -157,7 +157,41 @@ const Reclamos: React.FC = () => {
   const [responseFormOpen, setResponseFormOpen] = useState(false);
   const [responseBody, setResponseBody] = useState('');
   const [resolutionType, setResolutionType] = useState('founded');
+  const [responseFiles, setResponseFiles] = useState<File[]>([]);
+  const responseFileInputRef = useRef<HTMLInputElement>(null);
   const [isResponding, setIsResponding] = useState(false);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleResponseFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const incoming = Array.from(e.target.files);
+    
+    if (responseFiles.length + incoming.length > 5) {
+      addToast('Puede adjuntar un máximo de 5 archivos a la respuesta oficial.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    for (const f of incoming) {
+      if (f.size > 8 * 1024 * 1024) {
+        addToast(`El archivo "${f.name}" supera el límite máximo de 8MB.`, 'error');
+        e.target.value = '';
+        return;
+      }
+    }
+
+    setResponseFiles(prev => [...prev, ...incoming]);
+    e.target.value = '';
+  };
+
+  const handleRemoveResponseFile = (index: number) => {
+    setResponseFiles(prev => prev.filter((_, i) => i !== index));
+  };
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [metrics, setMetrics] = useState({ total_activos: 0, por_vencer: 0, avg_resolution_days: 0 });
@@ -399,11 +433,21 @@ const Reclamos: React.FC = () => {
     }
     setIsResponding(true);
     try {
+      const payload = new FormData();
+      payload.append('response_body', responseBody);
+      payload.append('final_status_code', resolutionType);
+      responseFiles.forEach(f => {
+        payload.append('archivosAdjuntos', f);
+      });
+
       await apiRequest(`/admin/complaints/${selectedId}/responses`, {
         method: 'POST',
-        json: { response_body: responseBody, final_status_code: resolutionType }
+        body: payload,
       });
       addToast('Respuesta enviada y reclamo cerrado exitosamente.', 'success');
+      setResponseFormOpen(false);
+      setResponseBody('');
+      setResponseFiles([]);
       await loadList();
       await loadDetail(selectedId);
     } catch (err) {
@@ -852,15 +896,21 @@ const Reclamos: React.FC = () => {
         <div className="p-6 border-t border-white/5 bg-[#0a0a0a] flex flex-col gap-4">
             {responseFormOpen ? (
               <div className="rounded-lg border border-white/10 p-4 bg-white/[0.02] flex flex-col gap-3">
-                <h4 className="text-sm font-semibold text-white/90">Respuesta Oficial</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <label className="flex items-center gap-2 text-sm text-white/80">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-white/90">Respuesta Oficial al Reclamante</h4>
+                  <span className="text-[11px] text-cyan-400 font-medium">Resolución Definitiva</span>
+                </div>
+                <p className="text-xs text-white/50 -mt-1">
+                  Esta respuesta será notificada automáticamente al correo del reclamante y al equipo de Super Admin y Legal Reviewer con valor legal.
+                </p>
+                <div className="grid grid-cols-2 gap-4 my-1">
+                  <label className="flex items-center gap-2 text-sm text-white/80 cursor-pointer p-2 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition">
                     <input type="radio" checked={resolutionType === 'founded'} onChange={() => setResolutionType('founded')} className="accent-cyan-500" />
-                    Fundado (Procede)
+                    <span>Fundado <span className="text-xs text-green-400 font-medium">(Procede)</span></span>
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-white/80">
+                  <label className="flex items-center gap-2 text-sm text-white/80 cursor-pointer p-2 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition">
                     <input type="radio" checked={resolutionType === 'unfounded'} onChange={() => setResolutionType('unfounded')} className="accent-cyan-500" />
-                    Infundado (No Procede)
+                    <span>Infundado <span className="text-xs text-red-400 font-medium">(No Procede)</span></span>
                   </label>
                 </div>
                 <textarea
@@ -869,8 +919,64 @@ const Reclamos: React.FC = () => {
                   placeholder="Detalle de la resolución oficial a enviar al cliente..."
                   className="min-h-[120px] w-full rounded-md border border-white/10 bg-black px-3 py-2 text-sm text-white placeholder-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 resize-y custom-scrollbar"
                 />
-                <div className="flex justify-end gap-3 mt-2">
-                  <button onClick={() => setResponseFormOpen(false)} className="px-4 py-2 text-sm text-white/70 hover:text-white transition">Cancelar</button>
+
+                {/* Selector de Archivos Adjuntos a la Respuesta */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-white/70">Documentos o Pruebas Adjuntas (Opcional)</span>
+                    <button
+                      type="button"
+                      onClick={() => responseFileInputRef.current?.click()}
+                      disabled={responseFiles.length >= 5 || isResponding}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 disabled:opacity-40 transition"
+                    >
+                      <Paperclip className="h-3.5 w-3.5" />
+                      <span>{responseFiles.length >= 5 ? 'Límite alcanzado (5)' : 'Adjuntar archivo'}</span>
+                    </button>
+                    <input
+                      ref={responseFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.png,.jpg,.jpeg,.webp"
+                      onChange={handleResponseFilesChange}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {responseFiles.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      {responseFiles.map((f, idx) => (
+                        <div key={idx} className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs">
+                          <div className="flex items-center gap-2 truncate mr-2">
+                            <FileText className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                            <span className="text-white/90 truncate" title={f.name}>{f.name}</span>
+                            <span className="text-[10px] text-white/40 shrink-0">({formatFileSize(f.size)})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveResponseFile(idx)}
+                            disabled={isResponding}
+                            className="text-white/40 hover:text-red-400 p-0.5 transition"
+                            title="Eliminar adjunto"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-2 pt-2 border-t border-white/5">
+                  <button 
+                    onClick={() => {
+                      setResponseFormOpen(false);
+                      setResponseFiles([]);
+                    }} 
+                    className="px-4 py-2 text-sm text-white/70 hover:text-white transition"
+                  >
+                    Cancelar
+                  </button>
                   <button onClick={handleSendResponse} disabled={isResponding} className="flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-400 disabled:opacity-50">
                     {isResponding ? 'Enviando...' : 'Enviar y Cerrar Reclamo'}
                   </button>
