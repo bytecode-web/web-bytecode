@@ -1235,10 +1235,47 @@ casesRouter.post(
 
       // Procesar y asociar archivos adjuntos (si fueron enviados)
       const attachedFileNames: string[] = [];
+      const uniqueEmailAttachments: { filename: string; content: Buffer; contentType: string }[] = [];
+      const seenChecksums = new Set<string>();
+
       if (files && files.length > 0) {
         for (const f of files) {
           const validatedFile = await validateUpload(f);
+
+          // 1. Validar que no se haya seleccionado el mismo archivo dos veces en el lote
+          if (seenChecksums.has(validatedFile.checksumSha256)) {
+            throw new HttpError(
+              400,
+              `El archivo "${validatedFile.originalName}" se encuentra duplicado entre los adjuntos seleccionados.`
+            );
+          }
+          seenChecksums.add(validatedFile.checksumSha256);
+
+          // 2. Validar si el archivo ya fue adjuntado previamente como evidencia en este reclamo
+          const existingEvidence = await client.query(
+            `SELECT fa.original_name 
+             FROM complaint_evidences ce 
+             JOIN file_assets fa ON ce.file_asset_id = fa.id 
+             WHERE ce.complaint_id = $1 AND fa.checksum_sha256 = $2 
+             LIMIT 1`,
+            [id, validatedFile.checksumSha256]
+          );
+
+          if ((existingEvidence.rowCount ?? 0) > 0) {
+            const existingName = existingEvidence.rows[0].original_name || validatedFile.originalName;
+            throw new HttpError(
+              409,
+              `El archivo "${validatedFile.originalName}" ya fue adjuntado previamente como evidencia por parte del reclamante (registrado como "${existingName}"). Debe adjuntar un archivo diferente como sustento.`
+            );
+          }
+
           attachedFileNames.push(validatedFile.originalName);
+          uniqueEmailAttachments.push({
+            filename: f.originalname,
+            content: f.buffer,
+            contentType: f.mimetype,
+          });
+
           let fileAssetId: string;
 
           const fileLookup = await client.query(
@@ -1367,11 +1404,7 @@ casesRouter.post(
       const adminName = req.admin?.name || 'Administrador de Bytecode';
       const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
 
-      const emailAttachments = files && files.length > 0 ? files.map(f => ({
-        filename: f.originalname,
-        content: f.buffer,
-        contentType: f.mimetype,
-      })) : undefined;
+      const emailAttachments = uniqueEmailAttachments.length > 0 ? uniqueEmailAttachments : undefined;
 
       // 1. Notificación al Reclamante
       const emailHtml = buildComplaintResolution({

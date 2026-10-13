@@ -85,3 +85,19 @@ test('buildComplaintResolutionStaffNotification generates detailed internal aler
   assert.ok(html.includes('resolucion_firmada.pdf'));
   assert.ok(html.includes('legal@bytecode.com.pe'));
 });
+
+test('buildComplaintResolution with deduplicated attached files displays unique list', () => {
+  const attachedFileNames = ['evidencia1.png', 'evidencia2.png'];
+  const html = buildComplaintResolution({
+    isCompany: false,
+    clientName: 'Pedro Gómez',
+    complaintCode: 'REC-2026-BC-00005',
+    resolutionType: 'Fundado (Procede)',
+    resolutionBody: 'Resolución con archivos únicos.',
+    adminName: 'Soporte',
+    attachedFileNames,
+  });
+
+  assert.ok(html.includes('evidencia1.png'));
+  assert.ok(html.includes('evidencia2.png'));
+});

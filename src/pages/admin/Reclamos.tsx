@@ -183,6 +183,18 @@ const Reclamos: React.FC = () => {
         e.target.value = '';
         return;
       }
+
+      if (responseFiles.some(existing => existing.name === f.name && existing.size === f.size)) {
+        addToast(`El archivo "${f.name}" ya está seleccionado en la lista de adjuntos.`, 'error');
+        e.target.value = '';
+        return;
+      }
+
+      if (evidences.some(ev => ev.original_name && ev.original_name.toLowerCase() === f.name.toLowerCase())) {
+        addToast(`El archivo "${f.name}" ya fue adjuntado como evidencia por el reclamante. Adjunte un archivo diferente.`, 'error');
+        e.target.value = '';
+        return;
+      }
     }
 
     setResponseFiles(prev => [...prev, ...incoming]);
