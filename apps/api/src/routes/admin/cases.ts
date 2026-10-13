@@ -1223,11 +1223,53 @@ casesRouter.post(
       const newStatusId = statusRes.rows[0].id;
       const resolutionLabel = statusRes.rows[0].name;
 
-      // Insert response
+      // Insert response dynamically adapting to all schema columns
+      const cols = await getComplaintResponseColumns(client);
+      const insertFields: string[] = ['complaint_id'];
+      const insertValues: any[] = [id];
+
+      if (cols.has('admin_user_id')) {
+        insertFields.push('admin_user_id');
+        insertValues.push(req.admin?.id);
+      }
+      if (cols.has('sent_by')) {
+        insertFields.push('sent_by');
+        insertValues.push(req.admin?.id);
+      }
+      if (cols.has('response_body')) {
+        insertFields.push('response_body');
+        insertValues.push(body.response_body);
+      }
+      if (cols.has('body')) {
+        insertFields.push('body');
+        insertValues.push(body.response_body);
+      }
+      if (cols.has('response_type')) {
+        insertFields.push('response_type');
+        insertValues.push('final_response');
+      }
+      if (cols.has('sent_to_email')) {
+        insertFields.push('sent_to_email');
+        insertValues.push(complaint.email || null);
+      }
+      if (cols.has('sent_at')) {
+        insertFields.push('sent_at');
+        insertValues.push(new Date());
+      }
+      if (cols.has('is_final')) {
+        insertFields.push('is_final');
+        insertValues.push(true);
+      }
+      if (cols.has('created_by')) {
+        insertFields.push('created_by');
+        insertValues.push(req.admin?.id);
+      }
+
+      const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(', ');
       await client.query(`
-        INSERT INTO complaint_responses (complaint_id, admin_user_id, response_body)
-        VALUES ($1, $2, $3)
-      `, [id, req.admin?.id, body.response_body]);
+        INSERT INTO complaint_responses (${insertFields.join(', ')})
+        VALUES (${placeholders})
+      `, insertValues);
 
       // Update complaint status
       await client.query(`
@@ -1277,6 +1319,18 @@ casesRouter.post(
   })
 );
 
+let complaintResponseColumnsCache: Set<string> | null = null;
+const getComplaintResponseColumns = async (client: { query: typeof pool.query }) => {
+  if (complaintResponseColumnsCache) return complaintResponseColumnsCache;
+  const res = await client.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'complaint_responses'
+  `);
+  complaintResponseColumnsCache = new Set(res.rows.map((r: { column_name: string }) => r.column_name));
+  return complaintResponseColumnsCache;
+};
+
 casesRouter.get(
   '/complaints/:id/time-events',
   requirePermission('admin.reclamos.view'),
@@ -1300,10 +1354,18 @@ casesRouter.get(
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const cols = await getComplaintResponseColumns(pool);
+    const bodyCol = cols.has('response_body') && cols.has('body')
+      ? 'COALESCE(r.response_body, r.body)'
+      : cols.has('response_body') ? 'r.response_body' : 'r.body';
+    const adminCol = cols.has('admin_user_id') && cols.has('sent_by')
+      ? 'COALESCE(r.admin_user_id, r.sent_by)'
+      : cols.has('admin_user_id') ? 'r.admin_user_id' : 'r.sent_by';
+
     const result = await pool.query(
-      `SELECT r.id, r.response_body, r.created_at, u.name as admin_name
+      `SELECT r.id, ${bodyCol} as response_body, r.created_at, u.name as admin_name
        FROM complaint_responses r
-       JOIN admin_users u ON r.admin_user_id = u.id
+       LEFT JOIN admin_users u ON ${adminCol} = u.id
        WHERE r.complaint_id = $1
        ORDER BY r.created_at DESC`,
       [id]
