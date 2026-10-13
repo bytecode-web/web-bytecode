@@ -1215,13 +1215,13 @@ casesRouter.post(
 
       // Get new status ID
       const statusRes = await client.query(
-        "SELECT id, label FROM status_catalog WHERE domain = 'complaint' AND code = $1",
+        "SELECT id, name FROM status_catalog WHERE domain = 'complaint' AND code = $1",
         [body.final_status_code]
       );
       
       if (statusRes.rowCount === 0) throw new HttpError(400, 'Estado final inválido.');
       const newStatusId = statusRes.rows[0].id;
-      const resolutionLabel = statusRes.rows[0].label;
+      const resolutionLabel = statusRes.rows[0].name;
 
       // Insert response
       await client.query(`
