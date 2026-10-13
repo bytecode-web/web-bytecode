@@ -56,6 +56,8 @@ const contactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
+  sc.is_terminal as is_terminal,
+  sc.is_terminal as "isTerminal",
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code,
@@ -116,6 +118,8 @@ const legacyContactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
+  sc.is_terminal as is_terminal,
+  sc.is_terminal as "isTerminal",
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code,
@@ -215,7 +219,7 @@ const hasNormalizedContactSchema = async () => {
   cg.good_type, cg.claimed_amount as monto_cuantificable, cg.currency_code as currency_code, cg.invoice_number as invoice_number, cg.description as descripcion, 
   cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
-  sc.name as status_name, sc.is_terminal as is_terminal,
+  sc.name as status_name, sc.is_terminal as is_terminal, sc.is_terminal as "isTerminal",
   cd.customer_ip, cd.customer_user_agent, c.legal_response_due_at, c.legal_acceptance_at,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
@@ -924,8 +928,7 @@ casesRouter.patch(
 
       if (body.status) {
         if (['founded', 'unfounded'].includes(body.status)) {
-          const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
-          if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede establecer el estado a "Fundado" o "Infundado" sin emitir previamente una respuesta oficial trazable.');
+          throw new HttpError(400, 'Los estados "Fundado" e "Infundado" son resoluciones oficiales terminales y solo pueden emitirse a través del módulo de respuestas integradas.');
         } else if (['resolved', 'closed'].includes(body.status)) {
           const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
           if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede cerrar un reclamo sin emitir previamente una respuesta oficial trazable.');
@@ -1068,6 +1071,7 @@ casesRouter.post(
   '/complaints/:id/assign',
   requireCsrf,
   requirePermission('admin.reclamos.assign'),
+  requireNonTerminalState('complaints'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const body = assignSchema.parse(req.body);
@@ -1196,9 +1200,12 @@ casesRouter.post(
       await client.query('BEGIN');
       
       const current = await client.query(`
-        SELECT c.id, c.complaint_code, c.status_id, cu.email, cu.nombres, cu.apellidos
+        SELECT c.id, c.complaint_code, c.status_id,
+               COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+               COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres,
+               COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos
         FROM complaints c
-        JOIN customers cu ON c.customer_id = cu.id
+        LEFT JOIN customers cu ON c.customer_id = cu.id
         WHERE c.id = $1 FOR UPDATE
       `, [id]);
       
@@ -1246,17 +1253,19 @@ casesRouter.post(
       await client.query('COMMIT');
 
       // Send email
-      const clientName = `${complaint.nombres} ${complaint.apellidos}`.trim();
+      const clientName = `${complaint.nombres || ''} ${complaint.apellidos || ''}`.trim() || 'Cliente';
       const adminName = req.admin?.name || 'Administrador de Bytecode';
-        const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
-        const emailHtml = buildComplaintResolution(clientName, complaint.complaint_code, resolutionLabel, body.response_body, adminName, adminRole);
+      const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
+      const emailHtml = buildComplaintResolution(clientName, complaint.complaint_code, resolutionLabel, body.response_body, adminName, adminRole);
       
-      await notifyCustomer(
-        complaint.email,
-        `Respuesta Oficial a su Reclamación ${complaint.complaint_code}`,
-        emailHtml,
-        'complaint'
-      ).catch(e => console.error("Error enviando correo de respuesta:", e));
+      if (complaint.email) {
+        await notifyCustomer(
+          complaint.email,
+          `Respuesta Oficial a su Reclamación ${complaint.complaint_code}`,
+          emailHtml,
+          'complaint'
+        ).catch(e => console.error("Error enviando correo de respuesta:", e));
+      }
 
       res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
     } catch (err) {
@@ -1306,6 +1315,7 @@ casesRouter.get(
 casesRouter.post(
   '/complaints/:id/evidences',
   requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
   upload.array('archivosAdjuntos', 5),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
@@ -1385,6 +1395,7 @@ casesRouter.get(
 casesRouter.post(
   '/complaints/:id/notes',
   requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const { note_text } = req.body;
@@ -1456,5 +1467,3 @@ casesRouter.delete(
     }
   })
 );
-
-

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -138,7 +138,7 @@ const Reclamos: React.FC = () => {
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DetailItem | null>(null);
-  const { isReadOnly } = useTerminalState({ isTerminal: Boolean(detail?.isTerminal) });
+  const { isReadOnly } = useTerminalState({ isTerminal: Boolean(detail?.isTerminal ?? detail?.is_terminal) });
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('registered');
   const [priority, setPriority] = useState('normal');
@@ -178,10 +178,14 @@ const Reclamos: React.FC = () => {
 
   const statusLabel = (statusCode: string) => statuses.find((item) => item.value === statusCode)?.label ?? statusCode;
 
+  const detailStatusOptions = useMemo(() => {
+    return statuses.filter((item) => Boolean(item.value) && item.value !== 'founded' && item.value !== 'unfounded');
+  }, [statuses]);
+
   const loadCatalogs = async () => {
     try {
       const res = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=complaint');
-      setStatuses([{ value: '', label: 'Todos los estados' }, ...res.items.map(s => ({ value: s.code, label: s.name }))]);
+      setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
       const holRes = await apiRequest<{ items: { month: number, day: number, year: number | null }[] }>('/catalog/system-holidays');
       setGlobalHolidays(holRes.items);
       const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
@@ -323,9 +327,16 @@ const Reclamos: React.FC = () => {
   const handleSave = async () => {
     if (!selectedId) return;
     try {
+      const payload: Record<string, any> = {
+        adminNotes: notes,
+        priority,
+      };
+      if (status && !['founded', 'unfounded'].includes(status)) {
+        payload.status = status;
+      }
       const result = await apiRequest<{ item: DetailItem }>(`/admin/complaints/${selectedId}`, {
         method: 'PATCH',
-        json: { status, adminNotes: notes, priority },
+        json: payload,
       });
       setDetail(result.item);
       const historyResult = await apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${selectedId}/history`);
@@ -697,12 +708,12 @@ const Reclamos: React.FC = () => {
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Estado</label>
                 <CustomDropdown
-                          value={status}
-                          placeholder="Seleccionar estado..."
-                          onChange={(val) => setStatus(val)}
-                          options={statuses}
-                          disabled={isReadOnly}
-                        />
+                  value={status}
+                  placeholder={statusLabel(status) || "Seleccionar estado..."}
+                  onChange={(val) => setStatus(val)}
+                  options={detailStatusOptions}
+                  disabled={isReadOnly}
+                />
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-white/40">Prioridad</label>
@@ -868,7 +879,7 @@ const Reclamos: React.FC = () => {
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-4">
-                  {!isReadOnly && detail.email ? (
+                  {!isReadOnly && !detail.isTerminal && !detail.is_terminal && detail.email ? (
                     <button onClick={() => setResponseFormOpen(true)} className="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium transition hover:bg-white/10 text-white/80">
                       <Mail className="h-4 w-4" /> Responder Oficialmente
                     </button>
