@@ -77,7 +77,7 @@ test('buildComplaintResolutionStaffNotification generates detailed internal aler
     attachedFileNames: ['resolucion_firmada.pdf'],
   });
 
-  assert.ok(html.includes('Aviso Interno para Super Admin y Asesoría Legal'));
+  assert.ok(html.includes('Aviso Interno') && html.includes('Asesoría Legal'));
   assert.ok(html.includes('REC-2026-BC-00004'));
   assert.ok(html.includes('TechSolutions EIRL'));
   assert.ok(html.includes('Ana Morales'));

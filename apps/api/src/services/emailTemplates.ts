@@ -511,7 +511,7 @@ export function buildComplaintResolutionStaffNotification(params: ComplaintResol
 
   const content = `
     <h2 style="color: #ffffff; margin-top: 0; text-align: center;">Notificación de Resolución Oficial</h2>
-    <p style="text-align: center; color: #94a3b8; font-size: 13px; margin-top: -8px;">Aviso Interno para Administradores y Asesoría Legal</p>
+    <p style="text-align: center; color: #94a3b8; font-size: 13px; margin-top: -8px;">Aviso Interno para Administración y Asesoría Legal</p>
     
     <p>Se ha emitido y notificado la respuesta formal final al reclamante para el expediente <span class="highlight">${escapeHtml(complaintCode)}</span>, quedando el caso cerrado con carácter terminal.</p>
     
