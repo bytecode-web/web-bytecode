@@ -27,7 +27,7 @@ export function masterLayout(contentHTML: string): string {
     <meta charset="UTF-8">
     <style>
       @font-face { font-family: 'Sansation'; src: url('https://www.bytecode.com.pe/fonts/Sansation-Regular.woff2') format('woff2'); font-weight: normal; font-style: normal; }
-      body { margin: 0; padding: 0; background-color: #040e1f; color: #ffffff; font-family: 'Sansation', Arial, Helvetica, sans-serif; -webkit-font-smoothing: antialiased; box-sizing: border-box; }
+      body { margin: 0; padding: 0; background-color: #040e1f; color: #ffffff; font-family: 'Sansation', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; box-sizing: border-box; }
       *, *:before, *:after { box-sizing: inherit; }
       .container { max-width: 600px; margin: 0 auto; background-color: #040e1f; box-sizing: border-box; }
       .header { text-align: center; padding: 30px 20px; background-color: #010b10; border-bottom: 2px solid #06CFD6; }
@@ -36,7 +36,7 @@ export function masterLayout(contentHTML: string): string {
       .footer a { color: #06CFD6; text-decoration: none; margin: 0 10px; }
       .button { display: inline-block; padding: 14px 28px; background-color: #06CFD6; color: #010b10; text-decoration: none; font-weight: bold; border-radius: 4px; margin-top: 20px; }
       .card { background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 20px; margin: 20px 0; box-sizing: border-box; }
-      .card table { font-family: 'Sansation', Arial, Helvetica, sans-serif; width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; table-layout: fixed; word-wrap: break-word; }
+      .card table { font-family: 'Sansation', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; table-layout: fixed; word-wrap: break-word; }
       .highlight { color: #06CFD6; font-weight: bold; }
     </style>
   </head>
