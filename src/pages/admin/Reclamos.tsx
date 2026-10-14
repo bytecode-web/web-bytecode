@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, Download } from 'lucide-react';
+import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
 import { formatLocalDate, formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
@@ -547,14 +547,33 @@ const Reclamos: React.FC = () => {
       );
     }
 
+    const isTerminal = Boolean(detail.isTerminal ?? detail.is_terminal) || ['founded', 'unfounded', 'closed', 'rejected', 'resolved'].includes(String(detail.status).toLowerCase());
+
+    const officialResponseDate = (() => {
+      const timeEv = timeEvents.find(te => te.event_type === 'OFFICIAL_RESPONSE_SENT');
+      if (timeEv?.created_at) return new Date(timeEv.created_at);
+      if (timeEv?.metadata?.sent_at) return new Date(timeEv.metadata.sent_at);
+      if (responses && responses.length > 0 && responses[0]?.created_at) {
+        return new Date(responses[0].created_at);
+      }
+      if (detail.updated_at) return new Date(String(detail.updated_at));
+      return null;
+    })();
+
+    const dueDate = detail.legal_response_due_at ? new Date(String(detail.legal_response_due_at)) : null;
+    const now = new Date();
+    const isOverdue = dueDate ? now > dueDate : false;
+    const isAttendedOnTime = Boolean(
+      isTerminal && (!dueDate || !officialResponseDate || officialResponseDate.getTime() <= dueDate.getTime())
+    );
+
     let slaColorClass = 'bg-white/5 text-white/50 border-white/10';
     let slaLabel = 'Cerrado / Respondido';
 
-    if (!isReadOnly && detail.legal_response_due_at) {
-      const dueDate = new Date(detail.legal_response_due_at);
-      const now = new Date();
-      const isOverdue = now > dueDate;
-
+    if (isTerminal) {
+      slaColorClass = 'bg-white/5 text-white/50 border-white/10';
+      slaLabel = 'Cerrado / Respondido';
+    } else if (dueDate) {
       // Anclar el cálculo de días hábiles restantes al calendario oficial de Perú (America/Lima)
       const getLimaCal = (d: Date) => {
         const parts = Object.fromEntries(
@@ -615,8 +634,36 @@ const Reclamos: React.FC = () => {
                   {slaLabel}
                 </div>
                 {detail.legal_response_due_at && (
-                  <span className="text-xs text-white/50" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
-                    Vencimiento Legal: <strong className="text-amber-400 font-semibold">{formatLegalDualDate(detail.legal_response_due_at, false).peruText}</strong>
+                  <span className="text-xs text-white/50 flex items-center gap-1.5 flex-wrap" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
+                    <span>
+                      Vencimiento Legal: <strong className="text-amber-400 font-semibold">{formatLegalDualDate(detail.legal_response_due_at, false).peruText}</strong>
+                    </span>
+                    {isTerminal ? (
+                      isAttendedOnTime ? (
+                        <span 
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-full"
+                          title={officialResponseDate ? `Atendido el ${formatLegalDualDate(officialResponseDate.toISOString(), false).peruText}` : 'Atendido dentro del plazo legal'}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Cumplido en plazo
+                        </span>
+                      ) : (
+                        <span 
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-full"
+                          title={officialResponseDate ? `Atendido el ${formatLegalDualDate(officialResponseDate.toISOString(), false).peruText}` : 'Atendido fuera del plazo legal'}
+                        >
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          Atendido fuera de plazo
+                        </span>
+                      )
+                    ) : (
+                      isOverdue ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-400 bg-red-500/10 border border-red-500/25 px-2 py-0.5 rounded-full">
+                          <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                          Plazo legal vencido
+                        </span>
+                      ) : null
+                    )}
                   </span>
                 )}
               </div>
@@ -1057,7 +1104,7 @@ const Reclamos: React.FC = () => {
                   )}
                 </div>
                 {/* Protocolo de Retención */}
-                {(isReadOnly || filterArchived === 'true') && (
+                {(isReadOnly || Boolean(detail.isTerminal ?? detail.is_terminal) || filterArchived === 'true') && (
                   <div className="border-t border-white/10 pt-4 flex flex-col gap-2">
                     {filterArchived === 'false' && (
                       <button onClick={handleArchive} className="flex items-center justify-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 py-2.5 text-sm font-medium transition hover:bg-amber-500/20">
