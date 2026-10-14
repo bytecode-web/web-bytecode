@@ -101,3 +101,33 @@ test('buildComplaintResolution with deduplicated attached files displays unique 
   assert.ok(html.includes('evidencia1.png'));
   assert.ok(html.includes('evidencia2.png'));
 });
+
+test('buildComplaintResolution and staff notification use Firma.png in signature space', () => {
+  const resolutionHtml = buildComplaintResolution({
+    isCompany: false,
+    clientName: 'María García',
+    complaintCode: 'REC-2026-BC-00006',
+    resolutionType: 'Fundado (Procede)',
+    resolutionBody: 'Resolución aprobada.',
+    adminName: 'Soporte Bytecode',
+    adminRole: 'Representante Legal',
+  });
+
+  assert.ok(resolutionHtml.includes('vectors/designs/Firma.png'));
+  assert.ok(resolutionHtml.includes('width="46" height="42"'));
+
+  const staffHtml = buildComplaintResolutionStaffNotification({
+    complaintCode: 'REC-2026-BC-00006',
+    claimType: 'Reclamo',
+    isCompany: false,
+    clientOrCompanyName: 'María García',
+    resolutionType: 'Fundado (Procede)',
+    resolutionBody: 'Resolución aprobada.',
+    adminName: 'Soporte Bytecode',
+    adminRole: 'Representante Legal',
+  });
+
+  assert.ok(staffHtml.includes('vectors/designs/Firma.png'));
+  assert.ok(staffHtml.includes('width="42" height="38"'));
+});
+

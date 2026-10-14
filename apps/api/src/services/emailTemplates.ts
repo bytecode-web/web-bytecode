@@ -349,7 +349,8 @@ export function buildComplaintResolution(
 }
 
 export function buildExecutiveSignatureCard(adminName: string, adminRole: string): string {
-  const initials = getInitials(adminName);
+  const frontendBase = (process.env.FRONTEND_URL || 'https://www.bytecode.com.pe').replace(/\/+$/, '');
+  const signatureImgUrl = `${frontendBase}/vectors/designs/Firma.png`;
   return `
     <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin-top: 10px; background-color: #031422; border: 1px solid rgba(6, 207, 214, 0.25); border-top: 3px solid #06CFD6; border-radius: 8px; box-sizing: border-box;">
       <tr>
@@ -358,10 +359,10 @@ export function buildExecutiveSignatureCard(adminName: string, adminRole: string
             <tr>
               <!-- Monograma Insignia del Firmante -->
               <td style="width: 50px; vertical-align: top; padding-right: 16px;">
-                <table cellpadding="0" cellspacing="0" border="0" style="width: 50px; height: 50px; background-color: #010b10; border: 1.5px solid #06CFD6; border-radius: 8px; text-align: center;">
+                <table cellpadding="0" cellspacing="0" border="0" style="width: 50px; height: 50px; background-color: #010b10; border: 1.5px solid #06CFD6; border-radius: 8px; text-align: center; border-collapse: separate; overflow: hidden;">
                   <tr>
-                    <td style="text-align: center; vertical-align: middle; font-size: 17px; font-weight: bold; color: #06CFD6; letter-spacing: 1px; font-family: 'Sansation', Arial, sans-serif;">
-                      ${escapeHtml(initials)}
+                    <td style="text-align: center; vertical-align: middle; padding: 0; width: 50px; height: 50px;">
+                      <img src="${signatureImgUrl}" alt="Firma Oficial Bytecode" width="46" height="42" style="display: block; margin: 0 auto; max-width: 46px; max-height: 46px; width: 46px; height: auto; object-fit: contain; border: 0;" />
                     </td>
                   </tr>
                 </table>
@@ -423,7 +424,8 @@ export function buildExecutiveSignatureCard(adminName: string, adminRole: string
 }
 
 export function buildStaffAuditSignatureCard(adminName: string, adminRole: string, adminEmail?: string): string {
-  const initials = getInitials(adminName);
+  const frontendBase = (process.env.FRONTEND_URL || 'https://www.bytecode.com.pe').replace(/\/+$/, '');
+  const signatureImgUrl = `${frontendBase}/vectors/designs/Firma.png`;
   return `
     <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin-top: 12px; background-color: #031422; border: 1px solid rgba(6, 207, 214, 0.25); border-left: 3px solid #06CFD6; border-radius: 6px; box-sizing: border-box;">
       <tr>
@@ -432,10 +434,10 @@ export function buildStaffAuditSignatureCard(adminName: string, adminRole: strin
             <tr>
               <!-- Insignia de Control Interno -->
               <td style="width: 46px; vertical-align: top; padding-right: 14px;">
-                <table cellpadding="0" cellspacing="0" border="0" style="width: 46px; height: 46px; background-color: #010b10; border: 1.5px solid #06CFD6; border-radius: 6px; text-align: center;">
+                <table cellpadding="0" cellspacing="0" border="0" style="width: 46px; height: 46px; background-color: #010b10; border: 1.5px solid #06CFD6; border-radius: 6px; text-align: center; border-collapse: separate; overflow: hidden;">
                   <tr>
-                    <td style="text-align: center; vertical-align: middle; font-size: 15px; font-weight: bold; color: #06CFD6; letter-spacing: 1px; font-family: monospace;">
-                      ${escapeHtml(initials)}
+                    <td style="text-align: center; vertical-align: middle; padding: 0; width: 46px; height: 46px;">
+                      <img src="${signatureImgUrl}" alt="Firma Oficial Bytecode" width="42" height="38" style="display: block; margin: 0 auto; max-width: 42px; max-height: 42px; width: 42px; height: auto; object-fit: contain; border: 0;" />
                     </td>
                   </tr>
                 </table>
