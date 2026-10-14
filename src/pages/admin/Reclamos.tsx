@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText } from 'lucide-react';
+import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, Download } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
 import { formatLocalDate, formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
@@ -399,20 +399,48 @@ const Reclamos: React.FC = () => {
   const handleInternalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedId || !e.target.files || e.target.files.length === 0) return;
     const files = Array.from(e.target.files);
+
+    if (files.length > 5) {
+      addToast('Puede adjuntar un máximo de 5 evidencias a la vez.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const seenNames = new Set<string>();
+    for (const f of files) {
+      if (f.size > 8 * 1024 * 1024) {
+        addToast(`El archivo "${f.name}" supera el límite máximo de 8MB.`, 'error');
+        e.target.value = '';
+        return;
+      }
+
+      if (seenNames.has(f.name.toLowerCase())) {
+        addToast(`El archivo "${f.name}" se encuentra duplicado entre los archivos seleccionados.`, 'error');
+        e.target.value = '';
+        return;
+      }
+      seenNames.add(f.name.toLowerCase());
+
+      if (evidences.some(ev => ev.original_name && ev.original_name.toLowerCase() === f.name.toLowerCase())) {
+        addToast(`El archivo "${f.name}" ya se encuentra vinculado como evidencia en este reclamo.`, 'error');
+        e.target.value = '';
+        return;
+      }
+    }
+
     const payload = new FormData();
     files.forEach(f => payload.append('archivosAdjuntos', f));
 
     setIsUploadingEvidences(true);
     try {
-      await fetch(apiUrl(`/admin/complaints/${selectedId}/evidences`), {
+      await apiRequest(`/admin/complaints/${selectedId}/evidences`, {
         method: 'POST',
-        headers: { 'X-CSRF-Token': localStorage.getItem('csrf_token') || '' },
         body: payload,
       });
       addToast('Evidencias subidas exitosamente.', 'success');
       await loadDetail(selectedId);
     } catch (err) {
-      addToast('Error al subir evidencias.', 'error');
+      addToast(err instanceof Error ? err.message : 'Error al subir evidencias.', 'error');
     } finally {
       setIsUploadingEvidences(false);
       e.target.value = '';
@@ -716,11 +744,27 @@ const Reclamos: React.FC = () => {
                           {formatLocalDate(ev.created_at, 'datetime-12h')}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {(ev.mime_type?.startsWith('image/') || ev.mime_type === 'application/pdf') && (
-                          <button onClick={() => window.open(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), '_blank')} className="text-[10px] font-medium text-cyan-400 hover:bg-cyan-500/10 px-2 py-1 rounded transition">Ver</button>
+                          <button 
+                            type="button"
+                            onClick={() => window.open(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), '_blank')} 
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-300 bg-cyan-950/40 hover:bg-cyan-500/20 border border-cyan-500/30 hover:border-cyan-400/50 px-2.5 py-1 rounded-md shadow-sm transition-all active:scale-95 cursor-pointer"
+                            title="Ver archivo en nueva pestaña"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                            Ver
+                          </button>
                         )}
-                        <button onClick={() => forceDownload(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), ev.original_name)} className="text-[10px] font-medium text-white/70 hover:bg-white/10 px-2 py-1 rounded transition">Descargar</button>
+                        <button 
+                          type="button"
+                          onClick={() => forceDownload(ev.public_url || apiUrl(`/admin/complaints/${selectedId}/attachment?fileId=${ev.id}`), ev.original_name)} 
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-white/80 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 hover:border-white/20 px-2.5 py-1 rounded-md shadow-sm transition-all active:scale-95 cursor-pointer"
+                          title="Descargar archivo"
+                        >
+                          <Download className="w-3.5 h-3.5 text-white/60" />
+                          Descargar
+                        </button>
                       </div>
                     </div>
                   ))}

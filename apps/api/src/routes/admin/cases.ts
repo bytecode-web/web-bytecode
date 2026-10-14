@@ -1529,7 +1529,8 @@ casesRouter.post(
     if (!files || files.length === 0) throw new HttpError(400, 'Debe adjuntar al menos un archivo.');
 
     const client = await pool.connect();
-    const addedFiles = [];
+    const addedFiles: string[] = [];
+    const seenChecksums = new Set<string>();
 
     try {
       await client.query('BEGIN');
@@ -1539,7 +1540,35 @@ casesRouter.post(
 
       for (const f of files) {
         const validatedFile = await validateUpload(f);
-        let fileAssetId;
+
+        // 1. Validar duplicados en el lote actual
+        if (seenChecksums.has(validatedFile.checksumSha256)) {
+          throw new HttpError(
+            400,
+            `El archivo "${validatedFile.originalName}" se encuentra duplicado entre los archivos seleccionados.`
+          );
+        }
+        seenChecksums.add(validatedFile.checksumSha256);
+
+        // 2. Validar si el archivo ya fue vinculado previamente a este reclamo
+        const existingEvidence = await client.query(
+          `SELECT fa.original_name 
+           FROM complaint_evidences ce 
+           JOIN file_assets fa ON ce.file_asset_id = fa.id 
+           WHERE ce.complaint_id = $1 AND fa.checksum_sha256 = $2 
+           LIMIT 1`,
+          [id, validatedFile.checksumSha256]
+        );
+
+        if ((existingEvidence.rowCount ?? 0) > 0) {
+          const existingName = existingEvidence.rows[0].original_name || validatedFile.originalName;
+          throw new HttpError(
+            409,
+            `El archivo "${validatedFile.originalName}" ya se encuentra vinculado como evidencia en este reclamo (registrado como "${existingName}").`
+          );
+        }
+
+        let fileAssetId: string;
 
         const fileLookup = await client.query(
           'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
@@ -1563,15 +1592,16 @@ casesRouter.post(
             );
             fileAssetId = fileRes.rows[0].id;
           } catch (err) {
-            throw new HttpError(502, 'Error subiendo archivo interno.');
+            console.error('Error subiendo archivo interno a Cloudinary:', err);
+            throw new HttpError(502, 'Error al subir el archivo interno a Cloudinary.');
           }
         }
 
-        const evRes = await client.query(
-          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2) RETURNING id`,
+        await client.query(
+          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
           [id, fileAssetId]
         );
-        addedFiles.push(evRes.rows[0].id);
+        addedFiles.push(fileAssetId);
       }
 
       await client.query('COMMIT');
