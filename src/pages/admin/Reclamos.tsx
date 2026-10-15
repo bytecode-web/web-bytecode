@@ -1295,12 +1295,6 @@ const Reclamos: React.FC = () => {
                       ) : (
                         <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-400 border border-purple-500/30 uppercase">B2C</span>
                       )}
-
-                      {item.telefono?.startsWith('+51') ? (
-                        <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400 border border-emerald-500/30 uppercase">Nacional PE</span>
-                      ) : (
-                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-400 border border-amber-500/30 uppercase">Internacional</span>
-                      )}
                     </div>
                     <span className="flex items-center gap-1.5 text-[10px] text-white/30 mt-1" title="Fecha en horario oficial de Perú (UTC-5)">
                       <CalendarDays className="h-3 w-3 shrink-0" />
