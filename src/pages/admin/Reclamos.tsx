@@ -75,6 +75,28 @@ type AssignmentHistoryItem = {
 
 type DetailItem = Record<string, string | number | null | undefined>;
 
+interface CatalogCache {
+  statuses: { value: string; label: string }[];
+  globalHolidays: { month: number; day: number; year: number | null }[];
+  priorities: { value: string; label: string }[];
+  adminsList: { value: string; label: string }[];
+  timestamp: number;
+}
+
+let catalogCache: CatalogCache | null = null;
+const CATALOG_TTL_MS = 15 * 60 * 1000;
+
+interface ComplaintFullResponse {
+  item: DetailItem;
+  page?: number;
+  history: StatusHistoryRecord[];
+  assignmentHistory: AssignmentHistoryItem[];
+  timeEvents: any[];
+  responses: any[];
+  evidences: any[];
+  notes: any[];
+}
+
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 
@@ -229,18 +251,40 @@ const Reclamos: React.FC = () => {
   }, [statuses]);
 
   const loadCatalogs = async () => {
+    if (catalogCache && Date.now() - catalogCache.timestamp < CATALOG_TTL_MS) {
+      setStatuses(catalogCache.statuses);
+      setGlobalHolidays(catalogCache.globalHolidays);
+      setPriorities(catalogCache.priorities);
+      setAdminsList(catalogCache.adminsList);
+      return;
+    }
     try {
-      const res = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=complaint');
-      setStatuses(res.items.map(s => ({ value: s.code, label: s.name })));
-      const holRes = await apiRequest<{ items: { month: number, day: number, year: number | null }[] }>('/catalog/system-holidays');
-      setGlobalHolidays(holRes.items);
-      const prioRes = await apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities');
-      setPriorities(prioRes.items.map(s => ({ value: s.code, label: s.name })));
-      const adminRes = await apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint');
-      setAdminsList([
+      const [res, holRes, prioRes, adminRes] = await Promise.all([
+        apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/statuses?domain=complaint'),
+        apiRequest<{ items: { month: number, day: number, year: number | null }[] }>('/catalog/system-holidays'),
+        apiRequest<{ items: { id: string, code: string, name: string }[] }>('/catalog/priorities'),
+        apiRequest<{ data: { id: string, name: string }[] }>('/admin/cases/assignment-options?domain=complaint')
+      ]);
+
+      const formattedStatuses = res.items.map(s => ({ value: s.code, label: s.name }));
+      const formattedPriorities = prioRes.items.map(s => ({ value: s.code, label: s.name }));
+      const formattedAdmins = [
         { value: '', label: 'Cualquier agente' },
         ...adminRes.data.map(a => ({ value: a.id, label: a.name }))
-      ]);
+      ];
+
+      setStatuses(formattedStatuses);
+      setGlobalHolidays(holRes.items);
+      setPriorities(formattedPriorities);
+      setAdminsList(formattedAdmins);
+
+      catalogCache = {
+        statuses: formattedStatuses,
+        globalHolidays: holRes.items,
+        priorities: formattedPriorities,
+        adminsList: formattedAdmins,
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.error(err);
     }
@@ -279,32 +323,20 @@ const Reclamos: React.FC = () => {
   const loadDetail = async (id: string, syncPage = false) => {
     setSelectedId(id);
     try {
-      const [result, historyResult, assignmentResult, timeEventsResult, responsesResult, evidencesResult, notesResult] = await Promise.all([
-          apiRequest<{ item: DetailItem; page?: number }>(`/admin/complaints/${id}?limit=${PAGE_SIZE}`),
-          apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/complaints/${id}/history`),
-          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/assignment-history`),
-          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/time-events`),
-          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/responses`),
-          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/evidences`),
-          apiRequest<{ items: any[] }>(`/admin/complaints/${id}/notes`),
-        ]);
-        setDetail(result.item);
-        if (syncPage) {
-          if (result.page && result.page !== page) {
-            setPage(result.page);
-          } else {
-            void loadList();
-          }
-        }
-        setStatusHistory(historyResult.items);
-        setHistory(assignmentResult.items);
-        setTimeEvents(timeEventsResult.items);
-        setResponses(responsesResult.items);
-        setEvidences(evidencesResult.items);
-        setComplaintNotes(notesResult.items);
-        setResponseFormOpen(false);
-        setResponseBody('');
-        setResolutionType('founded');
+      const result = await apiRequest<ComplaintFullResponse>(`/admin/complaints/${id}/full?limit=${PAGE_SIZE}`);
+      setDetail(result.item);
+      if (syncPage && result.page && result.page !== page) {
+        setPage(result.page);
+      }
+      setStatusHistory(result.history);
+      setHistory(result.assignmentHistory);
+      setTimeEvents(result.timeEvents);
+      setResponses(result.responses);
+      setEvidences(result.evidences);
+      setComplaintNotes(result.notes);
+      setResponseFormOpen(false);
+      setResponseBody('');
+      setResolutionType('founded');
       setStatus(String(result.item.status ?? 'registered'));
       setPriority(String(result.item.priority ?? 'normal'));
       setNotes(String(result.item.admin_notes ?? ''));

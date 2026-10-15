@@ -1540,6 +1540,137 @@ casesRouter.get(
   })
 );
 
+casesRouter.get(
+  '/complaints/:id/full',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
+
+    const complaintPromise = pool.query(
+      `SELECT ${complaintColumns} 
+       FROM complaints c
+       ${complaintJoins}
+       WHERE c.id = $1`, 
+      [id]
+    );
+
+    const posPromise = pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM complaints c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE c2.deleted_at IS NULL
+        AND (
+          COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          OR (
+            COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+            AND c2.created_at > (SELECT created_at FROM complaints WHERE id = $1)
+          )
+        )
+      `,
+      [id]
+    );
+
+    const historyPromise = pool.query(
+      statusHistorySelect('complaint_status_history', 'complaint_id'),
+      [id]
+    );
+
+    const assignmentPromise = pool.query(
+      `
+      SELECT 
+        ca.id, ca.assigned_to, ca.assigned_by, ca.assigned_at, ca.unassigned_at, ca.notes,
+        u1.name as assigned_to_name,
+        u2.name as assigned_by_name
+      FROM complaint_assignments ca
+      LEFT JOIN admin_users u1 ON ca.assigned_to = u1.id
+      LEFT JOIN admin_users u2 ON ca.assigned_by = u2.id
+      WHERE ca.complaint_id = $1
+      ORDER BY ca.assigned_at DESC
+      `,
+      [id]
+    );
+
+    const timeEventsPromise = pool.query(
+      `
+      SELECT id, event_type, metadata, created_at
+      FROM complaint_time_events
+      WHERE complaint_id = $1
+      ORDER BY created_at ASC
+      `,
+      [id]
+    );
+
+    const responsesPromise = (async () => {
+      const cols = await getComplaintResponseColumns(pool);
+      const bodyCol = cols.has('response_body') && cols.has('body')
+        ? 'COALESCE(r.response_body, r.body)'
+        : cols.has('response_body') ? 'r.response_body' : 'r.body';
+      const adminCol = cols.has('admin_user_id') && cols.has('sent_by')
+        ? 'COALESCE(r.admin_user_id, r.sent_by)'
+        : cols.has('admin_user_id') ? 'r.admin_user_id' : 'r.sent_by';
+
+      return pool.query(
+        `SELECT r.id, ${bodyCol} as response_body, r.created_at, u.name as admin_name
+         FROM complaint_responses r
+         LEFT JOIN admin_users u ON ${adminCol} = u.id
+         WHERE r.complaint_id = $1
+         ORDER BY r.created_at DESC`,
+        [id]
+      );
+    })();
+
+    const evidencesPromise = pool.query(
+      `
+      SELECT fa.id, fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url, ce.created_at
+      FROM complaints c
+      JOIN complaint_evidences ce ON c.id = ce.complaint_id
+      JOIN file_assets fa ON ce.file_asset_id = fa.id
+      WHERE c.id = $1
+      ORDER BY ce.created_at ASC
+      `,
+      [id]
+    );
+
+    const notesPromise = pool.query(
+      `SELECT n.*, u.name as author_name 
+       FROM complaint_notes n 
+       LEFT JOIN admin_users u ON n.author_id = u.id 
+       WHERE n.complaint_id = $1 
+       ORDER BY n.created_at DESC`,
+      [id]
+    );
+
+    const [complaintRes, posRes, historyRes, assignmentRes, timeEventsRes, responsesRes, evidencesRes, notesRes] = await Promise.all([
+      complaintPromise,
+      posPromise,
+      historyPromise,
+      assignmentPromise,
+      timeEventsPromise,
+      responsesPromise,
+      evidencesPromise,
+      notesPromise,
+    ]);
+
+    if (complaintRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+    const countBefore = posRes.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({
+      item: complaintRes.rows[0],
+      page,
+      history: historyRes.rows,
+      assignmentHistory: assignmentRes.rows,
+      timeEvents: timeEventsRes.rows,
+      responses: responsesRes.rows,
+      evidences: evidencesRes.rows,
+      notes: notesRes.rows,
+    });
+  })
+);
+
 casesRouter.post(
   '/complaints/:id/evidences',
   requirePermission('admin.reclamos.manage'),
