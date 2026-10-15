@@ -95,7 +95,7 @@ app.use(
   '/api',
   rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 1500,
+    limit: 300,
     skip: (req: Request) => {
       if (!env.isProduction) return true;
       const path = req.path || '';
