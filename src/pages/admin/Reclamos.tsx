@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
-import { formatLocalDate, formatLegalDualDate, formatPeruDate } from '../../lib/dateFormatter';
+import { formatLocalDate, formatLegalDualDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
@@ -1372,45 +1372,77 @@ const Reclamos: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => loadDetail(item.id)}
-                  className={`w-full grid gap-2 px-5 py-4 text-left transition-colors duration-200 md:grid-cols-[1fr_auto] border-l-2 ${selectedId === item.id ? 'bg-white/5 border-white/40' : 'border-transparent hover:bg-white/[0.02]'}`}
+                  className={`w-full flex flex-col gap-2 px-5 py-3.5 text-left transition-colors duration-200 border-l-2 ${
+                    selectedId === item.id ? 'bg-white/5 border-white/40' : 'border-transparent hover:bg-white/[0.02]'
+                  }`}
                 >
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
-                      {item.code} · {[item.nombres, item.apellidos].filter(Boolean).join(' ') || 'Sin nombre'}
-                    </p>
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
-                      <Tag className="h-3 w-3 shrink-0" />
-                      <span className="truncate font-medium text-white/55">{item.tipo_reclamo || 'Tipo no especificado'}</span>
-                    </span>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {item.claim_type === 'Reclamo' && <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[9px] font-medium text-red-400 border border-red-500/30 uppercase">Reclamo</span>}
-                      {item.claim_type === 'Queja' && <span className="rounded bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-medium text-orange-400 border border-orange-500/30 uppercase">Queja</span>}
-                      
-                      {isComplaintB2B(item) ? (
-                        <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-medium text-blue-400 border border-blue-500/30 uppercase">B2B</span>
-                      ) : (
-                        <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-400 border border-purple-500/30 uppercase">B2C</span>
-                      )}
+                  {/* Bloque superior e intermedio: Info a la izquierda, Fecha y Agente a la derecha */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      {/* Segmento B2B/B2C y Nombre del Reclamante o Razón Social */}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap border ${
+                            isComplaintB2B(item)
+                              ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                          }`}
+                        >
+                          {isComplaintB2B(item) ? 'B2B' : 'B2C'}
+                        </span>
+                        <p className={`truncate text-sm font-medium transition-colors ${selectedId === item.id ? 'text-white' : 'text-white/80'}`}>
+                          {isComplaintB2B(item)
+                            ? (item.legal_name || [item.nombres, item.apellidos].filter(Boolean).join(' ') || 'Empresa sin razón social')
+                            : ([item.nombres, item.apellidos].filter(Boolean).join(' ') || 'Sin nombre')}
+                        </p>
+                      </div>
+
+                      {/* Código de caso y Tipo de Reclamo / Bien */}
+                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-white/40">
+                        {item.code && (
+                          <span className="shrink-0 font-mono text-[11px] text-white/35">
+                            #{item.code} ·
+                          </span>
+                        )}
+                        <Tag className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{item.tipo_reclamo || 'Tipo no especificado'}</span>
+                      </div>
                     </div>
-                    <span className="flex items-center gap-1.5 text-[10px] text-white/30 mt-1" title="Fecha en horario oficial de Perú (UTC-5)">
-                      <CalendarDays className="h-3 w-3 shrink-0" />
-                      <span className="font-medium text-white/40">{formatPeruDate(item.created_at, false, 'medium')}</span>
-                    </span>
+
+                    {/* Columna derecha: Fecha arriba con el formato de Contactos + Badge de Agente debajo */}
+                    <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                      <span className="flex items-center justify-end gap-1 text-[10px] text-white/30 whitespace-nowrap self-end">
+                        <CalendarDays className="h-3 w-3 shrink-0" />
+                        {formatLocalDate(item.created_at, 'date-medium')}
+                      </span>
+                      {item.assigned_to === admin.id ? (
+                        <span className="flex items-center gap-1 rounded-md border border-[#06CFD6]/20 bg-[#06CFD6]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#06CFD6] shadow-[0_0_8px_rgba(6,207,214,0.15)] whitespace-nowrap self-end" title="Asignado a ti">
+                          <UserCheck className="h-3 w-3" /> Mío
+                        </span>
+                      ) : item.assigned_to ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-white/30 whitespace-nowrap self-end" title="Asignado a otro">
+                          <UserCheck className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5 justify-start">
+
+                  {/* Fila 3: Badges de Estado, Prioridad y Clasificación (Reclamo/Queja) en línea */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <span className="h-fit rounded-md bg-white/5 px-2 py-0.5 text-[10px] text-white/60 whitespace-nowrap">
                       {statusLabel(item.status)}
                     </span>
                     {item.priority && priorityBadge(item.priority, item.priority_name!)}
-                    {item.assigned_to === admin.id ? (
-                      <span className="h-fit rounded-md bg-[#06CFD6]/10 px-2 py-0.5 text-[10px] text-[#06CFD6] whitespace-nowrap flex items-center gap-1 border border-[#06CFD6]/20 shadow-[0_0_8px_rgba(6,207,214,0.15)]" title="Asignado a ti">
-                        <UserCheck className="w-3 h-3" /> Mío
+                    {item.claim_type === 'Reclamo' && (
+                      <span className="h-fit rounded-md bg-red-500/20 px-1.5 py-0.5 text-[10px] font-medium text-red-400 border border-red-500/30 whitespace-nowrap uppercase">
+                        Reclamo
                       </span>
-                    ) : item.assigned_to ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-white/30" title="Asignado a otro">
-                        <UserCheck className="h-3 w-3" />
+                    )}
+                    {item.claim_type === 'Queja' && (
+                      <span className="h-fit rounded-md bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium text-orange-400 border border-orange-500/30 whitespace-nowrap uppercase">
+                        Queja
                       </span>
-                    ) : null}
+                    )}
                   </div>
                 </button>
               ))
