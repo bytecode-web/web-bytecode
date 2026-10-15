@@ -232,11 +232,19 @@ const Reclamos: React.FC = () => {
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [filterUrgency, setFilterUrgency] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('');
   const [filterAgent, setFilterAgent] = useState('');
   const [filterArchived, setFilterArchived] = useState('false');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   const [adminsList, setAdminsList] = useState<{ value: string, label: string }[]>([]);
   const [history, setHistory] = useState<AssignmentHistoryItem[]>([]);
@@ -249,6 +257,61 @@ const Reclamos: React.FC = () => {
   const detailStatusOptions = useMemo(() => {
     return statuses.filter((item) => Boolean(item.value) && item.value !== 'founded' && item.value !== 'unfounded');
   }, [statuses]);
+
+  const urgencyOptions = useMemo(() => [
+    { value: '', label: 'Cualquier Urgencia' },
+    { value: 'vencido', label: 'Vencidos' },
+    { value: 'proximo', label: 'Por vencer (≤ 7d)' },
+    { value: 'en_plazo', label: 'En plazo (> 7d)' },
+  ], []);
+
+  const tipoOptions = useMemo(() => [
+    { value: '', label: 'Cualquier Tipo' },
+    { value: 'b2b', label: 'B2B (Empresas)' },
+    { value: 'b2c', label: 'B2C (Consumidores)' },
+    { value: 'reclamo', label: 'Reclamos' },
+    { value: 'queja', label: 'Quejas' },
+  ], []);
+
+  const originOptions = useMemo(() => [
+    { value: '', label: 'Cualquier Origen' },
+    { value: 'nacional', label: 'Nacional (PE)' },
+    { value: 'internacional', label: 'Internacional' },
+  ], []);
+
+  const agentOptions = useMemo(() => {
+    if (!adminsList || adminsList.length === 0) {
+      return [{ value: '', label: 'Cualquier Agente' }];
+    }
+    return adminsList.map(a => ({
+      value: a.value,
+      label: a.value === '' ? 'Cualquier Agente' : a.label
+    }));
+  }, [adminsList]);
+
+  const archivedOptions = useMemo(() => [
+    { value: 'false', label: 'Casos Activos' },
+    { value: 'true', label: 'Casos Archivados' },
+  ], []);
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    filterUrgency ||
+    filterTipo ||
+    filterOrigin ||
+    filterAgent ||
+    filterArchived === 'true'
+  );
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setFilterUrgency('');
+    setFilterTipo('');
+    setFilterOrigin('');
+    setFilterAgent('');
+    setFilterArchived('false');
+  };
 
   const loadCatalogs = async () => {
     if (catalogCache && Date.now() - catalogCache.timestamp < CATALOG_TTL_MS) {
@@ -298,7 +361,8 @@ const Reclamos: React.FC = () => {
         offset: ((page - 1) * PAGE_SIZE).toString(),
         archived: filterArchived
       });
-      if (searchQuery) queryParams.append('search', searchQuery);
+      const activeSearch = debouncedSearchQuery.trim();
+      if (activeSearch) queryParams.append('search', activeSearch);
       if (filterUrgency) queryParams.append('urgency', filterUrgency);
       if (filterTipo) queryParams.append('tipo', filterTipo);
       if (filterOrigin) queryParams.append('origin', filterOrigin);
@@ -379,6 +443,20 @@ const Reclamos: React.FC = () => {
   useEffect(() => {
     void loadList();
   }, [page]);
+
+  const isInitialFilterMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialFilterMount.current) {
+      isInitialFilterMount.current = false;
+      return;
+    }
+    if (page === 1) {
+      void loadList();
+    } else {
+      setPage(1);
+    }
+  }, [debouncedSearchQuery, filterUrgency, filterTipo, filterOrigin, filterAgent, filterArchived]);
 
   useEffect(() => {
     const queryId = searchParams.get('id');
@@ -1201,68 +1279,86 @@ const Reclamos: React.FC = () => {
             {/* Filter Bar */}
             <div className="flex flex-col gap-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Buscar por código, nombre, email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && loadList()}
-                  className="w-full rounded-md border border-white/10 bg-black/50 pl-9 pr-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setDebouncedSearchQuery(searchQuery);
+                    }
+                  }}
+                  className="w-full rounded-md border border-white/10 bg-black/50 pl-8.5 pr-8 py-1.5 text-xs text-white placeholder-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-colors"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setDebouncedSearchQuery('');
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 p-0.5 rounded transition cursor-pointer"
+                    title="Borrar búsqueda"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                <select
+              <div className="grid grid-cols-2 gap-1.5">
+                <CustomDropdown
                   value={filterUrgency}
-                  onChange={(e) => setFilterUrgency(e.target.value)}
-                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
-                >
-                  <option value="">Cualquier Urgencia (SLA)</option>
-                  <option value="vencido">Vencidos</option>
-                  <option value="proximo">Próximos a vencer (≤ 7 días)</option>
-                  <option value="en_plazo">En plazo (&gt; 7 días)</option>
-                </select>
-                <select
+                  options={urgencyOptions}
+                  onChange={(val) => setFilterUrgency(val)}
+                  placeholder="Urgencia"
+                  size="sm"
+                  variant="admin"
+                />
+                <CustomDropdown
                   value={filterTipo}
-                  onChange={(e) => setFilterTipo(e.target.value)}
-                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
-                >
-                  <option value="">Cualquier Tipo</option>
-                  <option value="b2b">B2B (Empresas)</option>
-                  <option value="b2c">B2C (Consumidores)</option>
-                  <option value="reclamo">Reclamos</option>
-                  <option value="queja">Quejas</option>
-                </select>
-                <select
+                  options={tipoOptions}
+                  onChange={(val) => setFilterTipo(val)}
+                  placeholder="Tipo"
+                  size="sm"
+                  variant="admin"
+                />
+                <CustomDropdown
                   value={filterOrigin}
-                  onChange={(e) => setFilterOrigin(e.target.value)}
-                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
-                >
-                  <option value="">Cualquier Origen</option>
-                  <option value="nacional">Nacional (PE)</option>
-                  <option value="internacional">Internacional</option>
-                </select>
-                <select
+                  options={originOptions}
+                  onChange={(val) => setFilterOrigin(val)}
+                  placeholder="Origen"
+                  size="sm"
+                  variant="admin"
+                />
+                <CustomDropdown
                   value={filterAgent}
-                  onChange={(e) => setFilterAgent(e.target.value)}
-                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
-                >
-                  {adminsList.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
-                <select
+                  options={agentOptions}
+                  onChange={(val) => setFilterAgent(val)}
+                  placeholder="Agente"
+                  size="sm"
+                  variant="admin"
+                />
+                <CustomDropdown
                   value={filterArchived}
-                  onChange={(e) => setFilterArchived(e.target.value)}
-                  className="rounded-md border border-white/10 bg-black/50 px-2 py-1.5 text-[11px] text-white/70 outline-none focus:border-cyan-500/50"
-                >
-                  <option value="false">Activos</option>
-                  <option value="true">Archivados</option>
-                </select>
-                <button
-                  onClick={loadList}
-                  className="flex items-center justify-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/10"
-                >
-                  <FilterX className="h-3 w-3" /> Filtrar
-                </button>
+                  options={archivedOptions}
+                  onChange={(val) => setFilterArchived(val)}
+                  placeholder="Estado archivo"
+                  size="sm"
+                  variant="admin"
+                  className={hasActiveFilters ? '' : 'col-span-2'}
+                />
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="flex items-center justify-center gap-1.5 rounded-md bg-white/5 border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all cursor-pointer w-full h-full min-h-[30px]"
+                    title="Limpiar todos los filtros"
+                  >
+                    <FilterX className="h-3 w-3 text-cyan-400" />
+                    <span>Limpiar filtros</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
