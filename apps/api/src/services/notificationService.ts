@@ -6,21 +6,29 @@ export async function sendInAppNotification(
   title: string,
   body: string,
   entityType?: string,
-  entityId?: string
+  entityId?: string,
+  excludeUserId?: string
 ) {
   try {
-    const res = await pool.query(`
+    let query = `
       SELECT DISTINCT au.id as admin_user_id
       FROM admin_users au
       JOIN admin_user_roles aur ON au.id = aur.admin_user_id
       JOIN notification_rules nr ON aur.role_id = nr.role_id
       WHERE nr.event_type = $1 AND nr.is_active = true AND au.is_active = true
-    `, [eventType]);
+    `;
+    const params: any[] = [eventType];
+    if (excludeUserId) {
+      query += ' AND au.id <> $2';
+      params.push(excludeUserId);
+    }
+
+    const res = await pool.query(query, params);
 
     const adminUserIds = res.rows.map(r => r.admin_user_id);
 
     if (adminUserIds.length === 0) {
-      console.log(`No active users subscribed to event: ${eventType}`);
+      console.log(`No active users subscribed to event: ${eventType}${excludeUserId ? ` (excluding ${excludeUserId})` : ''}`);
       return;
     }
 

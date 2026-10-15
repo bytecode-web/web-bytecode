@@ -8,7 +8,7 @@ import { requirePermission } from '../../middleware/auth.js';
 import { requireCsrf } from '../../middleware/csrf.js';
 import { requireNonTerminalState } from '../../middleware/requireNonTerminalState.js';
 import { auditService } from '../../services/audit.js';
-import { sendDirectInAppNotification } from '../../services/notificationService.js';
+import { sendDirectInAppNotification, sendInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
 import { notifyCustomer, sendStaffResolutionNotification } from '../../services/email.js';
@@ -908,7 +908,7 @@ casesRouter.patch(
     try {
       await client.query('BEGIN');
       const current = await client.query(
-        'SELECT id, status_id, internal_notes, assigned_to, updated_at FROM complaints WHERE id = $1 FOR UPDATE',
+        'SELECT id, complaint_code, status_id, internal_notes, assigned_to, updated_at FROM complaints WHERE id = $1 FOR UPDATE',
         [id],
       );
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
@@ -962,13 +962,26 @@ casesRouter.patch(
           [id, oldStatusId, newStatusId, req.admin?.id ?? null],
         );
 
+        const complaintCode = currentRow.complaint_code || id.split('-')[0];
+        const statusNameRes = await client.query("SELECT name FROM status_catalog WHERE id = $1", [newStatusId]);
+        const newStatusName = statusNameRes.rows[0]?.name || body.status;
+        const actorName = req.admin?.name || 'Un administrador';
+
+        await sendInAppNotification(
+          'complaint_status_changed',
+          `Reclamo ${complaintCode}: Estado Actualizado`,
+          `${actorName} cambió el estado del reclamo a "${newStatusName}".`,
+          'complaints',
+          id,
+          req.admin?.id
+        );
+
         const assignedTo = currentRow.assigned_to as string | undefined;
         if (assignedTo && assignedTo !== req.admin?.id) {
-          const complaintCode = currentRow.complaint_code || id.split('-')[0];
           await sendDirectInAppNotification(
             assignedTo,
             "Actualización de Reclamo",
-            `El estado del reclamo #${complaintCode} ha sido modificado.`,
+            `El estado del reclamo #${complaintCode} ha sido modificado a "${newStatusName}".`,
             "complaints",
             id
           );
@@ -1453,6 +1466,15 @@ casesRouter.post(
         emailAttachments,
       ).catch(e => console.error("Error enviando notificación interna de resolución a staff:", e));
 
+      await sendInAppNotification(
+        'complaint_response_sent',
+        `Reclamo ${complaint.complaint_code}: Respuesta Oficial Emitida`,
+        `${adminName} emitió la resolución "${resolutionLabel}" para el expediente.`,
+        'complaints',
+        id,
+        req.admin?.id
+      );
+
       res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -1535,7 +1557,7 @@ casesRouter.post(
     try {
       await client.query('BEGIN');
       
-      const current = await client.query('SELECT id FROM complaints WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query('SELECT id, complaint_code FROM complaints WHERE id = $1 FOR UPDATE', [id]);
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
 
       for (const f of files) {
@@ -1605,6 +1627,21 @@ casesRouter.post(
       }
 
       await client.query('COMMIT');
+
+      const complaintCode = current.rows[0]?.complaint_code || id.split('-')[0];
+      const actorName = req.admin?.name || 'Un administrador';
+      const fileCount = addedFiles.length;
+      const fileText = fileCount === 1 ? '1 prueba interna' : `${fileCount} pruebas internas`;
+
+      await sendInAppNotification(
+        'complaint_evidence_added',
+        `Reclamo ${complaintCode}: Evidencia Adjuntada`,
+        `${actorName} adjuntó ${fileText} al expediente.`,
+        'complaints',
+        id,
+        req.admin?.id
+      );
+
       res.json({ success: true, count: addedFiles.length });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1635,11 +1672,26 @@ casesRouter.post(
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const { note_text } = req.body;
-    if (!note_text) throw new HttpError(400, 'El texto es requerido.');
+    if (!note_text || !String(note_text).trim()) throw new HttpError(400, 'El texto es requerido.');
     const result = await pool.query(
       `INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES ($1, $2, $3) RETURNING *`,
       [id, req.admin?.id, note_text]
     );
+
+    const complaintRes = await pool.query('SELECT complaint_code FROM complaints WHERE id = $1', [id]);
+    const complaintCode = complaintRes.rows[0]?.complaint_code || id.split('-')[0];
+    const authorName = req.admin?.name || 'Un administrador';
+    const noteSnippet = note_text.length > 60 ? `${note_text.slice(0, 57)}...` : note_text;
+
+    await sendInAppNotification(
+      'complaint_note_added',
+      `Reclamo ${complaintCode}: Nueva Nota Interna`,
+      `${authorName} añadió una nota: "${noteSnippet}"`,
+      'complaints',
+      id,
+      req.admin?.id
+    );
+
     res.json({ item: result.rows[0] });
   })
 );

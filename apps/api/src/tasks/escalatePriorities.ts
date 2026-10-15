@@ -8,7 +8,6 @@ export function startCronJobs() {
     console.log('[CRON] Ejecutando escalado automático de prioridades...');
     try {
       await escalateCases('contact_cases', 'contacts');
-      await escalateCases('complaints', 'complaints');
     } catch (error) {
       console.error('[CRON] Error en escalado automático:', error);
     }
