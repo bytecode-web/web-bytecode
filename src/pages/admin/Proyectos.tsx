@@ -7,6 +7,7 @@ import RoleGuard from '../../components/admin/RoleGuard';
 import ProjectQuoteSelector from '../../components/admin/ProjectQuoteSelector';
 import PaginationControl from '../../components/ui/PaginationControl';
 import CustomDropdown from '../../components/ui/CustomDropdown';
+import ShineBorder from '../../components/ui/shine-border';
 import {
   apiRequest,
   createProject,
@@ -165,22 +166,43 @@ const Proyectos: React.FC = () => {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-          <form onSubmit={handleCreate} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
-            <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4"><h2 className="text-lg font-semibold text-white/90">Nuevo proyecto</h2><button type="button" onClick={() => setModalOpen(false)} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button></div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-              <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Cliente</span><CustomDropdown value={form.customerId} onChange={(customerId) => setForm({ ...form, customerId, quoteId: null, totalBudget: 0 })} placeholder="Seleccionar cliente..." options={customers.map((item) => ({ value: item.id, label: item.label }))} /></div>
-              <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Servicio</span><CustomDropdown value={form.serviceId} onChange={(serviceId) => setForm({ ...form, serviceId })} placeholder="Seleccionar servicio..." options={services.map((item) => ({ value: item.id, label: item.name }))} /></div>
-              <div className="md:col-span-2"><ProjectQuoteSelector email={selectedCustomerEmail} value={form.quoteId ?? ''} onChange={(quote) => setForm({ ...form, quoteId: quote?.id ?? null, totalBudget: quote ? Number(quote.total_amount) : form.totalBudget, currencyCode: quote ? quote.currency_code : form.currencyCode })} /></div>
-              <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Estado</span><CustomDropdown value={form.status} onChange={(status) => setForm({ ...form, status })} placeholder="Seleccionar estado..." options={statuses.filter((item) => !item.isTerminal).map((item) => ({ value: item.code, label: item.name }))} /></div>
-              <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Presupuesto ({form.currencyCode})</span><input type="number" min={0} step="0.01" required value={form.totalBudget} onChange={(e) => setForm({ ...form, totalBudget: Number(e.target.value) })} readOnly={!!form.quoteId} className={`rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white ${form.quoteId ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`} /></label>
-              <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Inicio</span><input type="date" required min={today()} value={form.startDate} onChange={(e) => { const newStartDate = e.target.value; if (!newStartDate) { setForm({ ...form, startDate: '', estimatedEndDate: '' }); return; } const d = new Date(newStartDate); d.setDate(d.getDate() + 7); const minEndDate = d.toISOString().slice(0,10); setForm({ ...form, startDate: newStartDate, estimatedEndDate: form.estimatedEndDate && form.estimatedEndDate < minEndDate ? minEndDate : form.estimatedEndDate }); }} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-              <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fin estimado</span><input type="date" required disabled={!form.startDate} min={form.startDate ? (() => { const d = new Date(form.startDate); d.setDate(d.getDate() + 7); return d.toISOString().slice(0,10); })() : undefined} value={form.estimatedEndDate} onChange={(e) => setForm({ ...form, estimatedEndDate: e.target.value })} className={`rounded-lg border border-white/10 px-4 py-2.5 text-white ${!form.startDate ? 'cursor-not-allowed bg-white/5 opacity-40' : 'bg-white/5'}`} title={!form.startDate ? 'Selecciona una fecha de inicio primero' : ''} /></label>
-              <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">GitHub Repo</span><input type="url" value={form.githubRepo} onChange={(e) => setForm({ ...form, githubRepo: e.target.value })} placeholder="https://github.com/org/repo" className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-              <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">Descripción</span><textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative flex flex-col max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-white/90">Nuevo proyecto</h2>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={saving || !form.customerId || !form.serviceId || !form.status} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{saving ? 'Guardando...' : 'Crear proyecto'}</button></div>
-          </form>
+            <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Cliente</span><CustomDropdown value={form.customerId} onChange={(customerId) => setForm({ ...form, customerId, quoteId: null, totalBudget: 0 })} placeholder="Seleccionar cliente..." options={customers.map((item) => ({ value: item.id, label: item.label }))} /></div>
+                  <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Servicio</span><CustomDropdown value={form.serviceId} onChange={(serviceId) => setForm({ ...form, serviceId })} placeholder="Seleccionar servicio..." options={services.map((item) => ({ value: item.id, label: item.name }))} /></div>
+                  <div className="md:col-span-2"><ProjectQuoteSelector email={selectedCustomerEmail} value={form.quoteId ?? ''} onChange={(quote) => setForm({ ...form, quoteId: quote?.id ?? null, totalBudget: quote ? Number(quote.total_amount) : form.totalBudget, currencyCode: quote ? quote.currency_code : form.currencyCode })} /></div>
+                  <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Estado</span><CustomDropdown value={form.status} onChange={(status) => setForm({ ...form, status })} placeholder="Seleccionar estado..." options={statuses.filter((item) => !item.isTerminal).map((item) => ({ value: item.code, label: item.name }))} /></div>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Presupuesto ({form.currencyCode})</span><input type="number" min={0} step="0.01" required value={form.totalBudget} onChange={(e) => setForm({ ...form, totalBudget: Number(e.target.value) })} readOnly={!!form.quoteId} className={`rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white ${form.quoteId ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`} /></label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Inicio</span><input type="date" required min={today()} value={form.startDate} onChange={(e) => { const newStartDate = e.target.value; if (!newStartDate) { setForm({ ...form, startDate: '', estimatedEndDate: '' }); return; } const d = new Date(newStartDate); d.setDate(d.getDate() + 7); const minEndDate = d.toISOString().slice(0,10); setForm({ ...form, startDate: newStartDate, estimatedEndDate: form.estimatedEndDate && form.estimatedEndDate < minEndDate ? minEndDate : form.estimatedEndDate }); }} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fin estimado</span><input type="date" required disabled={!form.startDate} min={form.startDate ? (() => { const d = new Date(form.startDate); d.setDate(d.getDate() + 7); return d.toISOString().slice(0,10); })() : undefined} value={form.estimatedEndDate} onChange={(e) => setForm({ ...form, estimatedEndDate: e.target.value })} className={`rounded-lg border border-white/10 px-4 py-2.5 text-white ${!form.startDate ? 'cursor-not-allowed bg-white/5 opacity-40' : 'bg-white/5'}`} title={!form.startDate ? 'Selecciona una fecha de inicio primero' : ''} /></label>
+                  <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">GitHub Repo</span><input type="url" value={form.githubRepo} onChange={(e) => setForm({ ...form, githubRepo: e.target.value })} placeholder="https://github.com/org/repo" className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <label className="grid gap-1.5 md:col-span-2"><span className="text-xs uppercase tracking-wider text-white/45">Descripción</span><textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 md:px-8 flex-shrink-0 bg-white/[0.01]">
+                <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65 hover:bg-white/5 transition-colors">Cancelar</button>
+                <button disabled={saving || !form.customerId || !form.serviceId || !form.status} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-40">{saving ? 'Guardando...' : 'Crear proyecto'}</button>
+              </div>
+            </form>
+          </ShineBorder>
         </div>
       )}
     </div>

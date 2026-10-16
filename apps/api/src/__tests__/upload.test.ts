@@ -46,6 +46,7 @@ const validComplaintForm = () => {
   form.set('detalle', 'Detalle suficientemente largo para pasar la validación.');
   form.set('pedido', 'Solicito revisión del caso.');
   form.set('aceptaTerminos', 'true');
+  form.set('aceptaPoliticaDatos', 'true');
   return form;
 };
 

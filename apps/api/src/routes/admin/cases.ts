@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -7,9 +8,14 @@ import { requirePermission } from '../../middleware/auth.js';
 import { requireCsrf } from '../../middleware/csrf.js';
 import { requireNonTerminalState } from '../../middleware/requireNonTerminalState.js';
 import { auditService } from '../../services/audit.js';
-import { sendDirectInAppNotification } from '../../services/notificationService.js';
+import { sendDirectInAppNotification, sendInAppNotification } from '../../services/notificationService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { HttpError } from '../../utils/httpError.js';
+import { notifyCustomer, sendStaffResolutionNotification } from '../../services/email.js';
+import { buildComplaintResolution, buildComplaintResolutionStaffNotification } from '../../services/emailTemplates.js';
+import { upload } from './shared.js';
+import { validateUpload } from '../../lib/validateUpload.js';
+import { uploadComplaintEvidenceToCloudinary } from '../../lib/cloudinary.js';
 import { listQuerySchema, statusHistorySelect } from './shared.js';
 
 export const casesRouter = Router();
@@ -50,6 +56,8 @@ const contactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
+  sc.is_terminal as is_terminal,
+  sc.is_terminal as "isTerminal",
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code,
@@ -75,7 +83,12 @@ const contactColumns = `
     FROM customer_documents cd
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
-  ) as document_number
+  ) as document_number,
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code
 `;
 
 const contactJoins = `
@@ -88,6 +101,7 @@ const contactJoins = `
     AND co.organization_id = c.organization_id
     AND co.deleted_at IS NULL
   LEFT JOIN contact_categories cat ON c.category_id = cat.id
+  LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
 `;
 
 const legacyContactColumns = `
@@ -104,6 +118,8 @@ const legacyContactColumns = `
   c.message,
   sc.code as status,
   sc.name as status_name,
+  sc.is_terminal as is_terminal,
+  sc.is_terminal as "isTerminal",
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, c.assigned_to, c.created_at, c.updated_at, c.first_response_due_at, c.resolved_at, c.closed_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color,
   c.category_id, cat.name as category_name, cat.code as category_code,
@@ -128,7 +144,12 @@ const legacyContactColumns = `
     FROM customer_documents cd
     WHERE cd.customer_id = cu.id AND cd.is_primary = true AND cd.deleted_at IS NULL
     LIMIT 1
-  ) as document_number
+  ) as document_number,
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code
 `;
 
 const legacyContactJoins = `
@@ -136,6 +157,7 @@ const legacyContactJoins = `
   JOIN status_catalog sc ON c.status_id = sc.id
   LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
   LEFT JOIN contact_categories cat ON c.category_id = cat.id
+  LEFT JOIN countries cty ON cu.country_id = cty.id
 `;
 
 let normalizedContactSchema: boolean | null = null;
@@ -168,18 +190,66 @@ const hasNormalizedContactSchema = async () => {
   return normalizedContactSchema;
 };
 
-const complaintColumns = `
-  c.id, c.complaint_code as code, cu.first_name as nombres, cu.last_name as apellidos, 
-  '' as domicilio, '' as tipo_doc, '' as numero_doc, '' as prefijo_telefono, 
-  cu.primary_phone as telefono, cu.primary_email as email, '' as person_type, 
-  cg.good_type, cg.claimed_amount as monto_cuantificable, cg.description as descripcion, 
-  '' as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
+  const complaintColumns = `
+  c.id, c.complaint_code as code, 
+  COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres, 
+  COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos, 
+  COALESCE(c.customer_snapshot->>'domicilio', '') as domicilio, 
+  COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
+  COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc, 
+  COALESCE(NULLIF(c.customer_snapshot->>'prefijoTelefono', ''), cty.dial_code, '') as prefijo_telefono, 
+  COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
+  COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
+  COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
+  c.organization_id,
+  COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+  cty.id as country_id,
+  cty.name as country_name,
+  cty.iso2 as country_iso2,
+  cty.iso2 as country_iso,
+  cty.dial_code as country_dial_code,
+  CASE
+    WHEN c.organization_id IS NOT NULL 
+      OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
+      OR cu.person_type IN ('company', 'company_contact')
+      OR c.customer_snapshot->>'tipoDoc' = 'RUC'
+    THEN 'B2B'
+    ELSE 'B2C'
+  END as b2_type,
+  cg.good_type, cg.claimed_amount as monto_cuantificable, cg.currency_code as currency_code, cg.invoice_number as invoice_number, cg.description as descripcion, 
+  cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
-  sc.name as status_name,
+  sc.name as status_name, sc.is_terminal as is_terminal, sc.is_terminal as "isTerminal",
+  cd.customer_ip, cd.customer_user_agent, 
+  CASE 
+    WHEN c.legal_response_due_at IS NOT NULL AND (EXTRACT(HOUR FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 23 OR EXTRACT(MINUTE FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 59)
+    THEN (date_trunc('day', c.legal_response_due_at AT TIME ZONE 'America/Lima') + INTERVAL '23 hours 59 minutes 59 seconds') AT TIME ZONE 'America/Lima'
+    ELSE c.legal_response_due_at
+  END as legal_response_due_at,
+  c.legal_acceptance_at,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
-  c.assigned_to, c.created_at, c.updated_at,
+  c.assigned_to, c.created_at, c.updated_at, c.deleted_at, c.archived_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
+`;
+
+const complaintJoins = `
+  JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
+  JOIN status_catalog sc ON c.status_id = sc.id
+  LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+  LEFT JOIN organizations o ON c.organization_id = o.id
+  JOIN complaint_types ct ON c.complaint_type_id = ct.id
+  LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
+  LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
+  LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
+  LEFT JOIN LATERAL (
+    SELECT fa.original_name, fa.mime_type, fa.byte_size
+    FROM complaint_evidences ce
+    JOIN file_assets fa ON ce.file_asset_id = fa.id
+    WHERE ce.complaint_id = c.id
+    ORDER BY ce.created_at ASC
+    LIMIT 1
+  ) fa ON true
 `;
 
 const buildWhere = (status?: string, search?: string, fields: string[] = []) => {
@@ -328,13 +398,33 @@ casesRouter.get(
   requirePermission('admin.contactos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
     const normalized = await hasNormalizedContactSchema();
     const result = await pool.query(
       `SELECT ${normalized ? contactColumns : legacyContactColumns} FROM contact_cases c ${normalized ? contactJoins : legacyContactJoins} WHERE c.id = $1`, 
       [id]
     );
     if (result.rowCount === 0) throw new HttpError(404, 'Mensaje no encontrado.');
-    res.json({ item: result.rows[0] });
+
+    const posResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM contact_cases c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE (
+        COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM contact_cases c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+        OR (
+          COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM contact_cases c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          AND c2.created_at > (SELECT created_at FROM contact_cases WHERE id = $1)
+        )
+      )
+      `,
+      [id]
+    );
+    const countBefore = posResult.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({ item: result.rows[0], page });
   }),
 );
 
@@ -599,29 +689,147 @@ casesRouter.get(
 );
 
 casesRouter.get(
+  '/complaints/metrics',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const result = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE sc.is_terminal = false AND c.deleted_at IS NULL) as total_activos,
+        COUNT(*) FILTER (WHERE sc.is_terminal = false AND c.deleted_at IS NULL AND c.legal_response_due_at >= NOW() AND c.legal_response_due_at <= NOW() + INTERVAL '7 days') as por_vencer,
+        AVG(EXTRACT(EPOCH FROM (c.updated_at - c.created_at)) / 86400) FILTER (WHERE sc.is_terminal = true AND c.deleted_at IS NULL) as avg_resolution_days
+      FROM complaints c
+      JOIN status_catalog sc ON c.status_id = sc.id
+    `);
+    
+    res.json({ data: result.rows[0] });
+  })
+);
+
+export const complaintsQuerySchema = z.object({
+  status: z.string().optional(),
+  search: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(9),
+  offset: z.coerce.number().int().min(0).default(0),
+  urgency: z.string().optional(),
+  tipo: z.string().optional(),
+  origin: z.string().optional(),
+  agent: z.string().optional(),
+  archived: z.enum(['true', 'false']).optional().default('false')
+});
+
+casesRouter.get(
   '/complaints',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const query = listQuerySchema.parse(req.query);
+    const query = complaintsQuerySchema.parse(req.query);
     const { whereSql, params } = buildWhere(query.status, query.search, [
       'c.complaint_code',
       'cu.first_name',
       'cu.last_name',
       'cu.primary_email',
-      'cg.category'
+      'cg.category',
+      'c.customer_snapshot->>\'numeroDoc\'',
+      'c.customer_snapshot->>\'nombres\'',
+      'c.customer_snapshot->>\'apellidos\''
     ]);
+    
+    // Extend whereSql with specialized filters
+    let extraWhere = '';
+    
+    if (query.archived === 'true') {
+      extraWhere += ` AND c.deleted_at IS NOT NULL`;
+    } else {
+      extraWhere += ` AND c.deleted_at IS NULL`;
+    }
+
+    if (query.agent) {
+      params.push(query.agent);
+      extraWhere += ` AND c.assigned_to = $${params.length}`;
+    }
+    
+    if (query.urgency) {
+      // SLU urgency filters (SLA)
+      if (query.urgency === 'vencido') {
+        extraWhere += ` AND c.legal_response_due_at < NOW()`;
+      } else if (query.urgency === 'proximo') {
+        // En los próximos 5 días hábiles aprox, asumiremos <= 7 días calendario para la query
+        extraWhere += ` AND c.legal_response_due_at >= NOW() AND c.legal_response_due_at <= NOW() + INTERVAL '7 days'`;
+      } else if (query.urgency === 'en_plazo') {
+        extraWhere += ` AND c.legal_response_due_at > NOW() + INTERVAL '7 days'`;
+      }
+    }
+    
+    if (query.tipo) {
+      if (query.tipo === 'b2b') {
+        extraWhere += ` AND (c.organization_id IS NOT NULL OR c.customer_snapshot->>'tipoDoc' = 'RUC' OR c.customer_snapshot->>'personType' IN ('empresa', 'company') OR cu.person_type IN ('company', 'company_contact'))`;
+      } else if (query.tipo === 'b2c') {
+        extraWhere += ` AND (c.organization_id IS NULL AND c.customer_snapshot->>'tipoDoc' != 'RUC' AND (c.customer_snapshot->>'personType' IS NULL OR c.customer_snapshot->>'personType' NOT IN ('empresa', 'company')) AND cu.person_type NOT IN ('company', 'company_contact'))`;
+      } else if (query.tipo === 'reclamo') {
+        extraWhere += ` AND ct.name = 'Reclamo'`;
+      } else if (query.tipo === 'queja') {
+        extraWhere += ` AND ct.name = 'Queja'`;
+      }
+    }
+    
+    if (query.origin) {
+      if (query.origin === 'nacional') {
+        extraWhere += ` AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) LIKE '+51 %'`;
+      } else if (query.origin === 'internacional') {
+        extraWhere += ` AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) NOT LIKE '+51 %' AND COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) LIKE '+%'`;
+      }
+    }
+    
+    const finalWhereSql = whereSql ? whereSql + extraWhere : 'WHERE 1=1 ' + extraWhere;
+
     const [result, countResult] = await Promise.all([pool.query(
       `
-      SELECT c.id, c.complaint_code as code, c.assigned_to, cu.first_name as nombres, cu.last_name as apellidos, cu.primary_email as email, cu.primary_phone as telefono, ct.name as claim_type, cg.category as tipo_reclamo, sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, c.created_at, c.updated_at
+      SELECT c.id, c.complaint_code as code, c.assigned_to, 
+             COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres, 
+             COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos, 
+             COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email, 
+             COALESCE(c.customer_snapshot->>'telefono', cu.primary_phone) as telefono, 
+             COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc, 
+             COALESCE(c.customer_snapshot->>'personType', '') as person_type, 
+             c.organization_id,
+             COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+             cty.id as country_id,
+             cty.name as country_name,
+             cty.iso2 as country_iso2,
+             cty.iso2 as country_iso,
+             cty.dial_code as country_dial_code,
+             CASE
+               WHEN c.organization_id IS NOT NULL 
+                 OR c.customer_snapshot->>'personType' IN ('empresa', 'company')
+                 OR cu.person_type IN ('company', 'company_contact')
+                 OR c.customer_snapshot->>'tipoDoc' = 'RUC'
+               THEN 'B2B'
+               ELSE 'B2C'
+             END as b2_type,
+             ct.name as claim_type, cg.category as tipo_reclamo, 
+             sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", 
+             pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, 
+             fa.original_name as attachment_original_name, c.created_at, c.updated_at, CASE 
+                WHEN c.legal_response_due_at IS NOT NULL AND (EXTRACT(HOUR FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 23 OR EXTRACT(MINUTE FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 59)
+                THEN (date_trunc('day', c.legal_response_due_at AT TIME ZONE 'America/Lima') + INTERVAL '23 hours 59 minutes 59 seconds') AT TIME ZONE 'America/Lima'
+                ELSE c.legal_response_due_at
+              END as legal_response_due_at, c.deleted_at
       FROM complaints c
       JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
       LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+      LEFT JOIN organizations o ON c.organization_id = o.id
       JOIN complaint_types ct ON c.complaint_type_id = ct.id
       LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-      LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-      LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
-      ${whereSql}
+      LEFT JOIN countries cty ON COALESCE(o.country_id, cu.country_id) = cty.id
+      LEFT JOIN LATERAL (
+        SELECT fa.original_name
+        FROM complaint_evidences ce
+        JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE ce.complaint_id = c.id
+        ORDER BY ce.created_at ASC
+        LIMIT 1
+      ) fa ON true
+      ${finalWhereSql}
       ORDER BY pc.weight DESC NULLS LAST, c.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `,
@@ -633,8 +841,10 @@ casesRouter.get(
          JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
          JOIN status_catalog sc ON c.status_id = sc.id
          LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
+         LEFT JOIN organizations o ON c.organization_id = o.id
+         JOIN complaint_types ct ON c.complaint_type_id = ct.id
          LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-         ${whereSql}
+         ${finalWhereSql}
        ) records`,
       params,
     )]);
@@ -660,22 +870,36 @@ casesRouter.get(
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
     const result = await pool.query(
       `SELECT ${complaintColumns} 
       FROM complaints c
-      JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-      JOIN status_catalog sc ON c.status_id = sc.id
-      LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-      JOIN complaint_types ct ON c.complaint_type_id = ct.id
-      LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-      LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-      LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-      LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+      ${complaintJoins}
       WHERE c.id = $1`, 
       [id]
     );
     if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
-    res.json({ item: result.rows[0] });
+
+    const posResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM complaints c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE c2.deleted_at IS NULL
+        AND (
+          COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          OR (
+            COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+            AND c2.created_at > (SELECT created_at FROM complaints WHERE id = $1)
+          )
+        )
+      `,
+      [id]
+    );
+    const countBefore = posResult.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({ item: result.rows[0], page });
   }),
 );
 
@@ -694,7 +918,7 @@ casesRouter.patch(
     try {
       await client.query('BEGIN');
       const current = await client.query(
-        'SELECT id, status_id, internal_notes, assigned_to, updated_at FROM complaints WHERE id = $1 FOR UPDATE',
+        'SELECT id, complaint_code, status_id, internal_notes, assigned_to, updated_at FROM complaints WHERE id = $1 FOR UPDATE',
         [id],
       );
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
@@ -713,6 +937,13 @@ casesRouter.patch(
       }
 
       if (body.status) {
+        if (['founded', 'unfounded'].includes(body.status)) {
+          throw new HttpError(400, 'Los estados "Fundado" e "Infundado" son resoluciones oficiales terminales y solo pueden emitirse a través del módulo de respuestas integradas.');
+        } else if (['resolved', 'closed'].includes(body.status)) {
+          const hasResponse = await client.query('SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1', [id]);
+          if (hasResponse.rowCount === 0) throw new HttpError(400, 'No se puede cerrar un reclamo sin emitir previamente una respuesta oficial trazable.');
+        }
+
         const statusResult = await client.query(
           "SELECT id FROM status_catalog WHERE domain = 'complaint' AND code = $1 AND is_active = true",
           [body.status]
@@ -741,13 +972,26 @@ casesRouter.patch(
           [id, oldStatusId, newStatusId, req.admin?.id ?? null],
         );
 
+        const complaintCode = currentRow.complaint_code || id.split('-')[0];
+        const statusNameRes = await client.query("SELECT name FROM status_catalog WHERE id = $1", [newStatusId]);
+        const newStatusName = statusNameRes.rows[0]?.name || body.status;
+        const actorName = req.admin?.name || 'Un administrador';
+
+        await sendInAppNotification(
+          'complaint_status_changed',
+          `Reclamo ${complaintCode}: Estado Actualizado`,
+          `${actorName} cambió el estado del reclamo a "${newStatusName}".`,
+          'complaints',
+          id,
+          req.admin?.id
+        );
+
         const assignedTo = currentRow.assigned_to as string | undefined;
         if (assignedTo && assignedTo !== req.admin?.id) {
-          const complaintCode = currentRow.complaint_code || id.split('-')[0];
           await sendDirectInAppNotification(
             assignedTo,
             "Actualización de Reclamo",
-            `El estado del reclamo #${complaintCode} ha sido modificado.`,
+            `El estado del reclamo #${complaintCode} ha sido modificado a "${newStatusName}".`,
             "complaints",
             id
           );
@@ -757,14 +1001,7 @@ casesRouter.patch(
       const updated = await client.query(
         `SELECT ${complaintColumns}
          FROM complaints c
-         JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-         JOIN status_catalog sc ON c.status_id = sc.id
-      LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-      JOIN complaint_types ct ON c.complaint_type_id = ct.id
-         LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-         LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-         LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-         LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+         ${complaintJoins}
          WHERE c.id = $1`,
         [id],
       );
@@ -791,20 +1028,47 @@ casesRouter.patch(
 );
 
 casesRouter.get(
+  '/complaints/:id/evidences',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const result = await pool.query(
+      `
+      SELECT fa.id, fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url, ce.created_at
+      FROM complaints c
+      JOIN complaint_evidences ce ON c.id = ce.complaint_id
+      JOIN file_assets fa ON ce.file_asset_id = fa.id
+      WHERE c.id = $1
+      ORDER BY ce.created_at ASC
+      `,
+      [id],
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.get(
   '/complaints/:id/attachment',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
-    const result = await pool.query(
-      `
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const fileId = req.query.fileId ? z.string().uuid('ID de archivo adjunto inválido.').parse(req.query.fileId) : undefined;
+
+    let query = `
       SELECT fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url
       FROM complaints c
       JOIN complaint_evidences ce ON c.id = ce.complaint_id
       JOIN file_assets fa ON ce.file_asset_id = fa.id
       WHERE c.id = $1
-      `,
-      [id],
-    );
+    `;
+    const params: any[] = [id];
+
+    if (fileId) {
+      query += ` AND fa.id = $2`;
+      params.push(fileId);
+    }
+
+    const result = await pool.query(query + " LIMIT 1", params);
 
     if (result.rowCount === 0) throw new HttpError(404, 'Reclamo o adjunto no encontrado.');
 
@@ -830,6 +1094,7 @@ casesRouter.post(
   '/complaints/:id/assign',
   requireCsrf,
   requirePermission('admin.reclamos.assign'),
+  requireNonTerminalState('complaints'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const body = assignSchema.parse(req.body);
@@ -892,14 +1157,7 @@ casesRouter.post(
       const updated = await client.query(
         `SELECT ${complaintColumns} 
         FROM complaints c
-        JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
-        JOIN status_catalog sc ON c.status_id = sc.id
-        LEFT JOIN priority_catalog pc ON c.priority_id = pc.id
-        JOIN complaint_types ct ON c.complaint_type_id = ct.id
-        LEFT JOIN complaint_details cd ON c.id = cd.complaint_id
-        LEFT JOIN complaint_goods cg ON c.id = cg.complaint_id
-        LEFT JOIN complaint_evidences ce ON c.id = ce.complaint_id
-        LEFT JOIN file_assets fa ON ce.file_asset_id = fa.id
+        ${complaintJoins}
         WHERE c.id = $1`, 
         [id]
       );
@@ -943,5 +1201,1053 @@ casesRouter.get(
       [id]
     );
     res.json({ items: result.rows });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/responses',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
+  upload.array('archivosAdjuntos', 5),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const bodySchema = z.object({
+      response_body: z.string({ message: 'El cuerpo de la respuesta es requerido.' })
+        .trim()
+        .min(10, 'La respuesta debe ser más detallada (mínimo 10 caracteres).')
+        .max(10000, 'La respuesta no puede exceder los 10,000 caracteres.')
+        .refine(val => !/[\0\x08\x0B\x0C\x0E-\x1F]/.test(val), 'El texto contiene caracteres no válidos.'),
+      final_status_code: z.enum(['founded', 'unfounded']),
+    });
+    
+    const body = bodySchema.parse(req.body);
+    const files = req.files as Express.Multer.File[] | undefined;
+
+    if (files && files.length > 5) {
+      throw new HttpError(400, 'No puede adjuntar más de 5 archivos de sustento.');
+    }
+
+    if (files && files.length > 0) {
+      const totalBatchBytes = files.reduce((acc, f) => acc + (f.size || f.buffer?.length || 0), 0);
+      if (totalBatchBytes > 25 * 1024 * 1024) {
+        throw new HttpError(413, 'El tamaño total acumulado de los archivos no debe superar los 25MB.');
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const current = await client.query(`
+        SELECT c.id, c.complaint_code, c.status_id, c.organization_id, c.deleted_at,
+               c.customer_snapshot,
+               COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+               COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres,
+               COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as apellidos,
+               COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name,
+               COALESCE(c.customer_snapshot->>'personType', cu.person_type, '') as person_type,
+               COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc,
+               COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc,
+               ct.name as claim_type,
+               sc.name as previous_status_name,
+               sc.is_terminal as current_is_terminal
+        FROM complaints c
+        LEFT JOIN customers cu ON c.customer_id = cu.id
+        LEFT JOIN organizations o ON c.organization_id = o.id
+        LEFT JOIN complaint_types ct ON c.complaint_type_id = ct.id
+        LEFT JOIN status_catalog sc ON c.status_id = sc.id
+        WHERE c.id = $1 FOR UPDATE OF c
+      `, [id]);
+      
+      if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+      const complaint = current.rows[0];
+
+      // Blindaje contra reclamos archivados / purgados
+      if (complaint.deleted_at) {
+        throw new HttpError(400, 'No se puede emitir una respuesta para un expediente archivado o purgado.');
+      }
+
+      // Blindaje de concurrencia contra doble respuesta / estado terminal bajo bloqueo de fila
+      if (complaint.current_is_terminal) {
+        throw new HttpError(409, 'El reclamo ya cuenta con una resolución final emitida.');
+      }
+
+      const existingResponseCheck = await client.query(
+        'SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1',
+        [id]
+      );
+      if ((existingResponseCheck.rowCount ?? 0) > 0) {
+        throw new HttpError(409, 'Ya existe una respuesta oficial registrada para este reclamo.');
+      }
+
+      // Get new status ID
+      const statusRes = await client.query(
+        "SELECT id, name FROM status_catalog WHERE domain = 'complaint' AND code = $1",
+        [body.final_status_code]
+      );
+      
+      if (statusRes.rowCount === 0) throw new HttpError(400, 'Estado final inválido.');
+      const newStatusId = statusRes.rows[0].id;
+      const resolutionLabel = statusRes.rows[0].name;
+
+      // Procesar y asociar archivos adjuntos (si fueron enviados)
+      const attachedFileNames: string[] = [];
+      const uniqueEmailAttachments: { filename: string; content: Buffer; contentType: string }[] = [];
+      const attachedFileDetails: { id: string; name: string; mime_type: string; size_bytes: number }[] = [];
+      const seenChecksums = new Set<string>();
+
+      if (files && files.length > 0) {
+        for (const f of files) {
+          const validatedFile = await validateUpload(f);
+
+          // 1. Validar que no se haya seleccionado el mismo archivo dos veces en el lote
+          if (seenChecksums.has(validatedFile.checksumSha256)) {
+            throw new HttpError(
+              400,
+              `El archivo "${validatedFile.originalName}" se encuentra duplicado entre los adjuntos seleccionados.`
+            );
+          }
+          seenChecksums.add(validatedFile.checksumSha256);
+
+          // 2. Validar si el archivo ya fue adjuntado previamente como evidencia en este reclamo
+          const existingEvidence = await client.query(
+            `SELECT fa.original_name 
+             FROM complaint_evidences ce 
+             JOIN file_assets fa ON ce.file_asset_id = fa.id 
+             WHERE ce.complaint_id = $1 AND fa.checksum_sha256 = $2 
+             LIMIT 1`,
+            [id, validatedFile.checksumSha256]
+          );
+
+          if ((existingEvidence.rowCount ?? 0) > 0) {
+            const existingName = existingEvidence.rows[0].original_name || validatedFile.originalName;
+            throw new HttpError(
+              409,
+              `El archivo "${validatedFile.originalName}" ya fue adjuntado previamente como evidencia por parte del reclamante (registrado como "${existingName}"). Debe adjuntar un archivo diferente como sustento.`
+            );
+          }
+
+          attachedFileNames.push(validatedFile.originalName);
+          uniqueEmailAttachments.push({
+            filename: validatedFile.originalName,
+            content: f.buffer,
+            contentType: validatedFile.mimeType,
+          });
+
+          let fileAssetId: string;
+
+          const fileLookup = await client.query(
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
+            [validatedFile.checksumSha256]
+          );
+
+          if ((fileLookup.rowCount ?? 0) > 0) {
+            fileAssetId = fileLookup.rows[0].id;
+          } else {
+            try {
+              const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+                buffer: f.buffer,
+                complaintCode: `RESPONSE-${complaint.complaint_code || id}`,
+                originalName: validatedFile.originalName,
+                mimeType: validatedFile.mimeType,
+              });
+              const fileRes = await client.query(
+                `INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
+                VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6) RETURNING id`,
+                [
+                  validatedFile.originalName,
+                  cloudinaryAsset.publicId,
+                  cloudinaryAsset.secureUrl,
+                  validatedFile.mimeType,
+                  cloudinaryAsset.bytes || f.size,
+                  validatedFile.checksumSha256,
+                ]
+              );
+              fileAssetId = fileRes.rows[0].id;
+            } catch (err) {
+              console.error('Error subiendo archivo adjunto de respuesta a Cloudinary:', err);
+              throw new HttpError(502, 'Error al subir el archivo adjunto de la respuesta.');
+            }
+          }
+
+          await client.query(
+            `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+            [id, fileAssetId]
+          );
+
+          attachedFileDetails.push({
+            id: fileAssetId,
+            name: validatedFile.originalName,
+            mime_type: validatedFile.mimeType,
+            size_bytes: f.size || f.buffer?.length || 0,
+          });
+        }
+      }
+
+      // Insert response dynamically adapting to all schema columns
+      const cols = await getComplaintResponseColumns(client);
+      const insertFields: string[] = ['complaint_id'];
+      const insertValues: any[] = [id];
+
+      if (cols.has('admin_user_id')) {
+        insertFields.push('admin_user_id');
+        insertValues.push(req.admin?.id);
+      }
+      if (cols.has('sent_by')) {
+        insertFields.push('sent_by');
+        insertValues.push(req.admin?.id);
+      }
+      if (cols.has('response_body')) {
+        insertFields.push('response_body');
+        insertValues.push(body.response_body);
+      }
+      if (cols.has('body')) {
+        insertFields.push('body');
+        insertValues.push(body.response_body);
+      }
+      if (cols.has('response_type')) {
+        insertFields.push('response_type');
+        insertValues.push('final_response');
+      }
+      if (cols.has('sent_to_email')) {
+        insertFields.push('sent_to_email');
+        insertValues.push(complaint.email || null);
+      }
+      if (cols.has('sent_at')) {
+        insertFields.push('sent_at');
+        insertValues.push(new Date());
+      }
+      if (cols.has('is_final')) {
+        insertFields.push('is_final');
+        insertValues.push(true);
+      }
+      if (cols.has('created_by')) {
+        insertFields.push('created_by');
+        insertValues.push(req.admin?.id);
+      }
+
+      const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(', ');
+      await client.query(`
+        INSERT INTO complaint_responses (${insertFields.join(', ')})
+        VALUES (${placeholders})
+      `, insertValues);
+
+      // Update complaint status
+      await client.query(`
+        UPDATE complaints SET status_id = $2, updated_at = NOW() WHERE id = $1
+      `, [id, newStatusId]);
+
+      // Record state history
+      await client.query(`
+        INSERT INTO complaint_status_history (complaint_id, old_status_id, new_status_id, changed_by)
+        VALUES ($1, $2, $3, $4)
+      `, [id, complaint.status_id, newStatusId, req.admin?.id]);
+
+      // Record time event
+      await client.query(`
+        INSERT INTO complaint_time_events (complaint_id, event_type, metadata)
+        VALUES ($1, 'OFFICIAL_RESPONSE_SENT', $2)
+      `, [id, JSON.stringify({
+        resolution_type: body.final_status_code,
+        admin_id: req.admin?.id,
+        sent_at: new Date().toISOString(),
+        attachments_count: attachedFileNames.length,
+      })]);
+      
+      await client.query('COMMIT');
+
+      // Detectar persona jurídica vs natural
+      const isCompany = Boolean(
+        complaint.organization_id ||
+        ['empresa', 'company', 'company_contact'].includes(String(complaint.person_type).toLowerCase()) ||
+        String(complaint.tipo_doc).toUpperCase() === 'RUC'
+      );
+      const companyName = complaint.legal_name || complaint.nombres || 'Empresa';
+      const representativeName = complaint.apellidos || '';
+      const clientName = `${complaint.nombres || ''} ${complaint.apellidos || ''}`.trim() || 'Cliente';
+
+      const adminName = req.admin?.name || 'Administrador de Bytecode';
+      const adminRole = req.admin?.roles?.includes('super_admin') ? 'Super Administrador' : 'Representante de Atención al Cliente';
+
+      const emailAttachments = uniqueEmailAttachments.length > 0 ? uniqueEmailAttachments : undefined;
+
+      // 1. Notificación al Reclamante
+      const emailHtml = buildComplaintResolution({
+        isCompany,
+        companyName,
+        representativeName,
+        clientName,
+        complaintCode: complaint.complaint_code,
+        resolutionType: resolutionLabel,
+        resolutionBody: body.response_body,
+        adminName,
+        adminRole,
+        attachedFileNames,
+      });
+      
+      if (complaint.email) {
+        await notifyCustomer(
+          complaint.email,
+          `Respuesta Oficial a su Reclamación ${complaint.complaint_code}`,
+          emailHtml,
+          'complaint',
+          emailAttachments,
+        ).catch(e => console.error("Error enviando correo de respuesta al cliente:", e));
+      }
+
+      // 2. Notificación interna para Super Admin y Legal Reviewer
+      const staffEmailHtml = buildComplaintResolutionStaffNotification({
+        complaintCode: complaint.complaint_code,
+        claimType: complaint.claim_type || 'Reclamación',
+        isCompany,
+        clientOrCompanyName: isCompany ? companyName : clientName,
+        representativeName: isCompany && representativeName ? representativeName : undefined,
+        docType: complaint.tipo_doc || undefined,
+        docNumber: complaint.numero_doc || undefined,
+        resolutionType: resolutionLabel,
+        resolutionBody: body.response_body,
+        adminName,
+        adminEmail: req.admin?.email,
+        adminRole,
+        attachedFileNames,
+      });
+
+      await sendStaffResolutionNotification(
+        `[Resolución Oficial] ${complaint.complaint_code} - ${resolutionLabel}`,
+        staffEmailHtml,
+        emailAttachments,
+      ).catch(e => console.error("Error enviando notificación interna de resolución a staff:", e));
+
+      await sendInAppNotification(
+        'complaint_response_sent',
+        `Reclamo ${complaint.complaint_code}: Respuesta Oficial Emitida`,
+        `${adminName} emitió la resolución "${resolutionLabel}" para el expediente.`,
+        'complaints',
+        id,
+        req.admin?.id
+      );
+
+      await auditService.logAdminAction({
+        userId: req.admin?.id,
+        action: 'send_complaint_official_response',
+        entityType: 'complaints',
+        entityId: id,
+        previousState: {
+          complaint_code: complaint.complaint_code,
+          status: complaint.previous_status_name || 'En trámite',
+          is_terminal: false,
+        },
+        entity: {
+          complaint_code: complaint.complaint_code,
+          claimant_name: `${complaint.nombres || ''} ${complaint.apellidos || ''}`.trim() || complaint.legal_name || 'No especificado',
+          claimant_email: complaint.email,
+          claimant_document: `${complaint.tipo_doc || ''} ${complaint.numero_doc || ''}`.trim(),
+          claim_type: complaint.claim_type,
+          resolution: {
+            code: body.final_status_code,
+            label: resolutionLabel,
+          },
+          response_body: body.response_body,
+          attachments: attachedFileDetails,
+          attachments_count: attachedFileDetails.length,
+          sent_to_email: complaint.email,
+          responded_by: {
+            admin_id: req.admin?.id,
+            name: req.admin?.name || 'Administrador',
+            email: req.admin?.email,
+          },
+          responded_at: new Date().toISOString(),
+        },
+        req,
+      });
+
+      res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+let complaintResponseColumnsCache: Set<string> | null = null;
+const getComplaintResponseColumns = async (client: { query: typeof pool.query }) => {
+  if (complaintResponseColumnsCache) return complaintResponseColumnsCache;
+  const res = await client.query(`
+    SELECT column_name 
+    FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'complaint_responses'
+  `);
+  complaintResponseColumnsCache = new Set(res.rows.map((r: { column_name: string }) => r.column_name));
+  return complaintResponseColumnsCache;
+};
+
+casesRouter.get(
+  '/complaints/:id/time-events',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const result = await pool.query(
+      `
+      SELECT id, event_type, metadata, created_at
+      FROM complaint_time_events
+      WHERE complaint_id = $1
+      ORDER BY created_at ASC
+      `,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/responses',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const cols = await getComplaintResponseColumns(pool);
+    const bodyCol = cols.has('response_body') && cols.has('body')
+      ? 'COALESCE(r.response_body, r.body)'
+      : cols.has('response_body') ? 'r.response_body' : 'r.body';
+    const adminCol = cols.has('admin_user_id') && cols.has('sent_by')
+      ? 'COALESCE(r.admin_user_id, r.sent_by)'
+      : cols.has('admin_user_id') ? 'r.admin_user_id' : 'r.sent_by';
+
+    const result = await pool.query(
+      `SELECT r.id, ${bodyCol} as response_body, r.created_at, u.name as admin_name
+       FROM complaint_responses r
+       LEFT JOIN admin_users u ON ${adminCol} = u.id
+       WHERE r.complaint_id = $1
+       ORDER BY r.created_at DESC`,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/full',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    const limit = Math.max(1, Number(req.query.limit) || 9);
+
+    const complaintPromise = pool.query(
+      `SELECT ${complaintColumns} 
+       FROM complaints c
+       ${complaintJoins}
+       WHERE c.id = $1`, 
+      [id]
+    );
+
+    const posPromise = pool.query(
+      `
+      SELECT COUNT(*)::int AS count_before
+      FROM complaints c2
+      LEFT JOIN priority_catalog pc2 ON c2.priority_id = pc2.id
+      WHERE c2.deleted_at IS NULL
+        AND (
+          COALESCE(pc2.weight, 0) > COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+          OR (
+            COALESCE(pc2.weight, 0) = COALESCE((SELECT pc1.weight FROM complaints c1 LEFT JOIN priority_catalog pc1 ON c1.priority_id = pc1.id WHERE c1.id = $1), 0)
+            AND c2.created_at > (SELECT created_at FROM complaints WHERE id = $1)
+          )
+        )
+      `,
+      [id]
+    );
+
+    const historyPromise = pool.query(
+      statusHistorySelect('complaint_status_history', 'complaint_id'),
+      [id]
+    );
+
+    const assignmentPromise = pool.query(
+      `
+      SELECT 
+        ca.id, ca.assigned_to, ca.assigned_by, ca.assigned_at, ca.unassigned_at, ca.notes,
+        u1.name as assigned_to_name,
+        u2.name as assigned_by_name
+      FROM complaint_assignments ca
+      LEFT JOIN admin_users u1 ON ca.assigned_to = u1.id
+      LEFT JOIN admin_users u2 ON ca.assigned_by = u2.id
+      WHERE ca.complaint_id = $1
+      ORDER BY ca.assigned_at DESC
+      `,
+      [id]
+    );
+
+    const timeEventsPromise = pool.query(
+      `
+      SELECT id, event_type, metadata, created_at
+      FROM complaint_time_events
+      WHERE complaint_id = $1
+      ORDER BY created_at ASC
+      `,
+      [id]
+    );
+
+    const responsesPromise = (async () => {
+      const cols = await getComplaintResponseColumns(pool);
+      const bodyCol = cols.has('response_body') && cols.has('body')
+        ? 'COALESCE(r.response_body, r.body)'
+        : cols.has('response_body') ? 'r.response_body' : 'r.body';
+      const adminCol = cols.has('admin_user_id') && cols.has('sent_by')
+        ? 'COALESCE(r.admin_user_id, r.sent_by)'
+        : cols.has('admin_user_id') ? 'r.admin_user_id' : 'r.sent_by';
+
+      return pool.query(
+        `SELECT r.id, ${bodyCol} as response_body, r.created_at, u.name as admin_name
+         FROM complaint_responses r
+         LEFT JOIN admin_users u ON ${adminCol} = u.id
+         WHERE r.complaint_id = $1
+         ORDER BY r.created_at DESC`,
+        [id]
+      );
+    })();
+
+    const evidencesPromise = pool.query(
+      `
+      SELECT fa.id, fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url, ce.created_at
+      FROM complaints c
+      JOIN complaint_evidences ce ON c.id = ce.complaint_id
+      JOIN file_assets fa ON ce.file_asset_id = fa.id
+      WHERE c.id = $1
+      ORDER BY ce.created_at ASC
+      `,
+      [id]
+    );
+
+    const notesPromise = pool.query(
+      `SELECT n.*, u.name as author_name 
+       FROM complaint_notes n 
+       LEFT JOIN admin_users u ON n.author_id = u.id 
+       WHERE n.complaint_id = $1 
+       ORDER BY n.created_at DESC`,
+      [id]
+    );
+
+    const [complaintRes, posRes, historyRes, assignmentRes, timeEventsRes, responsesRes, evidencesRes, notesRes] = await Promise.all([
+      complaintPromise,
+      posPromise,
+      historyPromise,
+      assignmentPromise,
+      timeEventsPromise,
+      responsesPromise,
+      evidencesPromise,
+      notesPromise,
+    ]);
+
+    if (complaintRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+
+    const countBefore = posRes.rows[0]?.count_before ?? 0;
+    const page = Math.ceil((countBefore + 1) / limit);
+
+    res.json({
+      item: complaintRes.rows[0],
+      page,
+      history: historyRes.rows,
+      assignmentHistory: assignmentRes.rows,
+      timeEvents: timeEventsRes.rows,
+      responses: responsesRes.rows,
+      evidences: evidencesRes.rows,
+      notes: notesRes.rows,
+    });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/evidences',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
+  upload.array('archivosAdjuntos', 5),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (!files || files.length === 0) throw new HttpError(400, 'Debe adjuntar al menos un archivo.');
+    if (files.length > 5) throw new HttpError(400, 'No puede adjuntar más de 5 archivos por envío.');
+
+    // Validar tamaño acumulado del lote (máximo 25MB)
+    const totalBatchBytes = files.reduce((acc, f) => acc + (f.size || f.buffer?.length || 0), 0);
+    if (totalBatchBytes > 25 * 1024 * 1024) {
+      throw new HttpError(413, 'El tamaño total acumulado de los archivos no debe superar los 25MB.');
+    }
+
+    const client = await pool.connect();
+    const addedFiles: { id: string; name: string; mime_type: string; size_bytes: number }[] = [];
+    const seenChecksums = new Set<string>();
+
+    try {
+      await client.query('BEGIN');
+      
+      const current = await client.query(
+        `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal, sc.name as status_name,
+                c.customer_snapshot,
+                COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as first_name,
+                COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as last_name,
+                COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+                COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name
+         FROM complaints c
+         LEFT JOIN status_catalog sc ON c.status_id = sc.id
+         LEFT JOIN customers cu ON c.customer_id = cu.id
+         LEFT JOIN organizations o ON c.organization_id = o.id
+         WHERE c.id = $1 FOR UPDATE OF c`,
+        [id]
+      );
+      if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+      if (current.rows[0].deleted_at) {
+        throw new HttpError(400, 'No se pueden adjuntar evidencias a un expediente archivado o purgado.');
+      }
+      if (current.rows[0].is_terminal) {
+        throw new HttpError(409, 'No se pueden adjuntar evidencias a un expediente con resolución final emitida.');
+      }
+
+      for (const f of files) {
+        const validatedFile = await validateUpload(f);
+
+        // 1. Validar duplicados en el lote actual
+        if (seenChecksums.has(validatedFile.checksumSha256)) {
+          throw new HttpError(
+            400,
+            `El archivo "${validatedFile.originalName}" se encuentra duplicado entre los archivos seleccionados.`
+          );
+        }
+        seenChecksums.add(validatedFile.checksumSha256);
+
+        // 2. Validar si el archivo ya fue vinculado previamente a este reclamo
+        const existingEvidence = await client.query(
+          `SELECT fa.original_name 
+           FROM complaint_evidences ce 
+           JOIN file_assets fa ON ce.file_asset_id = fa.id 
+           WHERE ce.complaint_id = $1 AND fa.checksum_sha256 = $2 
+           LIMIT 1`,
+          [id, validatedFile.checksumSha256]
+        );
+
+        if ((existingEvidence.rowCount ?? 0) > 0) {
+          const existingName = existingEvidence.rows[0].original_name || validatedFile.originalName;
+          throw new HttpError(
+            409,
+            `El archivo "${validatedFile.originalName}" ya se encuentra vinculado como evidencia en este reclamo (registrado como "${existingName}").`
+          );
+        }
+
+        let fileAssetId: string;
+
+        const fileLookup = await client.query(
+          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
+          [validatedFile.checksumSha256]
+        );
+
+        if ((fileLookup.rowCount ?? 0) > 0) {
+          fileAssetId = fileLookup.rows[0].id;
+        } else {
+          try {
+            const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+              buffer: f.buffer,
+              complaintCode: `INTERNAL-${id}`,
+              originalName: validatedFile.originalName,
+              mimeType: validatedFile.mimeType,
+            });
+            const fileRes = await client.query(
+              `INSERT INTO file_assets (original_name, storage_provider, storage_key, public_url, mime_type, byte_size, checksum_sha256)
+              VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6) RETURNING id`,
+              [validatedFile.originalName, cloudinaryAsset.publicId, cloudinaryAsset.secureUrl, validatedFile.mimeType, cloudinaryAsset.bytes || f.size, validatedFile.checksumSha256]
+            );
+            fileAssetId = fileRes.rows[0].id;
+          } catch (err) {
+            console.error('Error subiendo archivo interno a Cloudinary:', err);
+            throw new HttpError(502, 'Error al subir el archivo interno a Cloudinary.');
+          }
+        }
+
+        await client.query(
+          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+          [id, fileAssetId]
+        );
+        addedFiles.push({
+          id: fileAssetId,
+          name: validatedFile.originalName,
+          mime_type: validatedFile.mimeType,
+          size_bytes: f.size || f.buffer?.length || 0,
+        });
+      }
+
+      await client.query('COMMIT');
+
+      const complaintCode = current.rows[0]?.complaint_code || id.split('-')[0];
+      const actorName = req.admin?.name || 'Un administrador';
+      const fileCount = addedFiles.length;
+      const fileText = fileCount === 1 ? '1 prueba interna' : `${fileCount} pruebas internas`;
+
+      await sendInAppNotification(
+        'complaint_evidence_added',
+        `Reclamo ${complaintCode}: Evidencia Adjuntada`,
+        `${actorName} adjuntó ${fileText} al expediente.`,
+        'complaints',
+        id,
+        req.admin?.id
+      );
+
+      await auditService.logAdminAction({
+        userId: req.admin?.id,
+        action: 'add_complaint_evidence',
+        entityType: 'complaints',
+        entityId: id,
+        entity: {
+          complaint_code: complaintCode,
+          claimant_name: `${current.rows[0]?.first_name || ''} ${current.rows[0]?.last_name || ''}`.trim() || current.rows[0]?.legal_name || 'No especificado',
+          claimant_email: current.rows[0]?.email || 'No especificado',
+          complaint_status: current.rows[0]?.status_name || 'En trámite',
+          uploaded_by: {
+            admin_id: req.admin?.id,
+            name: actorName,
+            email: req.admin?.email,
+          },
+          file_count: addedFiles.length,
+          files: addedFiles,
+        },
+        req
+      });
+
+      res.json({ success: true, count: addedFiles.length });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+casesRouter.get(
+  '/complaints/:id/notes',
+  requirePermission('admin.reclamos.view'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const result = await pool.query(
+      `SELECT n.*, u.name as author_name FROM complaint_notes n LEFT JOIN admin_users u ON n.author_id = u.id WHERE n.complaint_id = $1 ORDER BY n.created_at DESC`,
+      [id]
+    );
+    res.json({ items: result.rows });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/notes',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  requireNonTerminalState('complaints'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const noteSchema = z.object({
+      note_text: z.string({ message: 'El texto de la nota es requerido.' })
+        .trim()
+        .min(2, 'La nota debe tener al menos 2 caracteres.')
+        .max(4000, 'La nota no puede exceder los 4,000 caracteres.')
+        .refine(val => !/[\0\x08\x0B\x0C\x0E-\x1F]/.test(val), 'El texto contiene caracteres no válidos.')
+    });
+
+    const { note_text } = noteSchema.parse(req.body);
+
+    const complaintRes = await pool.query(
+      `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal, sc.name as status_name,
+              c.customer_snapshot,
+              COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as first_name,
+              COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as last_name,
+              COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+              COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name
+       FROM complaints c
+       LEFT JOIN status_catalog sc ON c.status_id = sc.id
+       LEFT JOIN customers cu ON c.customer_id = cu.id
+       LEFT JOIN organizations o ON c.organization_id = o.id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (complaintRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    if (complaintRes.rows[0].deleted_at) {
+      throw new HttpError(400, 'No se pueden añadir notas a un expediente archivado o purgado.');
+    }
+    if (complaintRes.rows[0].is_terminal) {
+      throw new HttpError(409, 'No se pueden añadir notas a un expediente con resolución final emitida.');
+    }
+
+    const result = await pool.query(
+      `INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES ($1, $2, $3) RETURNING *`,
+      [id, req.admin?.id, note_text]
+    );
+
+    const complaintCode = complaintRes.rows[0]?.complaint_code || id.split('-')[0];
+    const authorName = req.admin?.name || 'Un administrador';
+    const noteSnippet = note_text.length > 60 ? `${note_text.slice(0, 57)}...` : note_text;
+
+    await sendInAppNotification(
+      'complaint_note_added',
+      `Reclamo ${complaintCode}: Nueva Nota Interna`,
+      `${authorName} añadió una nota: "${noteSnippet}"`,
+      'complaints',
+      id,
+      req.admin?.id
+    );
+
+    await auditService.logAdminAction({
+      userId: req.admin?.id,
+      action: 'create_complaint_note',
+      entityType: 'complaints',
+      entityId: id,
+      entity: {
+        complaint_code: complaintCode,
+        claimant_name: `${complaintRes.rows[0]?.first_name || ''} ${complaintRes.rows[0]?.last_name || ''}`.trim() || complaintRes.rows[0]?.legal_name || 'No especificado',
+        claimant_email: complaintRes.rows[0]?.email || 'No especificado',
+        complaint_status: complaintRes.rows[0]?.status_name || 'En trámite',
+        note_id: result.rows[0].id,
+        note_text: note_text,
+        author: {
+          admin_id: req.admin?.id,
+          name: authorName,
+          email: req.admin?.email,
+        },
+        created_at: result.rows[0].created_at || new Date().toISOString(),
+      },
+      req
+    });
+
+    res.json({ item: result.rows[0] });
+  })
+);
+
+casesRouter.post(
+  '/complaints/:id/archive',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('Identificador de reclamo inválido.').parse(req.params.id);
+
+    const checkRes = await pool.query(
+      `SELECT ${complaintColumns} 
+       FROM complaints c
+       ${complaintJoins}
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    const complaint = checkRes.rows[0];
+    const complaintCode = complaint.code || complaint.complaint_code;
+
+    if (complaint.deleted_at || complaint.archived_at) {
+      throw new HttpError(400, 'El expediente ya se encuentra archivado en custodia de retención legal.');
+    }
+
+    if (!complaint.is_terminal) {
+      throw new HttpError(400, 'Solo se pueden archivar expedientes que hayan concluido su trámite oficial (estado cerrado o resuelto).');
+    }
+
+    const archivedAt = new Date().toISOString();
+
+    await pool.query(
+      `UPDATE complaints SET deleted_at = NOW(), archived_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    const [responseRes, notesCountRes, evidencesCountRes] = await Promise.all([
+      pool.query('SELECT * FROM complaint_responses WHERE complaint_id = $1 ORDER BY created_at DESC LIMIT 1', [id]),
+      pool.query('SELECT COUNT(*)::int as count FROM complaint_notes WHERE complaint_id = $1', [id]),
+      pool.query('SELECT COUNT(*)::int as count FROM complaint_evidences WHERE complaint_id = $1', [id]),
+    ]);
+
+    const officialResponse = responseRes.rows[0] || null;
+    const notesCount = notesCountRes.rows[0]?.count || 0;
+    const evidencesCount = evidencesCountRes.rows[0]?.count || 0;
+
+    await auditService.logAdminAction({
+      userId: req.admin?.id,
+      action: 'ARCHIVE_COMPLAINT',
+      entityType: 'complaints',
+      entityId: id,
+      previousState: {
+        complaint_code: complaintCode,
+        complaint: complaint,
+        archived: false,
+        archived_at: null,
+      },
+      entity: {
+        complaint_code: complaintCode,
+        complaint: {
+          ...complaint,
+          archived: true,
+          archived_at: archivedAt,
+        },
+        official_resolution: officialResponse ? {
+          resolution_code: officialResponse.resolution_code || officialResponse.final_status_code,
+          response_body: officialResponse.response_body || officialResponse.body,
+          sent_at: officialResponse.sent_at || officialResponse.created_at,
+          sent_by: officialResponse.sent_by || officialResponse.admin_user_id,
+        } : null,
+        counts_at_archive: {
+          internal_notes_count: notesCount,
+          evidences_count: evidencesCount,
+        },
+        archived_by: {
+          admin_id: req.admin?.id,
+          name: req.admin?.name || 'Administrador',
+          email: req.admin?.email,
+        },
+        archived_at: archivedAt,
+      },
+      req,
+    });
+
+    res.json({ success: true, message: 'Reclamo archivado exitosamente.' });
+  })
+);
+
+casesRouter.delete(
+  '/complaints/:id/purge',
+  requireCsrf,
+  requirePermission('admin.reclamos.manage'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = z.string().uuid('Identificador de reclamo inválido.').parse(req.params.id);
+
+    // Blindaje de Seguridad 1: Exclusivo para Super Administradores
+    const adminRoles = req.admin?.roles || [];
+    if (!adminRoles.includes('super_admin')) {
+      throw new HttpError(403, 'Acceso denegado. La purga física y destrucción definitiva es potestad exclusiva del Super Administrador.');
+    }
+
+    const { password, confirm_code } = req.body;
+    if (!password || typeof password !== 'string') {
+      throw new HttpError(400, 'Se requiere la contraseña de Super Administrador para autorizar la purga.');
+    }
+
+    // Blindaje de Seguridad 2: El expediente debe existir y estar previamente archivado
+    const checkRes = await pool.query(
+      `SELECT ${complaintColumns} 
+       FROM complaints c
+       ${complaintJoins}
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    const complaint = checkRes.rows[0];
+    const complaintCode = complaint.code || complaint.complaint_code;
+
+    if (!complaint.deleted_at && !complaint.archived_at) {
+      throw new HttpError(400, 'Operación denegada. Por protocolo de custodia, solo se pueden purgar físicamente expedientes que se encuentren archivados.');
+    }
+
+    // Blindaje de Seguridad 3: Validación estricta del código de expediente
+    if (!confirm_code || typeof confirm_code !== 'string' || confirm_code.trim().toUpperCase() !== complaintCode.trim().toUpperCase()) {
+      throw new HttpError(400, `El código de confirmación no coincide con el expediente a purgar (${complaintCode}).`);
+    }
+
+    // Blindaje de Seguridad 4: Verificación criptográfica de contraseña del Super Admin
+    const adminId = req.admin?.id;
+    if (!adminId) throw new HttpError(401, 'No autorizado.');
+
+    const adminRes = await pool.query('SELECT password_hash, is_active FROM admin_users WHERE id = $1', [adminId]);
+    if (adminRes.rowCount === 0 || !adminRes.rows[0].is_active) {
+      throw new HttpError(401, 'Administrador no encontrado o inactivo.');
+    }
+    const validPassword = await bcrypt.compare(password, adminRes.rows[0].password_hash);
+    if (!validPassword) {
+      await auditService.logAdminAction({
+        userId: adminId,
+        action: 'FAILED_PURGE_PASSWORD_ATTEMPT',
+        entityType: 'complaints',
+        entityId: id,
+        entity: {
+          complaint_code: complaintCode,
+          attempted_by: req.admin?.email,
+          timestamp: new Date().toISOString()
+        },
+        req,
+      });
+      throw new HttpError(401, 'Contraseña de autorización incorrecta.');
+    }
+
+    // Obtener data completa de relaciones asociadas antes de su eliminación física definitiva
+    const [notesRes, responsesRes, evidencesRes] = await Promise.all([
+      pool.query('SELECT id, author_id, note_text, created_at FROM complaint_notes WHERE complaint_id = $1 ORDER BY created_at ASC', [id]),
+      pool.query('SELECT * FROM complaint_responses WHERE complaint_id = $1 ORDER BY created_at ASC', [id]),
+      pool.query(`
+        SELECT fa.id, fa.original_name, fa.mime_type, fa.byte_size, fa.checksum_sha256 
+        FROM complaint_evidences ce
+        JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE ce.complaint_id = $1
+      `, [id]),
+    ]);
+
+    // Blindaje de Seguridad 5: Registro forense previo en auditoría antes de la destrucción de la fila
+    await auditService.logAdminAction({
+      userId: adminId,
+      action: 'PURGE_PHYSICAL_COMPLAINT',
+      entityType: 'complaints',
+      entityId: id,
+      previousState: {
+        complaint_code: complaintCode,
+        complaint: complaint,
+        associated_data: {
+          notes: notesRes.rows,
+          responses: responsesRes.rows,
+          evidences: evidencesRes.rows,
+        },
+      },
+      entity: {
+        complaint_code: complaintCode,
+        purged_at: new Date().toISOString(),
+        purged_by: {
+          admin_id: adminId,
+          name: req.admin?.name || 'Super Administrador',
+          email: req.admin?.email,
+          security_clearance: 'super_admin'
+        },
+        complaint_snapshot: complaint,
+        associated_data_snapshot: {
+          notes: notesRes.rows,
+          responses: responsesRes.rows,
+          evidences: evidencesRes.rows,
+        },
+        destruction_summary: {
+          notes_deleted: notesRes.rowCount,
+          responses_deleted: responsesRes.rowCount,
+          evidences_deleted: evidencesRes.rowCount,
+          confirm_code_entered: confirm_code.trim(),
+          matched_complaint_code: complaintCode,
+          verified_with_superadmin_credentials: true,
+        }
+      },
+      req,
+    });
+
+    // Blindaje de Seguridad 6: Transacción aislada satisfaciendo el trigger prevent_legal_delete()
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL app.allow_physical_delete = 'true'");
+
+      // Eliminar registros asociados en orden estricto de dependencia
+      await client.query('DELETE FROM complaint_notes WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_responses WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_time_events WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_assignments WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_status_history WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_evidences WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_goods WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_details WHERE complaint_id = $1', [id]);
+
+      const result = await client.query('DELETE FROM complaints WHERE id = $1 RETURNING id', [id]);
+      if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+      await client.query('COMMIT');
+      res.json({ success: true, message: `Expediente ${complaint.complaint_code} destruido físicamente de la base de datos.` });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   })
 );

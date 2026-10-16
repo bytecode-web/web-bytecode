@@ -7,24 +7,34 @@ interface RequestOptions extends RequestInit {
 const buildUrl = (path: string) => `${API_BASE_URL}${path}`;
 
 let cachedCsrfToken: string | null = null;
+let csrfInFlightPromise: Promise<string | null> | null = null;
 
 export const resetCsrfToken = () => {
   cachedCsrfToken = null;
+  csrfInFlightPromise = null;
 };
 
 export const initCsrf = async (force = false): Promise<string | null> => {
   if (cachedCsrfToken && !force) return cachedCsrfToken;
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: 'include' });
-    if (res.ok) {
-      const data = await res.json();
-      cachedCsrfToken = data.csrfToken;
-      return cachedCsrfToken;
+  if (csrfInFlightPromise && !force) return csrfInFlightPromise;
+
+  csrfInFlightPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        cachedCsrfToken = data.csrfToken;
+        return cachedCsrfToken;
+      }
+    } catch (error) {
+      console.error('CSRF Handshake failed', error);
+    } finally {
+      csrfInFlightPromise = null;
     }
-  } catch (error) {
-    console.error('CSRF Handshake failed', error);
-  }
-  return null;
+    return null;
+  })();
+
+  return csrfInFlightPromise;
 };
 
 export class ApiError extends Error {

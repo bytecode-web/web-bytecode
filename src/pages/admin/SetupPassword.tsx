@@ -27,7 +27,7 @@ const SetupPassword: React.FC = () => {
 
   if (!userId) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90">
+      <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 admin-scope">
       <ToastContainer />
         <div className="w-full max-w-sm rounded-2xl border border-white/5 bg-[#0a0a0a] p-8 text-center">
           <h2 className="text-xl text-red-400 mb-2">Solicitud Inválida</h2>
@@ -73,7 +73,7 @@ const SetupPassword: React.FC = () => {
 
   if (success) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90">
+      <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 admin-scope">
       <ToastContainer />
         <div className="w-full max-w-sm rounded-2xl border border-white/5 bg-[#0a0a0a] p-8 text-center shadow-2xl">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-400">
@@ -92,7 +92,7 @@ const SetupPassword: React.FC = () => {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90">
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 admin-scope">
       <ToastContainer />
       <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-white/5 bg-[#0a0a0a] p-8 shadow-2xl">
         <div className="mb-8 text-center">

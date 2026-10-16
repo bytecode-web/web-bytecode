@@ -66,7 +66,7 @@ const AdminLayout: React.FC = () => {
   }, [showIdleWarning]);
 
   return (
-    <div className="flex min-h-screen bg-black font-sansation text-white/90">
+    <div className="flex min-h-screen bg-black font-sansation text-white/90 admin-scope">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/80 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />

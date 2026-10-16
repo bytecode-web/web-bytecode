@@ -11,6 +11,7 @@ import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline'
 import type { StatusCatalogItem, StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import ShineBorder from '../../components/ui/shine-border';
 import { useLocation } from 'react-router-dom';
 import { formatCurrencyValue, useQuoterState, type EditableQuoteItemData, type PreparedQuotePayload, type PricingCatalogItem } from '../../hooks/useQuoterState';
 import { formatLocalDate } from '../../lib/dateFormatter';
@@ -434,8 +435,13 @@ const AdminCotizador: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-5xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8 max-h-[90vh] overflow-y-auto">
-            <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative flex flex-col max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8 flex-shrink-0">
               <h2 className="text-lg font-semibold text-white/90">{editingQuoteId ? 'Editar Cotizacion' : 'Nueva Cotizacion'}</h2>
               <button
                 type="button"
@@ -449,59 +455,61 @@ const AdminCotizador: React.FC = () => {
               </button>
             </div>
 
-            <DynamicQuoter
-              isReadOnly={isReadOnly}
-              initialCatalog={catalog}
-              customerName={formData.customerName}
-              customerEmail={formData.customerEmail}
-              notes={formData.notes}
-              paymentPolicy={formData.paymentPolicy}
-              organizationId={formData.organizationId}
-              currencyCode={formData.currencyCode}
-              originalCurrencyCode={formData.originalCurrencyCode}
-              exchangeRates={exchangeRates}
-              frozenExchangeRate={formData.exchangeRate}
-              isUpdateExchangeRateRequested={formData.updateExchangeRate}
-              onUpdateExchangeRate={(val) => {
-                setFormData({ ...formData, updateExchangeRate: val });
-                addToast(
-                  val ? 'Calculando precios con la tasa de cambio actual' : 'Se ha restaurado la tasa de cambio original',
-                  val ? 'info' : 'success'
-                );
-              }}
-              organizations={organizations}
-              customers={customers}
-              loading={loading}
-              error={''}
-              primaryFieldsAfter={(
-                <div className="mb-2 mt-2 space-y-6 rounded-xl border border-white/10 bg-white/[0.02] p-5">
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-white/50">Estado</label>
-                    <CustomDropdown
-                      value={formData.status}
-                      placeholder="Seleccionar estado..."
-                      onChange={(status) => setFormData({ ...formData, status })}
-                      options={statuses
-                        .filter((item) => editingQuoteId || !['expired', 'rejected'].includes(item.code))
-                        .map((item) => ({ value: item.code, label: item.name }))}
-                      disabled={isReadOnly}
-                    />
+            <div className="flex-1 overflow-y-auto p-6 md:p-8">
+              <DynamicQuoter
+                isReadOnly={isReadOnly}
+                initialCatalog={catalog}
+                customerName={formData.customerName}
+                customerEmail={formData.customerEmail}
+                notes={formData.notes}
+                paymentPolicy={formData.paymentPolicy}
+                organizationId={formData.organizationId}
+                currencyCode={formData.currencyCode}
+                originalCurrencyCode={formData.originalCurrencyCode}
+                exchangeRates={exchangeRates}
+                frozenExchangeRate={formData.exchangeRate}
+                isUpdateExchangeRateRequested={formData.updateExchangeRate}
+                onUpdateExchangeRate={(val) => {
+                  setFormData({ ...formData, updateExchangeRate: val });
+                  addToast(
+                    val ? 'Calculando precios con la tasa de cambio actual' : 'Se ha restaurado la tasa de cambio original',
+                    val ? 'info' : 'success'
+                  );
+                }}
+                organizations={organizations}
+                customers={customers}
+                loading={loading}
+                error={''}
+                primaryFieldsAfter={(
+                  <div className="mb-2 mt-2 space-y-6 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-white/50">Estado</label>
+                      <CustomDropdown
+                        value={formData.status}
+                        placeholder="Seleccionar estado..."
+                        onChange={(status) => setFormData({ ...formData, status })}
+                        options={statuses
+                          .filter((item) => editingQuoteId || !['expired', 'rejected'].includes(item.code))
+                          .map((item) => ({ value: item.code, label: item.name }))}
+                        disabled={isReadOnly}
+                      />
+                    </div>
+                    {editingQuoteId && <StatusHistoryTimeline records={statusHistory} />}
                   </div>
-                  {editingQuoteId && <StatusHistoryTimeline records={statusHistory} />}
-                </div>
-              )}
-              onCustomerNameChange={(customerName) => setFormData((prev) => ({ ...prev, customerName }))}
-              onCustomerEmailChange={(customerEmail) => setFormData((prev) => ({ ...prev, customerEmail }))}
-              onNotesChange={(nextNotes) => setFormData((prev) => ({ ...prev, notes: nextNotes }))}
-              onOrganizationChange={(organizationId) => setFormData((prev) => ({ ...prev, organizationId }))}
-              onCurrencyCodeChange={(currencyCode) => setFormData((prev) => ({ ...prev, currencyCode }))}
-              onCancel={() => {
-                resetQuoter();
-                setIsModalOpen(false);
-              }}
-              onGenerate={handleCreate}
-            />
-          </div>
+                )}
+                onCustomerNameChange={(customerName) => setFormData((prev) => ({ ...prev, customerName }))}
+                onCustomerEmailChange={(customerEmail) => setFormData((prev) => ({ ...prev, customerEmail }))}
+                onNotesChange={(nextNotes) => setFormData((prev) => ({ ...prev, notes: nextNotes }))}
+                onOrganizationChange={(organizationId) => setFormData((prev) => ({ ...prev, organizationId }))}
+                onCurrencyCodeChange={(currencyCode) => setFormData((prev) => ({ ...prev, currencyCode }))}
+                onCancel={() => {
+                  resetQuoter();
+                  setIsModalOpen(false);
+                }}
+                onGenerate={handleCreate}
+              />
+            </div>
+          </ShineBorder>
         </div>
       )}
 

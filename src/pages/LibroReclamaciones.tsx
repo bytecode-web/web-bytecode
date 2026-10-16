@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ContactFooter from '../components/layout/ContactFooter';
@@ -7,6 +7,7 @@ import CustomDropdown, { type DropdownOption } from '../components/ui/CustomDrop
 import AnimatedCheckbox from '../components/ui/AnimatedCheckbox';
 import AnimatedSubmitButton from '../components/ui/AnimatedSubmitButton';
 import PhoneInputGroup from '../components/ui/PhoneInputGroup';
+import CurrencyInputGroup from '../components/ui/CurrencyInputGroup';
 import { Label } from '../components/ui/Label';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
@@ -36,10 +37,15 @@ const LibroReclamaciones: React.FC = () => {
     detalle: '',
     pedido: '',
     aceptaTerminos: false,
+    aceptaPoliticaDatos: false,
+    invoiceNumber: '',
+    currencyCode: 'PEN',
     countryId: 'default',
   });
   
-  const [archivoAdjunto, setArchivoAdjunto] = useState<File | null>(null);
+  const [archivosAdjuntos, setArchivosAdjuntos] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedCountryData, setSelectedCountryData] = useState<CountryData>({ id: 'default', iso: 'PE', name: 'Perú', dialCode: '+51', maxLength: 9 });
   const [allDocumentTypes, setAllDocumentTypes] = useState<DocumentTypeData[]>([]);
   const [selectedDocData, setSelectedDocData] = useState<DocumentTypeData | null>(null);
@@ -49,7 +55,7 @@ const LibroReclamaciones: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [complaintTypes, setComplaintTypes] = useState<{ id: string, code: string, name: string }[]>([]);
+  const [complaintTypes, setComplaintTypes] = useState<{ id: string, code: string, name: string, legal_description?: string }[]>([]);
   const [serviceOptions, setServiceOptions] = useState<DropdownOption[]>([]);
   const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(true);
   const [allCountries, setAllCountries] = useState<CountryData[]>([]);
@@ -82,7 +88,17 @@ const LibroReclamaciones: React.FC = () => {
         const peCountry = countriesData.find((c: CountryData) => c.iso === 'PE');
         if (peCountry) {
           setSelectedCountryData(peCountry);
-          setFormData(prev => ({ ...prev, countryId: peCountry.id }));
+          const peCompDoc = docTypesData.find((dt: any) => 
+            (dt.countryId === peCountry.id || dt.country_id === peCountry.id) && 
+            (dt.isCompanyDocument === true || dt.is_company_document === true)
+          );
+          setFormData(prev => ({ 
+            ...prev, 
+            countryId: peCountry.id,
+            tipoDoc: prev.personType === 'empresa' && !prev.tipoDoc
+              ? (peCompDoc?.code || 'RUC')
+              : prev.tipoDoc
+          }));
         }
       } catch (error) {
         console.error('Error fetching catalogs:', error);
@@ -103,8 +119,12 @@ const LibroReclamaciones: React.FC = () => {
   };
 
   const activeCompanyDoc = allDocumentTypes.find(
-    (dt) => dt.countryId === selectedCountryData?.id && dt.isCompanyDocument === true
+    (dt: any) => 
+      (dt.countryId === selectedCountryData?.id || dt.country_id === selectedCountryData?.id) && 
+      (dt.isCompanyDocument === true || dt.is_company_document === true)
   );
+
+  const isDocNumberDisabled = formData.personType === 'natural' && !formData.tipoDoc;
 
   const handleSmartValidation = (value: string, trigger: 'change' | 'blur', targetElement: HTMLInputElement, currentPersonType: 'natural' | 'empresa') => {
     if (!value) {
@@ -150,45 +170,105 @@ const LibroReclamaciones: React.FC = () => {
     handleSmartValidation(e.target.value, 'blur', e.target, formData.personType as 'natural' | 'empresa');
   };
 
+  const processFiles = (newFiles: File[]) => {
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+    const validFiles: File[] = [];
+    let hasInvalidTypeOrSize = false;
+
+    newFiles.forEach((file) => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const isAllowedExt = ext ? ['pdf', 'png', 'jpg', 'jpeg', 'webp'].includes(ext) : false;
+      const isAllowedMime = allowedTypes.includes(file.type);
+
+      if ((isAllowedMime || isAllowedExt) && file.size <= 10 * 1024 * 1024) {
+        validFiles.push(file);
+      } else {
+        hasInvalidTypeOrSize = true;
+      }
+    });
+
+    if (hasInvalidTypeOrSize) {
+      setSubmitError('Algunos archivos no fueron añadidos porque exceden los 10MB o no son PDF/PNG/JPG/WEBP.');
+    } else {
+      setSubmitError('');
+    }
+
+    setArchivosAdjuntos((prev) => {
+      const combined = [...prev, ...validFiles];
+      if (combined.length > 5) {
+        setSubmitError('Solo se permite adjuntar hasta un máximo de 5 archivos.');
+        return combined.slice(0, 5);
+      }
+      return combined;
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
-      if (!allowedTypes.includes(selectedFile.type) || selectedFile.size > 10 * 1024 * 1024) {
-        setArchivoAdjunto(null);
-        setSubmitError('Adjunta un archivo PDF, PNG, JPG, JPEG o WEBP de maximo 10MB.');
-        e.target.value = '';
-        return;
-      }
-
-      setSubmitError('');
-      setArchivoAdjunto(selectedFile);
+      processFiles(Array.from(e.target.files));
+      e.target.value = '';
     }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setArchivosAdjuntos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCountrySelect = (country: CountryData) => {
     setSelectedCountryData(country);
     setSelectedDocData(null);
     const newActiveCompanyDoc = allDocumentTypes.find(
-      (dt) => dt.countryId === country.id && dt.isCompanyDocument === true
+      (dt: any) => (dt.countryId === country.id || dt.country_id === country.id) && (dt.isCompanyDocument === true || dt.is_company_document === true)
     );
     setFormData((prev) => ({
       ...prev,
       countryId: country.id,
       prefijoTelefono: country.dialCode,
       numeroDoc: '',
-      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.code || '') : '',
+      tipoDoc: prev.personType === 'empresa' ? (newActiveCompanyDoc?.code || (country.iso === 'PE' ? 'RUC' : '')) : '',
     }));
     setTaxIdError('');
   };
 
   const handlePersonTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newType = e.target.value as 'natural' | 'empresa';
+    const compDoc = allDocumentTypes.find(
+      (dt: any) => 
+        (dt.countryId === selectedCountryData?.id || dt.country_id === selectedCountryData?.id) && 
+        (dt.isCompanyDocument === true || dt.is_company_document === true)
+    );
     setFormData((prev) => ({
       ...prev,
       personType: newType,
       numeroDoc: '',
-      tipoDoc: newType === 'empresa' ? (activeCompanyDoc?.code || '') : '',
+      tipoDoc: newType === 'empresa' ? (compDoc?.code || activeCompanyDoc?.code || 'RUC') : '',
     }));
     setSelectedDocData(null);
     setTaxIdError('');
@@ -225,12 +305,18 @@ const LibroReclamaciones: React.FC = () => {
     setIsSuccess(false);
     setSubmitError('');
 
+    const finalTipoDoc = formData.personType === 'empresa' && !formData.tipoDoc
+      ? (activeCompanyDoc?.code || 'RUC')
+      : formData.tipoDoc;
+
     const payload = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
+    Object.entries({ ...formData, tipoDoc: finalTipoDoc }).forEach(([key, value]) => {
       payload.append(key, String(value));
     });
-    if (archivoAdjunto) {
-      payload.append('archivoAdjunto', archivoAdjunto);
+    if (archivosAdjuntos.length > 0) {
+      archivosAdjuntos.forEach(file => {
+        payload.append('archivosAdjuntos', file);
+      });
     }
 
     try {
@@ -291,10 +377,9 @@ const LibroReclamaciones: React.FC = () => {
             </p>
           </div>
           
-          {/* Columna 3  */}
           <div className="flex-1 text-center">
-            <p className="text-white font-medium text-[15px] sm:text-[20px] md:text-[24px] tracking-wide">
-              {new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+            <p className="text-white font-medium text-[15px] sm:text-[20px] md:text-[24px] tracking-wide" title="Fecha Oficial de Registro (Hora Oficial de Perú - UTC-5)">
+              {new Date().toLocaleDateString('es-PE', { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: '2-digit' })}
             </p>
           </div>
         </motion.div>
@@ -331,21 +416,30 @@ const LibroReclamaciones: React.FC = () => {
               <div className="relative">
                 <Label text={formData.personType === 'empresa' ? (activeCompanyDoc?.name || 'Identificación Corporativa') : 'Número de Documento'} required />
                 <input
-                  name="numeroDoc" // Usa "documentNumber" en Contacto.tsx
+                  name="numeroDoc"
                   type="text"
-                  placeholder={formData.personType === 'empresa' ? (activeCompanyDoc?.placeholder || 'Ingrese su identificación fiscal') : (selectedDocData?.placeholder || 'Número')}
-                  value={formData.numeroDoc} // Usa formData.documentNumber en Contacto.tsx
+                  placeholder={
+                    formData.personType === 'empresa'
+                      ? (activeCompanyDoc?.placeholder || 'Ingrese su identificación fiscal')
+                      : isDocNumberDisabled
+                        ? 'Número de documento'
+                        : (selectedDocData?.placeholder || 'Número de documento')
+                  }
+                  value={formData.numeroDoc}
                   onChange={handleDocumentChange}
                   onBlur={handleDocumentBlur}
-                  className={`w-full bg-white rounded-full px-5 lg:px-6 py-[0.6rem] text-[#333] placeholder-gray-400 focus:outline-none transition-all text-[18px] md:text-[20px] shadow-sm ${
-                    taxIdError 
-                      ? 'ring-2 ring-red-400 focus:ring-red-400' 
-                      : 'focus:ring-2 focus:ring-[#06CFD6]'
+                  disabled={isDocNumberDisabled}
+                  className={`w-full rounded-full px-5 lg:px-6 py-[0.6rem] transition-all text-[18px] md:text-[20px] shadow-sm focus:outline-none ${
+                    isDocNumberDisabled
+                      ? 'bg-white/70 text-gray-700 placeholder:text-gray-600 placeholder:opacity-100 cursor-not-allowed border border-gray-200'
+                      : taxIdError 
+                        ? 'bg-white text-[#333] placeholder-gray-400 ring-2 ring-red-400 focus:ring-red-400' 
+                        : 'bg-white text-[#333] placeholder-gray-400 focus:ring-2 focus:ring-[#06CFD6]'
                   }`}
                   required
                   maxLength={formData.personType === 'empresa' ? (activeCompanyDoc?.maxLength || 40) : (selectedDocData?.maxLength || 40)}
                 />
-                {taxIdError && (
+                {taxIdError && !isDocNumberDisabled && (
                   <span className="absolute -bottom-5 left-4 text-xs font-bold text-red-400">
                     {taxIdError}
                   </span>
@@ -373,7 +467,19 @@ const LibroReclamaciones: React.FC = () => {
               <Radio name="goodType" value="servicio" label="Servicio" checked={formData.goodType === 'servicio'} onChange={handleChange} />
             </div>
 
-            <div><Label text="Monto Reclamado (Opcional)" /><Input name="montoCuantificable" type="text" placeholder="Ej: S/ 1500.00" value={formData.montoCuantificable} onChange={handleChange} maxLength={80} /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label text="Monto Reclamado (Opcional)" />
+                <CurrencyInputGroup
+                  currencyValue={formData.currencyCode}
+                  amountValue={formData.montoCuantificable}
+                  onCurrencyChange={(val) => setFormData((prev) => ({ ...prev, currencyCode: val }))}
+                  onAmountChange={handleChange}
+                  placeholder="Ej: 1500.00"
+                />
+              </div>
+              <div><Label text="Comprobante de Pago (Factura/Boleta)" /><Input name="invoiceNumber" type="text" placeholder="N° de comprobante (Opcional)" value={formData.invoiceNumber} onChange={handleChange} maxLength={50} /></div>
+            </div>
             <div><Label text="Descripción" required /><Input name="descripcion" type="text" placeholder="Descripción del producto o servicio" value={formData.descripcion} onChange={handleChange} required minLength={2} maxLength={240} /></div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -396,53 +502,158 @@ const LibroReclamaciones: React.FC = () => {
                 <Radio key={ct.id} name="claimType" value={ct.code} label={ct.name} checked={formData.claimType === ct.code} onChange={handleChange} />
               )) : (
                 <>
-                  <Radio name="claimType" value="queja" label="Queja (Malestar o descontento)" checked={formData.claimType === 'queja'} onChange={handleChange} />
-                  <Radio name="claimType" value="reclamo" label="Reclamo (Disconformidad con el servicio)" checked={formData.claimType === 'reclamo'} onChange={handleChange} />
+                  <Radio name="claimType" value="queja" label="Queja" checked={formData.claimType === 'queja'} onChange={handleChange} />
+                  <Radio name="claimType" value="reclamo" label="Reclamo" checked={formData.claimType === 'reclamo'} onChange={handleChange} />
                 </>
               )}
+            </div>
+            <div className="mb-4 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <p className="text-sm text-blue-200">
+                <strong className="text-blue-300 capitalize">{formData.claimType}:</strong>{' '}
+                {complaintTypes.find(ct => ct.code === formData.claimType)?.legal_description || (
+                  formData.claimType === 'reclamo' 
+                    ? 'Disconformidad relacionada a los productos o servicios contratados.' 
+                    : 'Disconformidad no relacionada a los productos o servicios, o malestar respecto a la atención al público.'
+                )}
+              </p>
             </div>
 
             <div><Label text="Motivo" required /><Input name="tipoReclamo" type="text" placeholder="Ej: Incumplimiento de plazos" value={formData.tipoReclamo} onChange={handleChange} required minLength={2} maxLength={160} /></div>
             <div><Label text="Detalle de la queja/reclamo" required /><Textarea name="detalle" placeholder="Explique detalladamente lo sucedido..." rows={4} value={formData.detalle} onChange={handleChange} required minLength={10} maxLength={3000} /></div>
             <div><Label text="Pedido (Solución esperada)" required /><Textarea name="pedido" placeholder="¿Qué solución espera de nuestra parte?" rows={3} value={formData.pedido} onChange={handleChange}required minLength={5} maxLength={2000} /></div>
 
-            {/* ── Adjuntar Archivo ── */}
+          {/* ── Adjuntar Archivo ── */}
             <div className="pt-4">
               <Label text="Adjuntar documento o evidencia (Opcional)" />
-              <div className="relative flex items-center justify-center w-full mt-2">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-[#06CFD6]/30 border-dashed rounded-2xl cursor-pointer bg-white/5 transition-colors lg:hover:bg-white/10">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-8 h-8 mb-3 text-[#06CFD6]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p className="mb-1 text-base text-white/80"><span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre el archivo</p>
-                    <p className="text-sm text-white/50">{archivoAdjunto ? archivoAdjunto.name : 'PDF, JPG, PNG o WEBP (Máx. 10MB)'}</p>
-                  </div>
-                  <input type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" />
-                </label>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative flex flex-col items-center justify-center w-full min-h-[7.5rem] mt-2 border-2 border-dashed rounded-2xl cursor-pointer transition-all p-5 select-none ${
+                  isDragging
+                    ? 'border-[#06CFD6] bg-[#06CFD6]/20 shadow-[0_0_25px_rgba(6,207,214,0.35)] scale-[1.01]'
+                    : 'border-[#06CFD6]/30 bg-white/5 lg:hover:bg-white/10 lg:hover:border-[#06CFD6]/60'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  onChange={handleFileChange}
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+                />
+                <div className="flex flex-col items-center justify-center text-center pointer-events-none">
+                  <svg
+                    className={`w-8 h-8 mb-2 transition-transform duration-200 ${
+                      isDragging ? 'text-[#06CFD6] scale-125' : 'text-[#06CFD6]'
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <p className="mb-1 text-base text-white/80">
+                    {isDragging ? (
+                      <span className="font-bold text-[#06CFD6]">Suelte los archivos aquí</span>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-[#06CFD6]">Haga clic para subir</span> o arrastre los archivos
+                      </>
+                    )}
+                  </p>
+                  <p className="text-xs md:text-sm text-white/50">
+                    PDF, JPG, PNG o WEBP (Máx. 10MB por archivo, hasta 5 archivos)
+                  </p>
+                </div>
               </div>
+
+              {/* Lista de archivos adjuntos (Separada de la dropzone para hover independiente) */}
+              {archivosAdjuntos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2.5">
+                  {archivosAdjuntos.map((file, idx) => (
+                    <div
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center gap-2 bg-[#06CFD6]/10 border border-[#06CFD6]/30 rounded-xl px-3 py-1.5 text-xs md:text-sm text-white/90 backdrop-blur-sm shadow-sm"
+                    >
+                      <svg className="w-4 h-4 text-[#06CFD6] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="truncate max-w-[200px] font-medium" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-[11px] text-white/40 shrink-0">
+                        ({(file.size / (1024 * 1024)).toFixed(1)} MB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          removeFile(idx);
+                        }}
+                        title="Eliminar archivo"
+                        className="ml-1 p-1 rounded-full text-white/40 hover:text-red-400 hover:bg-red-500/20 transition-all focus:outline-none"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {/* ── Advertencia Legal (Esta SÍ mantiene su caja contenedora) ── */}
           <div className="border border-[#06CFD6]/20 rounded-2xl p-5 md:p-6 bg-[#06CFD6]/5 mt-4">
             <p className="text-white/70 text-[14px] md:text-[15px] lg:text-[16px] leading-relaxed text-justify">
-              <strong className="text-[#06CFD6]">Nota legal:</strong> La presentación de un reclamo no le impide recurrir a otros medios de solución de controversias, ni es requisito previo para interponer una denuncia ante el INDECOPI. El proveedor deberá responder al reclamo en un plazo no mayor a quince (15) días hábiles, pudiendo ampliar el plazo hasta treinta (30) días más, previa comunicación al consumidor.
+              <strong className="text-[#06CFD6]">Nota legal:</strong> La presentación de un reclamo no le impide recurrir a otros medios de solución de controversias, ni es requisito previo para interponer una denuncia ante el INDECOPI. El proveedor deberá responder al reclamo en un plazo no mayor a quince (15) días hábiles.
             </p>
           </div>
 
-          {/* ── Checkbox Términos ── */}
-          <div className="px-2">
-            <AnimatedCheckbox
-              name="aceptaTerminos"
-              checked={formData.aceptaTerminos}
-              onChange={(checked) => setFormData({ ...formData, aceptaTerminos: checked })}
-              required
-              textSizeClassName="text-[16px] md:text-[18px]"
-              label={
-                <>
-                  Declaro que los datos consignados son correctos y <span className="font-bold">acepto estar de acuerdo con el contenido</span> de mi reclamo o queja.
-                </>
-              }
-            />
+          {/* ── Checkboxes de Consentimiento ── */}
+          <div className="space-y-4 pt-2">
+            <div>
+              <AnimatedCheckbox
+                name="aceptaTerminos"
+                checked={formData.aceptaTerminos}
+                onChange={(checked) => setFormData({ ...formData, aceptaTerminos: checked })}
+                required
+                textSizeClassName="text-[15px] md:text-[17px]"
+                label={
+                  <>
+                    Declaro que los datos consignados son correctos y <span className="font-bold">acepto estar de acuerdo con el contenido</span> de mi reclamo o queja.
+                  </>
+                }
+              />
+            </div>
+            <div className="border-t border-[#06CFD6]/20 pt-4">
+              <AnimatedCheckbox
+                name="aceptaPoliticaDatos"
+                checked={formData.aceptaPoliticaDatos}
+                onChange={(checked) => setFormData({ ...formData, aceptaPoliticaDatos: checked })}
+                required
+                textSizeClassName="text-[15px] md:text-[17px]"
+                label={
+                  <>
+                    He leído y acepto la <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-bold underline text-[#06CFD6] hover:text-[#0CA3C6] transition-colors" onClick={(e) => e.stopPropagation()}>Política de Protección de Datos Personales (Ley N° 29733)</a>. Autorizo el tratamiento de mis datos para la gestión de este requerimiento.
+                  </>
+                }
+              />
+            </div>
+            <p className="text-white/40 text-xs mt-3 leading-relaxed">
+              * Conforme a la Ley N° 29571 y el D.S. N° 011-2011-PCM, el cómputo de plazos y atención de reclamos se rige según el horario oficial y calendario de días hábiles de la República del Perú (UTC-5).
+            </p>
           </div>
 
           {/* ── Submit ── */}
@@ -459,7 +670,7 @@ const LibroReclamaciones: React.FC = () => {
               text={isLoadingCatalogs ? "Conectando..." : "Enviar Reclamo"}
               loadingText="Enviando reclamo..."
               successText="¡Reclamo Enviado!"
-              disabled={!formData.aceptaTerminos || isLoadingCatalogs}
+              disabled={!formData.aceptaTerminos || !formData.aceptaPoliticaDatos || isLoadingCatalogs}
               className={`w-full text-white py-4 rounded-full text-[24px] md:text-[30px] font-bold shadow-[0_0_20px_rgba(6,207,214,0.3)] disabled:opacity-50 transition-all duration-300 ${isSuccess ? 'bg-[#0CA3C6] shadow-[0_0_30px_rgba(12,163,198,0.6)]' : 'bg-[#06CFD6] lg:hover:shadow-[0_0_30px_rgba(6,207,214,0.6)] lg:disabled:hover:shadow-none lg:disabled:hover:scale-100'}`}
             />
           </div>

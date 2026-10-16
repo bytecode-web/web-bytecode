@@ -12,6 +12,7 @@ import { publicFormLimiter } from '../middleware/rateLimiters.js';
 import { notifyAdmins } from '../services/email.js';
 import { capitalize } from '../services/emailTemplates.js';
 import { sendInAppNotification, enqueueEmail } from '../services/notificationService.js';
+import { calculateLegalDueDate } from '../lib/slaCalculator.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -102,6 +103,8 @@ const complaintSchema = z.object({
   personType: z.string().trim().min(1).max(50),
   goodType: z.string().trim().min(1).max(50),
   montoCuantificable: z.string().trim().max(80).optional().default(''),
+  currencyCode: z.string().trim().length(3).optional().default('PEN'),
+  invoiceNumber: z.string().trim().max(50).optional().default(''),
   descripcion: z.string().trim().min(2).max(240),
   nombreUnidad: z.string().trim().max(160).optional().default(''),
   opcionBien: z.string().trim().max(120).optional().default(''),
@@ -110,14 +113,9 @@ const complaintSchema = z.object({
   detalle: z.string().trim().min(10).max(3000),
   pedido: z.string().trim().min(5).max(2000),
   aceptaTerminos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la declaración.'),
-  countryId: z.string().uuid().optional().nullable(),
+  aceptaPoliticaDatos: z.coerce.boolean().refine((value) => value, 'Debe aceptar la política de protección de datos.'),
+  countryId: z.preprocess((value) => value === '' || value === 'default' ? undefined : value, z.string().uuid().optional().nullable()),
 });
-
-const createComplaintCode = () => {
-  const date = new Date();
-  const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
-  return `REC-${datePart}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-};
 
 const normalizeGoodType = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -166,7 +164,7 @@ router.get('/catalog/document-types', asyncHandler(async (_req: Request, res: Re
 }));
 
 router.get('/catalog/complaint-types', asyncHandler(async (_req: Request, res: Response) => {
-  const result = await pool.query('SELECT id, code, name FROM complaint_types WHERE is_active = true ORDER BY name ASC');
+  const result = await pool.query('SELECT id, code, name, legal_description FROM complaint_types WHERE is_active = true ORDER BY name ASC');
   res.json({ items: result.rows });
 }));
 
@@ -469,8 +467,8 @@ router.post(
 
         if (existingOrganization.rowCount) {
           await client.query(
-            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
-            [organizationId, body.empresa],
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, country_id = COALESCE($3, country_id), updated_at = now() WHERE id = $1',
+            [organizationId, body.empresa, body.countryId ?? null],
           );
         }
 
@@ -565,7 +563,7 @@ router.post(
         Apellido: body.apellido,
         Email: body.email,
         Celular: body.celular,
-        Servicio: capitalize(body.servicio),
+        Servicio: serviceName,
         Mensaje: body.mensaje,
       };
 
@@ -579,7 +577,7 @@ router.post(
         name: body.nombre,
         lastName: body.apellido,
         caseCode: caseCode,
-        service: capitalize(body.servicio),
+        service: serviceName,
         message: body.mensaje
       }, 'contact_cases', result.rows[0].id).catch(console.error);
 
@@ -596,54 +594,84 @@ router.post(
 router.post(
   '/complaints',
   publicFormLimiter,
-  upload.single('archivoAdjunto'),
+  upload.fields([
+    { name: 'archivosAdjuntos', maxCount: 5 },
+    { name: 'archivoAdjunto', maxCount: 1 },
+  ]),
   asyncHandler(async (req: Request, res: Response) => {
     const body = complaintSchema.parse(req.body);
-    const file: Express.Multer.File | undefined = req.file;
-    const code = createComplaintCode();
-    let validatedFile: ValidatedUpload | null = null;
-    let cloudinaryAsset: CloudinaryStoredAsset | null = null;
-    let existingFileAssetId: string | null = null;
+    const filesRecord = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const files: Express.Multer.File[] = [
+      ...(filesRecord?.['archivosAdjuntos'] ?? []),
+      ...(filesRecord?.['archivoAdjunto'] ?? []),
+    ];
+    
+    interface ProcessedFile {
+      validated: ValidatedUpload;
+      cloudinaryAsset?: CloudinaryStoredAsset;
+      existingId?: string;
+      file: Express.Multer.File;
+    }
+    const processedFiles: ProcessedFile[] = [];
 
-    if (file) {
-      validatedFile = await validateUpload(file);
+    const validatedFiles: { file: Express.Multer.File; validated: ValidatedUpload }[] = [];
+    if (files && files.length > 0) {
+      for (const f of files) {
+        const validatedFile = await validateUpload(f);
+        validatedFiles.push({ file: f, validated: validatedFile });
+      }
     }
 
     const client = await pool.connect();
 
     try {
-      if (file && validatedFile) {
-        const fileLookup = await client.query(
-          'SELECT id FROM file_assets WHERE checksum_sha256 = $1 LIMIT 1',
-          [validatedFile.checksumSha256]
-        );
+      if (validatedFiles.length > 0) {
+        for (const item of validatedFiles) {
+          const f = item.file;
+          const validatedFile = item.validated;
+          
+          const fileLookup = await client.query(
+            'SELECT id FROM file_assets WHERE checksum_sha256 = $1 AND public_url IS NOT NULL LIMIT 1',
+            [validatedFile.checksumSha256]
+          );
 
-        if ((fileLookup.rowCount ?? 0) > 0) {
-          existingFileAssetId = fileLookup.rows[0].id;
-        } else {
-          try {
-            cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
-              buffer: file.buffer,
-              complaintCode: code,
-              originalName: validatedFile.originalName,
-              mimeType: validatedFile.mimeType,
-            });
-          } catch (error: unknown) {
-            console.error('Cloudinary complaint evidence upload failed:', error);
-            throw new HttpError(502, 'No se pudo almacenar el archivo adjunto.');
+          if ((fileLookup.rowCount ?? 0) > 0) {
+            processedFiles.push({ validated: validatedFile, existingId: fileLookup.rows[0].id, file: f });
+          } else {
+            try {
+              const cloudinaryAsset = await uploadComplaintEvidenceToCloudinary({
+                buffer: f.buffer,
+                complaintCode: `TEMP-${Date.now()}`,
+                originalName: validatedFile.originalName,
+                mimeType: validatedFile.mimeType,
+              });
+              processedFiles.push({ validated: validatedFile, cloudinaryAsset, file: f });
+            } catch (error: unknown) {
+              console.error('Cloudinary complaint evidence upload failed:', error);
+              throw new HttpError(502, 'No se pudo almacenar uno de los archivos adjuntos.');
+            }
           }
         }
       }
 
       await client.query('BEGIN');
 
+      if (!body.countryId && body.prefijoTelefono) {
+        const cRes = await client.query('SELECT id FROM countries WHERE dial_code = $1 LIMIT 1', [body.prefijoTelefono]);
+        if ((cRes.rowCount ?? 0) > 0) {
+          body.countryId = cRes.rows[0].id;
+        }
+      }
+
       let customerId: string;
+      let organizationId: string | null = null;
       const personTypeVal = body.personType === 'empresa' ? 'company_contact' : 'natural';
       const isCompany = body.personType === 'empresa';
       
+      const effectiveDocType = body.tipoDoc || (isCompany ? 'RUC' : '');
       const docTypeRes = await client.query(
         "SELECT id FROM document_types WHERE code = $1 LIMIT 1",
-        [body.tipoDoc]
+        [effectiveDocType]
       );
       const docTypeId = (docTypeRes.rowCount ?? 0) > 0 ? docTypeRes.rows[0].id : null;
 
@@ -709,7 +737,7 @@ router.post(
           [body.numeroDoc],
         );
         
-        const organizationId = existingOrganization.rowCount
+        organizationId = existingOrganization.rowCount
           ? existingOrganization.rows[0].id
           : (await client.query(
               'INSERT INTO organizations (legal_name, trade_name, country_id) VALUES ($1, $1, $2) RETURNING id',
@@ -718,8 +746,8 @@ router.post(
 
         if (existingOrganization.rowCount) {
           await client.query(
-            'UPDATE organizations SET legal_name = $2, trade_name = $2, updated_at = now() WHERE id = $1',
-            [organizationId, body.nombres],
+            'UPDATE organizations SET legal_name = $2, trade_name = $2, country_id = COALESCE($3, country_id), updated_at = now() WHERE id = $1',
+            [organizationId, body.nombres, body.countryId ?? null],
           );
         }
 
@@ -756,39 +784,130 @@ router.post(
       const complaintTypeId = (typeRes.rowCount ?? 0) > 0 ? typeRes.rows[0].id : null;
       if (!complaintTypeId) throw new Error('Tipo de reclamo inválido.');
 
-      let fileAssetId = existingFileAssetId;
-      if (!fileAssetId && file && validatedFile && cloudinaryAsset) {
-        const fileRes = await client.query(
-          `
-          INSERT INTO file_assets (
-            original_name, storage_provider, storage_key, public_url,
-            mime_type, byte_size, checksum_sha256
-          )
-          VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
-          RETURNING id
-          `,
-          [
-            validatedFile.originalName,
-            cloudinaryAsset.publicId,
-            cloudinaryAsset.secureUrl,
-            validatedFile.mimeType,
-            cloudinaryAsset.bytes || file.size,
-            validatedFile.checksumSha256,
-          ],
-        );
-        fileAssetId = fileRes.rows[0].id;
+      const fileAssetIds: string[] = [];
+      for (const pf of processedFiles) {
+        if (pf.existingId) {
+          fileAssetIds.push(pf.existingId);
+        } else if (pf.cloudinaryAsset) {
+          const fileRes = await client.query(
+            `
+            INSERT INTO file_assets (
+              original_name, storage_provider, storage_key, public_url,
+              mime_type, byte_size, checksum_sha256
+            )
+            VALUES ($1, 'cloudinary', $2, $3, $4, $5, $6)
+            RETURNING id
+            `,
+            [
+              pf.validated.originalName,
+              pf.cloudinaryAsset.publicId,
+              pf.cloudinaryAsset.secureUrl,
+              pf.validated.mimeType,
+              pf.cloudinaryAsset.bytes || pf.file.size,
+              pf.validated.checksumSha256,
+            ],
+          );
+          fileAssetIds.push(fileRes.rows[0].id);
+        }
       }
+
+      // 1. Snapshot and Atomic Sequence Generation
+      const submissionDate = new Date();
+      const limaFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Lima',
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const limaParts = Object.fromEntries(limaFormatter.formatToParts(submissionDate).map(p => [p.type, p.value]));
+      const currentYear = parseInt(limaParts.year, 10);
+      const startMonth = parseInt(limaParts.month, 10);
+      const startDay = parseInt(limaParts.day, 10);
+      const numHour = parseInt(limaParts.hour, 10) % 24;
+      const numMin = parseInt(limaParts.minute, 10);
+      const numSec = parseInt(limaParts.second, 10);
+      const startHour = String(numHour).padStart(2, '0');
+      const startMin = String(numMin).padStart(2, '0');
+      const startSec = String(numSec).padStart(2, '0');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS complaint_sequences (
+          year INT PRIMARY KEY,
+          last_value INT NOT NULL DEFAULT 0
+        )
+      `);
+      const seqRes = await client.query(
+        `INSERT INTO complaint_sequences (year, last_value)
+         VALUES (
+           $1::int,
+           COALESCE(
+             (
+               SELECT MAX(
+                 CASE 
+                   WHEN complaint_code ~ '^REC-\\d{4}-(BC-)?\\d+$' 
+                   THEN (regexp_replace(complaint_code, '^REC-\\d{4}-(BC-)?', ''))::int 
+                   ELSE 0 
+                 END
+               )
+               FROM complaints
+               WHERE extract(year from created_at)::int = $1::int
+                 AND complaint_code ~ '^REC-\\d{4}-(BC-)?\\d+$'
+             ),
+             0
+           ) + 1
+         )
+         ON CONFLICT (year) DO UPDATE SET last_value = complaint_sequences.last_value + 1
+         RETURNING last_value`,
+        [currentYear]
+      );
+      const code = `REC-${currentYear}-BC-${String(seqRes.rows[0].last_value).padStart(5, '0')}`;
+
+      const customerSnapshot = JSON.stringify({
+        nombres: body.nombres,
+        apellidos: body.apellidos,
+        email: body.email,
+        prefijoTelefono: body.prefijoTelefono,
+        telefono: body.telefono,
+        tipoDoc: body.tipoDoc,
+        numeroDoc: body.numeroDoc,
+        domicilio: body.domicilio,
+        personType: body.personType
+      });
+
+      // 2. Calculate Legal Due Date (15 business days anchored to America/Lima timezone)
+      const holidaysRes = await client.query(
+        `SELECT month, day, year, description FROM system_holidays sh JOIN countries c ON sh.country_id = c.id
+         WHERE c.iso2 = 'PE' AND (year IS NULL OR year = $1 OR year = $2)`,
+        [currentYear, currentYear + 1]
+      );
+      const holidaysList: Array<{ month: number; day: number; year: number | null; description: string }> = holidaysRes.rows;
+
+      const {
+        dueDate,
+        skippedWeekends,
+        skippedHolidays: skippedHolidaysList,
+        finalYear,
+        finalMonth: finalMonthNum,
+        finalDay: finalDayNum,
+      } = calculateLegalDueDate(submissionDate, holidaysList, 15);
+      const finalMonth = String(finalMonthNum).padStart(2, '0');
+      const finalDay = String(finalDayNum).padStart(2, '0');
 
       const result = await client.query(
         `
         INSERT INTO complaints (
             complaint_code, customer_id, complaint_type_id, status_id, 
-            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id
+            legal_acceptance, legal_acceptance_at, legal_response_due_at, internal_notes, priority_id, source_channel_id,
+            customer_snapshot, organization_id
           )
-          VALUES ($1, $2, $3, $4, $5, now(), now() + interval '15 days', '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'))
+          VALUES ($1, $2, $3, $4, $5, now(), $6, '', (SELECT id FROM priority_catalog WHERE code = 'normal'), (SELECT id FROM channel_catalog WHERE code = 'web'), $7, $8)
         RETURNING id, complaint_code, created_at
         `,
-        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos],
+        [code, customerId, complaintTypeId, statusId, body.aceptaTerminos, dueDate, customerSnapshot, organizationId],
       );
 
       const complaintId = result.rows[0].id;
@@ -803,18 +922,34 @@ router.post(
 
       await client.query(
         `
-        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO complaint_goods (complaint_id, good_type, description, category, claimed_amount, invoice_number, project_or_unit_name, currency_code)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `,
-        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable)]
+        [complaintId, normalizeGoodType(body.goodType), body.descripcion, body.tipoReclamo, parseClaimedAmount(body.montoCuantificable), body.invoiceNumber, body.nombreUnidad, body.currencyCode]
       );
 
-      if (fileAssetId) {
-        await client.query(
-          `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
-          [complaintId, fileAssetId]
-        );
+      if (fileAssetIds.length > 0) {
+        for (const fid of fileAssetIds) {
+          await client.query(
+            `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
+            [complaintId, fid]
+          );
+        }
       }
+
+      await client.query(
+        `
+        INSERT INTO complaint_time_events (complaint_id, event_type, metadata)
+        VALUES ($1, 'SUBMITTED_AND_CALCULATED', $2)
+        `,
+        [complaintId, JSON.stringify({
+          base_date: submissionDate.toISOString(),
+          business_days_allotted: 15,
+          calculated_due_date: dueDate.toISOString(),
+          skipped_weekends: skippedWeekends,
+          skipped_holidays: skippedHolidaysList
+        })]
+      );
 
       await client.query('COMMIT');
 
@@ -822,9 +957,14 @@ router.post(
         ? 'Empresa' 
         : 'Persona natural';
 
+      const formattedSubmissionTime = `${String(startDay).padStart(2, '0')}/${String(startMonth).padStart(2, '0')}/${currentYear}, ${startHour}:${startMin}:${startSec} (Hora Oficial de Perú - UTC-5)`;
+      const formattedDueDate = `${finalDay}/${finalMonth}/${finalYear}, 23:59:59 (Hora Oficial de Perú - UTC-5)`;
+
       const complaintNotificationPayload = {
         Código: code,
         'Tipo de cliente': displayPersonType,
+        'Fecha de Registro': formattedSubmissionTime,
+        'Vencimiento Legal SLA': formattedDueDate,
         Nombres: body.nombres,
         'Representante Legal': body.apellidos,
         'Tipo de Documento': body.tipoDoc,
@@ -837,11 +977,13 @@ router.post(
         'Monto Reclamado': body.montoCuantificable ? `S/ ${body.montoCuantificable}` : 'No especificado',
         'Detalle del Incidente': body.detalle,
         'Pedido del Cliente': body.pedido,
-        Adjunto: validatedFile?.originalName ?? 'Sin adjunto',
+        Adjunto: processedFiles.length > 0 ? processedFiles.map(pf => pf.validated.originalName).join(', ') : 'Sin adjunto',
       };
 
       const customerReceiptPayload = {
         Cliente: body.personType === 'company' ? body.nombres : `${body.nombres} ${body.apellidos}`,
+        'Fecha de Registro': formattedSubmissionTime,
+        'Plazo Legal de Atención': `15 días hábiles — Vence el ${finalDay}/${finalMonth}/${finalYear} a las 23:59:59 (Ley N° 29571 / D.S. N° 011-2011-PCM)`,
         Nombres: body.nombres,
         'Representante Legal': body.apellidos,
         'Tipo de Documento': body.tipoDoc,
@@ -871,10 +1013,14 @@ router.post(
       res.status(201).json({ id: complaintId, code: result.rows[0].complaint_code, createdAt: result.rows[0].created_at });
     } catch (error: unknown) {
       await client.query('ROLLBACK');
-      if (cloudinaryAsset) {
-        await deleteCloudinaryAsset(cloudinaryAsset.publicId, cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
-          console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
-        });
+      if (processedFiles.length > 0) {
+        for (const pf of processedFiles) {
+          if (pf.cloudinaryAsset) {
+            await deleteCloudinaryAsset(pf.cloudinaryAsset.publicId, pf.cloudinaryAsset.resourceType).catch((cleanupError: unknown) => {
+              console.error('Cloudinary cleanup failed after database rollback:', cleanupError);
+            });
+          }
+        }
       }
       throw error;
     } finally {
@@ -885,6 +1031,16 @@ router.post(
 
 router.get('/catalog/channels', asyncHandler(async (_req: Request, res: Response) => {
   const result = await pool.query('SELECT id, code, name, icon_name, color_hex FROM channel_catalog WHERE is_active = true ORDER BY sort_order ASC, name ASC');
+  res.json({ items: result.rows });
+}));
+
+router.get('/catalog/system-holidays', asyncHandler(async (_req: Request, res: Response) => {
+  const result = await pool.query(`
+    SELECT sh.month, sh.day, sh.year 
+    FROM system_holidays sh 
+    JOIN countries c ON sh.country_id = c.id 
+    WHERE c.iso2 = 'PE'
+  `);
   res.json({ items: result.rows });
 }));
 

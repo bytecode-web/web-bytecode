@@ -490,129 +490,183 @@ const ProyectoDetalle: React.FC = () => {
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {editOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}}>
-            <form onSubmit={handleUpdate} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
-                <div><h2 className="text-lg font-semibold text-white/90">Editar proyecto</h2><p className="mt-1 text-xs text-white/35">Información general y cotización asociada.</p></div>
-                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
+            <ShineBorder
+              borderRadius={16}
+              borderWidth={1.5}
+              color={['#06CFD6', '#3b82f6', '#06CFD6']}
+              className="relative flex flex-col max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8 flex-shrink-0">
+                <div>
+                  <h2 className="text-lg font-semibold text-white/90">Editar proyecto</h2>
+                  <p className="mt-1 text-xs text-white/35">Información general y cotización asociada.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(false)}
+                  className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <div className="grid gap-5">
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required minLength={2} value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <ProjectQuoteSelector email={project.customer_email ?? ''} value={editForm.quoteId} onChange={(quote) => setEditForm({ ...editForm, quoteId: quote?.id ?? '', totalBudget: quote ? Number(quote.total_amount) : editForm.totalBudget, currencyCode: quote ? quote.currency_code : editForm.currencyCode })} />
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Presupuesto ({editForm.currencyCode})</span><input type="number" min={0} step="0.01" required value={editForm.totalBudget} onChange={(event) => setEditForm({ ...editForm, totalBudget: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Descripción</span><textarea rows={4} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Repositorio GitHub</span><input type="url" value={editForm.githubRepo} onChange={(event) => setEditForm({ ...editForm, githubRepo: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-              </div>
-              <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)setEditOpen(false)}} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={saving} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{saving ? 'Guardando...' : 'Guardar cambios'}</button></div>
-            </form>
+              <form onSubmit={handleUpdate} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8">
+                  <div className="grid gap-5">
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required minLength={2} value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                    <ProjectQuoteSelector email={project.customer_email ?? ''} value={editForm.quoteId} onChange={(quote) => setEditForm({ ...editForm, quoteId: quote?.id ?? '', totalBudget: quote ? Number(quote.total_amount) : editForm.totalBudget, currencyCode: quote ? quote.currency_code : editForm.currencyCode })} />
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Presupuesto ({editForm.currencyCode})</span><input type="number" min={0} step="0.01" required value={editForm.totalBudget} onChange={(event) => setEditForm({ ...editForm, totalBudget: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Descripción</span><textarea rows={4} value={editForm.description} onChange={(event) => setEditForm({ ...editForm, description: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Repositorio GitHub</span><input type="url" value={editForm.githubRepo} onChange={(event) => setEditForm({ ...editForm, githubRepo: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 md:px-8 flex-shrink-0 bg-white/[0.01]">
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(false)}
+                    className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    disabled={saving}
+                    className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-40"
+                  >
+                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                </div>
+              </form>
+            </ShineBorder>
           </div>
         )}
       </RoleGuard>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {paymentModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); } }}>
-            <form onSubmit={handlePaymentSubmit} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
-                <div><h2 className="text-lg font-semibold text-white/90">Registrar Pago</h2></div>
-                <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
+            <ShineBorder
+              borderRadius={16}
+              borderWidth={1.5}
+              color={['#06CFD6', '#3b82f6', '#06CFD6']}
+              className="relative flex flex-col max-h-[92vh] w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-white/90">Registrar Pago</h2>
+                <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              <div className="grid gap-5">
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Monto</span><input type="number" min={0.01} step="0.01" required value={paymentForm.amount} onChange={(event) => setPaymentForm({ ...paymentForm, amount: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Método de pago</span>
-                    <div className="min-w-48">
-                      <CustomDropdown
-                        value={paymentForm.method}
-                        onChange={(method) => setPaymentForm({ ...paymentForm, method })}
-                        placeholder="Método de pago"
-                        options={[
-                          { value: 'transfer', label: 'Transferencia' },
-                          { value: 'cash', label: 'Efectivo' },
-                          { value: 'credit_card', label: 'Tarjeta' },
-                          { value: 'paypal', label: 'PayPal' },
-                        ]}
-                      />
-                    </div>
-                </label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Referencia (Opcional)</span><input type="text" value={paymentForm.reference} onChange={(event) => setPaymentForm({ ...paymentForm, reference: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fecha de pago</span><input type="date" required value={paymentForm.date} onChange={(event) => setPaymentForm({ ...paymentForm, date: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Comprobante (Opcional)</span><input type="file" accept="image/*,.pdf" onChange={(event) => setPaymentForm({ ...paymentForm, receipt: event.target.files?.[0] || null })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white text-sm" /></label>
-                <label className="flex items-center gap-3 mt-2"><input type="checkbox" checked={paymentForm.splitRemaining} onChange={(e) => setPaymentForm({ ...paymentForm, splitRemaining: e.target.checked })} className="h-4 w-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-600 focus:ring-offset-gray-900" /><span className="text-sm text-white/70">Pago incompleto. Cerrar este hito y generar uno nuevo por el saldo restante.</span></label>
-              </div>
-              <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={savingPayment} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{savingPayment ? 'Registrando...' : 'Registrar'}</button></div>
-            </form>
+              <form onSubmit={handlePaymentSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Monto</span><input type="number" min={0.01} step="0.01" required value={paymentForm.amount} onChange={(event) => setPaymentForm({ ...paymentForm, amount: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Método de pago</span>
+                      <div className="min-w-48">
+                        <CustomDropdown
+                          value={paymentForm.method}
+                          onChange={(method) => setPaymentForm({ ...paymentForm, method })}
+                          placeholder="Método de pago"
+                          options={[
+                            { value: 'transfer', label: 'Transferencia' },
+                            { value: 'cash', label: 'Efectivo' },
+                            { value: 'credit_card', label: 'Tarjeta' },
+                            { value: 'paypal', label: 'PayPal' },
+                          ]}
+                        />
+                      </div>
+                  </label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Referencia (Opcional)</span><input type="text" value={paymentForm.reference} onChange={(event) => setPaymentForm({ ...paymentForm, reference: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fecha de pago</span><input type="date" required value={paymentForm.date} onChange={(event) => setPaymentForm({ ...paymentForm, date: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                  <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Comprobante (Opcional)</span><input type="file" accept="image/*,.pdf" onChange={(event) => setPaymentForm({ ...paymentForm, receipt: event.target.files?.[0] || null })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white text-sm" /></label>
+                  <label className="flex items-center gap-3 mt-2"><input type="checkbox" checked={paymentForm.splitRemaining} onChange={(e) => setPaymentForm({ ...paymentForm, splitRemaining: e.target.checked })} className="h-4 w-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-600 focus:ring-offset-gray-900" /><span className="text-sm text-white/70">Pago incompleto. Cerrar este hito y generar uno nuevo por el saldo restante.</span></label>
+                </div>
+                <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 flex-shrink-0 bg-white/[0.01]">
+                  <button type="button" onClick={() => { setPaymentModalOpen(false); setPaymentForm({ amount: 0, method: 'transfer', reference: '', date: new Date().toISOString().split('T')[0], receipt: null, splitRemaining: false }); }} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65 hover:bg-white/5 transition-colors">Cancelar</button>
+                  <button disabled={savingPayment} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-40">{savingPayment ? 'Registrando...' : 'Registrar'}</button>
+                </div>
+              </form>
+            </ShineBorder>
           </div>
         )}
       </RoleGuard>
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {addMilestoneOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); } }}>
-            <form onSubmit={handleAddMilestoneSubmit} className="max-h-[92vh] w-full max-w-md overflow-visible rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
-                <div><h2 className="text-lg font-semibold text-white/90">Añadir Hito</h2></div>
-                <button type="button" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5"><X className="h-5 w-5" /></button>
+            <ShineBorder
+              borderRadius={16}
+              borderWidth={1.5}
+              color={['#06CFD6', '#3b82f6', '#06CFD6']}
+              className="relative flex flex-col max-h-[92vh] w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-white/90">Añadir Hito</h2>
+                <button type="button" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }} className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              {(() => {
-                const currentQuoteMilestones = milestones.filter(m => {
-                  if (addMilestoneForm.quote_id) return m.quote_id === addMilestoneForm.quote_id;
-                  return m.quote_id === project?.quote_id || !m.quote_id;
-                });
-                const hasAnticipo = currentQuoteMilestones.some(m => m.title.includes('Anticipo (50%)'));
-                const hasDiseno = currentQuoteMilestones.some(m => m.title.includes('Aprobación de Diseño'));
-                const hasEntrega = currentQuoteMilestones.some(m => m.title.includes('Entrega Final (20%)'));
-                const hasKillFee = currentQuoteMilestones.some(m => m.title.includes('Compensación') || m.title.includes('Kill Fee') || m.title.includes('Cancelación'));
-                const isFullyConfigured = currentQuoteMilestones.reduce((sum, m) => sum + Number(m.payment_percentage), 0) >= 100;
-                const isFullyPaid = isFullyConfigured && currentQuoteMilestones.every(m => ['completed', 'cancelled'].includes(m.status));
-                
-                const hasAnticipoAdenda = currentQuoteMilestones.some(m => m.title.includes('Anticipo Adenda'));
-                const hasFinalAdenda = currentQuoteMilestones.some(m => m.title.includes('Entrega Final Adenda'));
+              <form onSubmit={handleAddMilestoneSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+                  {(() => {
+                    const currentQuoteMilestones = milestones.filter(m => {
+                      if (addMilestoneForm.quote_id) return m.quote_id === addMilestoneForm.quote_id;
+                      return m.quote_id === project?.quote_id || !m.quote_id;
+                    });
+                    const hasAnticipo = currentQuoteMilestones.some(m => m.title.includes('Anticipo (50%)'));
+                    const hasDiseno = currentQuoteMilestones.some(m => m.title.includes('Aprobación de Diseño'));
+                    const hasEntrega = currentQuoteMilestones.some(m => m.title.includes('Entrega Final (20%)'));
+                    const hasKillFee = currentQuoteMilestones.some(m => m.title.includes('Compensación') || m.title.includes('Kill Fee') || m.title.includes('Cancelación'));
+                    const isFullyConfigured = currentQuoteMilestones.reduce((sum, m) => sum + Number(m.payment_percentage), 0) >= 100;
+                    const isFullyPaid = isFullyConfigured && currentQuoteMilestones.every(m => ['completed', 'cancelled'].includes(m.status));
+                    
+                    const hasAnticipoAdenda = currentQuoteMilestones.some(m => m.title.includes('Anticipo Adenda'));
+                    const hasFinalAdenda = currentQuoteMilestones.some(m => m.title.includes('Entrega Final Adenda'));
 
-                return (
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {!addMilestoneForm.quote_id ? (
-                      <>
-                        <button type="button" disabled={hasAnticipo || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Anticipo (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Inicial</button>
-                        <button type="button" disabled={!hasAnticipo || hasDiseno || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Aprobación de Diseño (30%)', payment_percentage: 30 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">30% Diseño</button>
-                        <button type="button" disabled={!hasAnticipo || !hasDiseno || hasEntrega || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Entrega Final (20%)', payment_percentage: 20 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">20% Entrega</button>
-                        <button type="button" disabled={hasKillFee || isFullyPaid} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Compensación por Cancelación', payment_percentage: 20 })} className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-30 disabled:pointer-events-none">Kill Fee (20%)</button>
-                      </>
-                    ) : (
-                      <>
-                        <button type="button" disabled={hasAnticipoAdenda || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Anticipo Adenda (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Inicial Adenda</button>
-                        <button type="button" disabled={!hasAnticipoAdenda || hasFinalAdenda || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Entrega Final Adenda (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Final Adenda</button>
-                        <button type="button" disabled={hasKillFee || isFullyPaid} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Kill Fee Cancelación Adenda', payment_percentage: 20 })} className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-30 disabled:pointer-events-none">Kill Fee (20%)</button>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-              <div className="grid gap-5">
-                <label className="grid gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-white/45">Cotización (Adendas - Opcional)</span>
-                  <CustomDropdown
-                    options={[
-                      { value: '', label: 'Dejar en blanco para usar la original' },
-                      ...adendas.map((a) => ({ value: a.id, label: `${a.quote_code} - ${formatCurrencyValue(Number(a.total_amount), a.currency_code)}` }))
-                    ]}
-                    value={addMilestoneForm.quote_id}
-                    onChange={(val) => setAddMilestoneForm({ ...addMilestoneForm, quote_id: val, title: '', payment_percentage: 0 })}
-                    placeholder="Seleccionar Adenda..."
-                  />
-                </label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Título</span><input required minLength={2} value={addMilestoneForm.title} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, title: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fecha de vencimiento</span><input type="date" required value={addMilestoneForm.due_date} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, due_date: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Porcentaje de pago (%)</span><input type="number" min={0} max={100} step="0.01" required readOnly value={addMilestoneForm.payment_percentage} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, payment_percentage: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white opacity-60 cursor-not-allowed" /></label>
-                <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Estado</span>
-                    <div className="min-w-48">
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {!addMilestoneForm.quote_id ? (
+                          <>
+                            <button type="button" disabled={hasAnticipo || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Anticipo (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Inicial</button>
+                            <button type="button" disabled={!hasAnticipo || hasDiseno || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Aprobación de Diseño (30%)', payment_percentage: 30 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">30% Diseño</button>
+                            <button type="button" disabled={!hasAnticipo || !hasDiseno || hasEntrega || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Entrega Final (20%)', payment_percentage: 20 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">20% Entrega</button>
+                            <button type="button" disabled={hasKillFee || isFullyPaid} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Compensación por Cancelación', payment_percentage: 20 })} className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-30 disabled:pointer-events-none">Kill Fee (20%)</button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" disabled={hasAnticipoAdenda || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Anticipo Adenda (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Inicial Adenda</button>
+                            <button type="button" disabled={!hasAnticipoAdenda || hasFinalAdenda || hasKillFee || isFullyConfigured} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Entrega Final Adenda (50%)', payment_percentage: 50 })} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:pointer-events-none">50% Final Adenda</button>
+                            <button type="button" disabled={hasKillFee || isFullyPaid} onClick={() => setAddMilestoneForm({ ...addMilestoneForm, title: 'Kill Fee Cancelación Adenda', payment_percentage: 20 })} className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs text-red-400 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-30 disabled:pointer-events-none">Kill Fee (20%)</button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  <div className="grid gap-5">
+                    <label className="grid gap-1.5">
+                      <span className="text-xs uppercase tracking-wider text-white/45">Cotización (Adendas - Opcional)</span>
                       <CustomDropdown
-                        value={addMilestoneForm.status_id}
-                        onChange={(status_id) => setAddMilestoneForm({ ...addMilestoneForm, status_id })}
-                        placeholder="Seleccionar estado"
-                        options={statuses.map(s => ({ value: s.id, label: s.name }))}
+                        options={[
+                          { value: '', label: 'Dejar en blanco para usar la original' },
+                          ...adendas.map((a) => ({ value: a.id, label: `${a.quote_code} - ${formatCurrencyValue(Number(a.total_amount), a.currency_code)}` }))
+                        ]}
+                        value={addMilestoneForm.quote_id}
+                        onChange={(val) => setAddMilestoneForm({ ...addMilestoneForm, quote_id: val, title: '', payment_percentage: 0 })}
+                        placeholder="Seleccionar Adenda..."
                       />
-                    </div>
-                </label>
-              </div>
-              <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65">Cancelar</button><button disabled={savingMilestone} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black disabled:opacity-40">{savingMilestone ? 'Guardando...' : 'Crear Hito'}</button></div>
-            </form>
+                    </label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Título</span><input required minLength={2} value={addMilestoneForm.title} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, title: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Fecha de vencimiento</span><input type="date" required value={addMilestoneForm.due_date} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, due_date: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Porcentaje de pago (%)</span><input type="number" min={0} max={100} step="0.01" required readOnly value={addMilestoneForm.payment_percentage} onChange={(event) => setAddMilestoneForm({ ...addMilestoneForm, payment_percentage: Number(event.target.value) })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white opacity-60 cursor-not-allowed" /></label>
+                    <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Estado</span>
+                        <div className="min-w-48">
+                          <CustomDropdown
+                            value={addMilestoneForm.status_id}
+                            onChange={(status_id) => setAddMilestoneForm({ ...addMilestoneForm, status_id })}
+                            placeholder="Seleccionar estado"
+                            options={statuses.map(s => ({ value: s.id, label: s.name }))}
+                          />
+                        </div>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 flex-shrink-0 bg-white/[0.01]">
+                  <button type="button" onClick={() => { setAddMilestoneOpen(false); setAddMilestoneForm({ title: '', due_date: '', payment_percentage: 0, status_id: statuses[0]?.id || '', quote_id: '' }); }} className="rounded-lg border border-white/10 px-5 py-2.5 text-sm text-white/65 hover:bg-white/5 transition-colors">Cancelar</button>
+                  <button disabled={savingMilestone} className="rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-40">{savingMilestone ? 'Guardando...' : 'Crear Hito'}</button>
+                </div>
+              </form>
+            </ShineBorder>
           </div>
         )}
       </RoleGuard>
@@ -666,15 +720,26 @@ const ProyectoDetalle: React.FC = () => {
       <RoleGuard requiredPermission="admin.proyectos.manage" fallback={null}>
         {milestoneDetailsOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}}>
-            <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
+            <ShineBorder
+              borderRadius={16}
+              borderWidth={1.5}
+              color={['#06CFD6', '#3b82f6', '#06CFD6']}
+              className="relative flex flex-col max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 flex-shrink-0">
                 <div>
                   <h2 className="text-lg font-semibold text-white/90">Desglose de Pagos</h2>
                   <p className="mt-1 text-xs text-white/40">{milestoneDetailsOpen.title}</p>
                 </div>
-                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}} className="rounded-lg p-2 text-white/50 hover:bg-white/5 transition-colors"><X className="h-5 w-5" /></button>
+                <button
+                  type="button"
+                  onClick={handleCloseMilestoneModal}
+                  className="rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <div className="max-h-[50vh] overflow-y-auto pr-1">
+              <div className="flex-1 overflow-y-auto px-6 py-6">
                 <div className="grid gap-3">
                   {milestoneDetailsOpen.payments?.map((payment, index) => (
                     <div key={payment.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
@@ -708,10 +773,16 @@ const ProyectoDetalle: React.FC = () => {
                   ))}
                 </div>
               </div>
-              <div className="mt-6 flex justify-end border-t border-white/5 pt-5">
-                <button type="button" onMouseDown={(e)=>{if(e.target===e.currentTarget)handleCloseMilestoneModal()}} className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Cerrar</button>
+              <div className="flex justify-end border-t border-white/10 px-6 py-4 flex-shrink-0 bg-white/[0.01]">
+                <button
+                  type="button"
+                  onClick={handleCloseMilestoneModal}
+                  className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                >
+                  Cerrar
+                </button>
               </div>
-            </div>
+            </ShineBorder>
           </div>
         )}
       </RoleGuard>

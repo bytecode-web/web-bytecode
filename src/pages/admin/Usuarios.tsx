@@ -8,6 +8,7 @@ import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import ShineBorder from '../../components/ui/shine-border';
 
 const PAGE_SIZE = 9;
 
@@ -363,15 +364,21 @@ const Usuarios: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative flex flex-col max-h-[90vh] w-full max-w-md overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 flex-shrink-0">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5" autoComplete="off">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden" autoComplete="off">
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
               {!isEditing && (
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-white/60 uppercase tracking-wider">Correo Electrónico</label>
@@ -487,8 +494,9 @@ const Usuarios: React.FC = () => {
                   <span className="text-sm text-white/80">Usuario Activo</span>
                 </label>
               )}
+              </div>
 
-              <div className="flex gap-3 mt-1.5 pt-4 border-t border-white/5">
+              <div className="flex gap-3 px-6 py-4 border-t border-white/10 flex-shrink-0 bg-white/[0.01]">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">
                   Cancelar
                 </button>
@@ -497,7 +505,7 @@ const Usuarios: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </ShineBorder>
         </div>
       )}
 

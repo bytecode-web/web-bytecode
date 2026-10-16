@@ -14,7 +14,7 @@ import { quotesRouter } from './admin/quotes.js';
 import directoryRouter from './admin/directory.js';
 import notificationsRouter from './admin/notifications.js';
 import { localizationRouter } from './admin/localization.js';
-import { auditLogsRouter, dashboardRouter, governanceRouter } from './admin/system.js';
+import { auditLogsRouter, dashboardRouter, governanceRouter, systemHolidaysRouter } from './admin/system.js';
 import { fileAssetsRouter } from './admin/fileAssets.js';
 
 const router = Router();
@@ -38,6 +38,7 @@ router.use('/', projectReadRouter);
 router.use('/', quotesRouter);
 router.use('/', directoryRouter);
 router.use('/', notificationsRouter);
+router.use('/', systemHolidaysRouter);
 router.use('/file-assets', fileAssetsRouter);
 router.use('/localization', localizationRouter);
 router.use('/', governanceRouter);

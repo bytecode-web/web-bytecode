@@ -12,6 +12,11 @@
     </script>
 
     <meta charset="UTF-8" />
+    <script>
+      if (window.location.pathname.startsWith('/admin')) {
+        document.documentElement.classList.add('admin-scope');
+      }
+    </script>
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/vectors/designs/mini_logo.svg" />

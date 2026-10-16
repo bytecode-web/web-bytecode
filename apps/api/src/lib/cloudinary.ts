@@ -6,7 +6,7 @@ import { getCloudinaryConfig } from '../services/settings.js';
 
 const CLOUDINARY_UPLOAD_TIMEOUT_MS = Number(process.env.CLOUDINARY_UPLOAD_TIMEOUT_MS ?? 30000);
 
-export type CloudinaryResourceType = 'image' | 'raw';
+export type CloudinaryResourceType = 'image' | 'raw' | 'auto';
 
 export type CloudinaryStoredAsset = {
   publicId: string;
@@ -30,8 +30,8 @@ const configureCloudinary = async () => {
   });
 };
 
-const resourceTypeForMime = (mimeType: string): CloudinaryResourceType => (
-  mimeType === 'application/pdf' ? 'raw' : 'image'
+const resourceTypeForMime = (_mimeType: string): CloudinaryResourceType => (
+  'auto'
 );
 
 const createPublicId = (prefix: string) => {
@@ -84,7 +84,7 @@ export async function uploadComplaintEvidenceToCloudinary(input: {
           publicId: result.public_id,
           secureUrl: result.secure_url,
           bytes: result.bytes,
-          resourceType,
+          resourceType: (result.resource_type as CloudinaryResourceType) || 'image',
         });
       },
     );

@@ -96,9 +96,23 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 300,
-    skip: () => !env.isProduction,
+    skip: (req: Request) => {
+      if (!env.isProduction) return true;
+      const path = req.path || '';
+      const originalUrl = req.originalUrl || '';
+      // Admin routes are governed by dedicated adminLimiter with role checks
+      if (path.startsWith('/admin') || originalUrl.startsWith('/api/admin')) return true;
+      // CSRF token handshake must not be blocked by global rate limiting
+      if (path === '/auth/csrf' || originalUrl.startsWith('/api/auth/csrf')) return true;
+      // Healthcheck routes
+      if (path === '/health' || originalUrl.startsWith('/api/health')) return true;
+      return false;
+    },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (_req: Request, res: Response) => {
+      res.status(429).json({ message: 'Demasiadas solicitudes. Por favor, espere unos minutos.' });
+    },
   }),
 );
 

@@ -105,7 +105,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 relative">
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 font-sansation text-white/90 relative admin-scope">
       <ToastContainer />
       
       <AnimatePresence mode="wait">

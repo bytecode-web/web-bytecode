@@ -8,6 +8,7 @@ import { formatLocalDate } from '../../lib/dateFormatter';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 import CustomDropdown from '../../components/ui/CustomDropdown';
+import ShineBorder from '../../components/ui/shine-border';
 
 const PAGE_SIZE = 9;
 
@@ -232,18 +233,22 @@ const AdminCMS: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative flex flex-col w-full max-w-md max-h-[90vh] overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 flex-shrink-0">
               <h2 className="text-lg font-semibold text-white/90">
                 Editar sección / metadatos: <span className="font-mono text-white/50 text-sm">/{formData.slug}</span>
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            
-            <div className="flex flex-col gap-5">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
               <div>
                 <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-white/60">Titulo principal</label>
                 <input type="text" value={formData.title || ''} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-2.5 text-sm text-white/90 outline-none focus:border-white/30 transition-colors" />
@@ -266,14 +271,15 @@ const AdminCMS: React.FC = () => {
                 />
                 <p className="mt-2 text-[11px] leading-5 text-white/40">El estado define si esta sección o bloque será visible en la web pública.</p>
               </div>
-              <div className="mt-4 flex gap-3 pt-4 border-t border-white/5">
-                <button onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">Cancelar</button>
-                <button onClick={handleSave} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition-colors hover:bg-white/90 disabled:opacity-50">
-                  <Save className="h-4 w-4" /> {loading ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
             </div>
-          </div>
+
+            <div className="flex gap-3 border-t border-white/10 p-6 flex-shrink-0 bg-white/[0.01]">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">Cancelar</button>
+              <button type="button" onClick={handleSave} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-white text-black py-2.5 text-sm font-medium transition-colors hover:bg-white/90 disabled:opacity-50">
+                <Save className="h-4 w-4" /> {loading ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </ShineBorder>
         </div>
       )}
     </div>

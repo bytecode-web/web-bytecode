@@ -4,6 +4,7 @@ import { Edit2, Plus, RefreshCw, Save, ShieldCheck, X, MoreVertical, Info } from
 import { apiRequest } from '../../lib/api';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
+import ShineBorder from '../../components/ui/shine-border';
 import { useToastStore } from '../../stores/toastStore';
 
 const PAGE_SIZE = 9;
@@ -286,15 +287,20 @@ const Roles: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative flex flex-col w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 flex-shrink-0">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Rol' : 'Nuevo Rol'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex max-h-[calc(90vh-73px)] flex-col">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                 
                 <div className="grid gap-5 md:grid-cols-2">
@@ -382,7 +388,7 @@ const Roles: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3 border-t border-white/5 p-6">
+              <div className="flex gap-3 border-t border-white/10 p-6 flex-shrink-0 bg-white/[0.01]">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-white/10 py-2.5 text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">
                   Cancelar
                 </button>
@@ -391,7 +397,7 @@ const Roles: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </ShineBorder>
         </div>
       )}
     </div>

@@ -11,7 +11,7 @@ import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import type { StatusHistoryRecord } from '../../types/status';
 import { useToastStore } from '../../stores/toastStore';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import { useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface ContactCase {
@@ -39,6 +39,10 @@ export interface ContactCase {
   organization_id?: string | null;
   document_type_name?: string | null;
   document_number?: string | null;
+  country_id?: string | null;
+  country_name?: string | null;
+  country_iso2?: string | null;
+  country_dial_code?: string | null;
 }
 
 export const getContactB2Type = (item: {
@@ -84,7 +88,36 @@ const formatFullName = (item: Pick<ContactItem, 'nombre' | 'apellido'>) =>
 const formatContactTitle = (item: ContactItem) =>
   formatFullName(item) || item.empresa || 'Sin nombre';
 
+const formatPhone = (phone?: string | null, dialCode?: string | null): React.ReactNode => {
+  if (!phone) return '-';
+  let rawPhone = String(phone).trim();
+  if (!rawPhone) return '-';
 
+  let prefix = dialCode ? dialCode.trim() : '';
+
+  const match = rawPhone.match(/^(\+\d{1,4})\s*(.*)$/);
+  if (match) {
+    prefix = match[1];
+    rawPhone = match[2];
+  } else if (prefix) {
+    const dialDigits = prefix.replace(/\D/g, '');
+    if (dialDigits && rawPhone.startsWith(dialDigits)) {
+      rawPhone = rawPhone.substring(dialDigits.length).trim();
+    }
+  }
+
+  if (prefix) {
+    const formattedPrefix = prefix.startsWith('(') ? prefix : `(${prefix.startsWith('+') ? prefix : `+${prefix}`})`;
+    return (
+      <>
+        <span className="text-white/45 font-normal mr-1.5">{formattedPrefix}</span>
+        <span>{rawPhone}</span>
+      </>
+    );
+  }
+
+  return rawPhone;
+};
 
 import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
@@ -164,11 +197,12 @@ const Contactos: React.FC = () => {
     }
   };
 
-  const loadList = async () => {
+  const loadList = async (targetPage?: number) => {
     setListLoading(true);
     try {
-      const result = await apiRequest<{ data: ContactItem[]; total: number }>(`/admin/contacts?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`);
-      if (result.data.length === 0 && result.total > 0 && page > 1) { setPage(page - 1); return; }
+      const activePage = targetPage !== undefined ? targetPage : page;
+      const result = await apiRequest<{ data: ContactItem[]; total: number }>(`/admin/contacts?limit=${PAGE_SIZE}&offset=${(activePage - 1) * PAGE_SIZE}`);
+      if (result.data.length === 0 && result.total > 0 && activePage > 1) { setPage(activePage - 1); return; }
       setContacts(result.data);
       setTotal(result.total);
     } catch (requestError) {
@@ -178,10 +212,10 @@ const Contactos: React.FC = () => {
     }
   };
 
-  const loadDetail = async (id: string) => {
+  const loadDetail = async (id: string, syncPage = false) => {
     setSelectedId(id);
     try {
-      const result = await apiRequest<{ item: DetailItem }>(`/admin/contacts/${id}`);
+      const result = await apiRequest<{ item: DetailItem; page?: number }>(`/admin/contacts/${id}?limit=${PAGE_SIZE}`);
       setDetail(result.item);
       setStatus(String(result.item.status ?? 'new'));
       setPriority(String(result.item.priority ?? 'normal'));
@@ -189,6 +223,15 @@ const Contactos: React.FC = () => {
       setCategoryId(String(result.item.category_id || ''));
       setReason('');
       
+      if (syncPage) {
+        const targetPage = result.page || 1;
+        if (targetPage !== page) {
+          setPage(targetPage);
+        } else {
+          void loadList(targetPage);
+        }
+      }
+
       const [assignmentResult, statusResult] = await Promise.all([
         apiRequest<{ items: AssignmentHistoryItem[] }>(`/admin/contacts/${id}/assignment-history`),
         apiRequest<{ items: StatusHistoryRecord[] }>(`/admin/contacts/${id}/history`),
@@ -204,6 +247,7 @@ const Contactos: React.FC = () => {
   };
 
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const processedAutoOpenId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -215,6 +259,14 @@ const Contactos: React.FC = () => {
   }, [page]);
 
   useEffect(() => {
+    const queryId = searchParams.get('id');
+    if (queryId && queryId !== processedAutoOpenId.current) {
+      processedAutoOpenId.current = queryId;
+      void loadDetail(queryId, true);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
       const stateObj = location.state as { autoOpenId: string, notificationTimestamp?: number };
       const autoOpenId = stateObj.autoOpenId;
@@ -222,10 +274,7 @@ const Contactos: React.FC = () => {
       
       if (autoOpenId && uniqueId !== processedAutoOpenId.current) {
         processedAutoOpenId.current = uniqueId;
-        void (async () => {
-          await loadList();
-          await loadDetail(autoOpenId);
-        })();
+        void loadDetail(autoOpenId, true);
         window.history.replaceState({}, '');
       }
     }
@@ -270,7 +319,7 @@ const Contactos: React.FC = () => {
           { key: 'apellido', label: 'Apellido' },
           { key: 'cargo', label: 'Cargo' },
           { key: 'email', label: 'Email' },
-          { key: 'celular', label: 'Celular' },
+          { key: 'celular', label: 'Teléfono' },
           { key: 'empresa', label: 'Empresa' },
           { key: 'ruc', label: 'RUC' },
           { key: 'servicio', label: 'Asunto' },
@@ -285,7 +334,7 @@ const Contactos: React.FC = () => {
           { key: 'nombre', label: 'Nombre' },
           { key: 'apellido', label: 'Apellido' },
           { key: 'email', label: 'Email' },
-          { key: 'celular', label: 'Celular' },
+          { key: 'celular', label: 'Teléfono' },
           ...(detail.document_type_name || detail.document_number ? [
             { key: 'document_type_name', label: 'Tipo de Documento' },
             { key: 'document_number', label: 'N° Documento' },
@@ -316,6 +365,21 @@ const Contactos: React.FC = () => {
                 {isB2B ? 'B2B' : 'B2C'}
               </span>
 
+              {(detail.country_iso2 || detail.country_iso) && (
+                <span
+                  className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10 text-white/90"
+                  title={detail.country_name ? String(detail.country_name) : String(detail.country_iso2 || detail.country_iso)}
+                >
+                  <img
+                    src={`https://flagcdn.com/w20/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png`}
+                    srcSet={`https://flagcdn.com/w40/${String(detail.country_iso2 || detail.country_iso).toLowerCase()}.png 2x`}
+                    alt={String(detail.country_iso2 || detail.country_iso)}
+                    className="w-4 h-auto object-contain rounded-sm"
+                  />
+                  <span>{String(detail.country_iso2 || detail.country_iso).toUpperCase()}</span>
+                </span>
+              )}
+
               {detail.source_channel && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-wider font-semibold border border-white/10" style={{ color: String(detail.channel_color || channelIconMap[String(detail.source_channel)]?.color || '#888') }}>
                   {React.createElement(channelIconMap[String(detail.source_channel)]?.icon || IconWorld, { size: 14 })}
@@ -335,7 +399,9 @@ const Contactos: React.FC = () => {
               <div key={key} className={key === 'message' ? 'sm:col-span-2' : ''}>
                 <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</p>
                 <p className="break-words text-sm text-white/80">
-                  {['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
+                  {key === 'celular'
+                    ? formatPhone(detail.celular ? String(detail.celular) : '', detail.country_dial_code ? String(detail.country_dial_code) : null)
+                    : ['created_at', 'updated_at', 'first_response_due_at', 'resolved_at', 'closed_at'].includes(key) && detail[key]
                     ? formatLocalDate(String(detail[key]))
                     : String(detail[key] ?? '-')}
                 </p>
@@ -492,7 +558,7 @@ const Contactos: React.FC = () => {
           <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#06CFD6]/10 border border-[#06CFD6]/20 px-4 py-2 text-sm font-medium text-[#06CFD6] transition-colors hover:bg-[#06CFD6]/20">
             <Plus className="h-4 w-4" /> <span>Nuevo Caso</span>
           </button>
-          <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={() => void loadList()} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
             <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
           </button>
         </div>

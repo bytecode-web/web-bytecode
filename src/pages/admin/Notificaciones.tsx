@@ -24,6 +24,11 @@ interface NotificationRule {
 const AVAILABLE_EVENTS = [
   { id: 'contact_created', label: 'Nuevo Lead de Contacto', description: 'Cuando un usuario llena el formulario de contacto web' },
   { id: 'complaint_created', label: 'Nuevo Reclamo Registrado', description: 'Cuando un usuario ingresa una queja en el Libro de Reclamaciones' },
+  { id: 'complaint_status_changed', label: 'Reclamo: Cambio de Estado', description: 'Cuando un operador modifica el estado de un reclamo en el panel' },
+  { id: 'complaint_note_added', label: 'Reclamo: Nueva Nota Interna', description: 'Cuando un miembro del equipo añade una nota interna al expediente' },
+  { id: 'complaint_response_sent', label: 'Reclamo: Respuesta Oficial Emitida', description: 'Cuando se emite y notifica la resolución oficial al reclamante' },
+  { id: 'complaint_evidence_added', label: 'Reclamo: Prueba Interna Adjuntada', description: 'Cuando se adjuntan pruebas o evidencias internas en el expediente' },
+  { id: 'complaint_sla_warning', label: 'Reclamo: Alerta de Vencimiento SLA', description: 'Cuando el semáforo legal avanza a fase preventiva, crítica o vencida' },
   { id: 'quote_created', label: 'Nueva Cotización', description: 'Cuando se genera una nueva cotización' },
   { id: 'quote_sent', label: 'Cotización Enviada', description: 'Cuando una cotización se marca como enviada al cliente' },
   { id: 'quote_accepted', label: 'Cotización Aceptada', description: 'Cuando una cotización pasa a estado Aceptada y debe iniciar proyecto' },

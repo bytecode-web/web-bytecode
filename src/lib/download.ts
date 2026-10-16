@@ -1,6 +1,9 @@
 export const forceDownload = async (url: string, filename: string) => {
   try {
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Download failed with status ${response.status}`);
+    }
     const blob = await response.blob();
     const blobUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

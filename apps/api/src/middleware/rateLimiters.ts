@@ -34,11 +34,22 @@ export const publicFormLimiter = rateLimit({
 
 export const adminLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  limit: 600,
+  limit: 1200,
   skip: () => isDev,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req: Request, res: Response, _next: NextFunction) => {
     res.status(429).json({ message: 'Límite de solicitudes administrativas alcanzado.' });
+  },
+});
+
+export const adminHolidayMutationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  skip: () => isDev,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response, _next: NextFunction) => {
+    res.status(429).json({ message: 'Demasiadas operaciones de feriados en poco tiempo. Espera un momento.' });
   },
 });

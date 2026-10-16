@@ -22,3 +22,18 @@ test('Caddy applies baseline security headers to public domains', async () => {
   assert.match(caddyfile, /bytecode\.com\.pe, www\.bytecode\.com\.pe\s*\{\s*import security_headers/);
   assert.match(caddyfile, /api\.bytecode\.com\.pe\s*\{\s*import security_headers/);
 });
+
+test('user selection is disabled in public routes but restored in admin panel routes', async () => {
+  const cssSource = await readFile('src/index.css', 'utf8');
+  const appSource = await readFile('src/App.tsx', 'utf8');
+
+  // Verify public routes have user-select: none scoped
+  assert.match(cssSource, /body:not\(\.admin-scope\)\s*\*[\s\S]*user-select:\s*none/);
+  // Verify admin routes restore user-select: auto and user-drag: auto
+  assert.match(cssSource, /body\.admin-scope[\s\S]*user-select:\s*auto/);
+  assert.match(cssSource, /body\.admin-scope img[\s\S]*user-drag:\s*auto/);
+
+  // Verify App.tsx toggles admin-scope based on admin pathname
+  assert.match(appSource, /const isAdmin = pathname\.startsWith\('\/admin'\)/);
+  assert.match(appSource, /document\.body\.classList\.toggle\('admin-scope', isAdmin\)/);
+});
