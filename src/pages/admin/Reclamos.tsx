@@ -364,26 +364,41 @@ const Reclamos: React.FC = () => {
     }
   };
 
-  const loadList = async () => {
+  const loadList = async (overrides?: {
+    page?: number;
+    archived?: string;
+    search?: string;
+    urgency?: string;
+    tipo?: string;
+    origin?: string;
+    agent?: string;
+  }) => {
     setListLoading(true);
     try {
+      const activePage = overrides?.page !== undefined ? overrides.page : page;
+      const activeArchived = overrides?.archived !== undefined ? overrides.archived : filterArchived;
+      const activeSearch = (overrides?.search !== undefined ? overrides.search : debouncedSearchQuery).trim();
+      const activeUrgency = overrides?.urgency !== undefined ? overrides.urgency : filterUrgency;
+      const activeTipo = overrides?.tipo !== undefined ? overrides.tipo : filterTipo;
+      const activeOrigin = overrides?.origin !== undefined ? overrides.origin : filterOrigin;
+      const activeAgent = overrides?.agent !== undefined ? overrides.agent : filterAgent;
+
       const queryParams = new URLSearchParams({
         limit: PAGE_SIZE.toString(),
-        offset: ((page - 1) * PAGE_SIZE).toString(),
-        archived: filterArchived
+        offset: ((activePage - 1) * PAGE_SIZE).toString(),
+        archived: activeArchived
       });
-      const activeSearch = debouncedSearchQuery.trim();
       if (activeSearch) queryParams.append('search', activeSearch);
-      if (filterUrgency) queryParams.append('urgency', filterUrgency);
-      if (filterTipo) queryParams.append('tipo', filterTipo);
-      if (filterOrigin) queryParams.append('origin', filterOrigin);
-      if (filterAgent) queryParams.append('agent', filterAgent);
+      if (activeUrgency) queryParams.append('urgency', activeUrgency);
+      if (activeTipo) queryParams.append('tipo', activeTipo);
+      if (activeOrigin) queryParams.append('origin', activeOrigin);
+      if (activeAgent) queryParams.append('agent', activeAgent);
 
       const [result, metricsRes] = await Promise.all([
         apiRequest<{ data: ComplaintItem[]; total: number }>(`/admin/complaints?${queryParams.toString()}`),
         apiRequest<{ data: any }>('/admin/complaints/metrics')
       ]);
-      if (result.data.length === 0 && result.total > 0 && page > 1) { setPage(page - 1); return; }
+      if (result.data.length === 0 && result.total > 0 && activePage > 1) { setPage(activePage - 1); return; }
       const uniqueComplaints = Array.from(new Map(result.data.map((item) => [item.id, item])).values());
       setComplaints(uniqueComplaints);
       setTotal(result.total);
@@ -400,8 +415,34 @@ const Reclamos: React.FC = () => {
     try {
       const result = await apiRequest<ComplaintFullResponse>(`/admin/complaints/${id}/full?limit=${PAGE_SIZE}`);
       setDetail(result.item);
-      if (syncPage && result.page && result.page !== page) {
-        setPage(result.page);
+      if (syncPage) {
+        const isArchived = Boolean(result.item.deleted_at);
+        const targetArchived = isArchived ? 'true' : 'false';
+        const targetPage = result.page || 1;
+
+        // Limpiar filtros y alinear archivado para garantizar visibilidad en la lista izquierda
+        setSearchQuery('');
+        setDebouncedSearchQuery('');
+        setFilterUrgency('');
+        setFilterTipo('');
+        setFilterOrigin('');
+        setFilterAgent('');
+        setFilterArchived(targetArchived);
+
+        if (targetPage !== page) {
+          setPage(targetPage);
+        } else {
+          // Si ya estamos en la misma página (ej. pág 1), forzar la recarga inmediata de la lista izquierda
+          void loadList({
+            page: targetPage,
+            archived: targetArchived,
+            search: '',
+            urgency: '',
+            tipo: '',
+            origin: '',
+            agent: '',
+          });
+        }
       }
       setStatusHistory(result.history);
       setHistory(result.assignmentHistory);
@@ -1290,7 +1331,7 @@ const Reclamos: React.FC = () => {
             <p className="text-white/40 text-xs mt-1 uppercase tracking-widest">Libro de reclamaciones</p>
           </div>
         </div>
-        <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+        <button type="button" onClick={() => void loadList()} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
           <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
         </button>
       </div>

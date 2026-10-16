@@ -11,7 +11,7 @@ import PaginationControl from '../../components/ui/PaginationControl';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import type { StatusHistoryRecord } from '../../types/status';
 import { useToastStore } from '../../stores/toastStore';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import { useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
 
 export interface ContactCase {
@@ -197,11 +197,12 @@ const Contactos: React.FC = () => {
     }
   };
 
-  const loadList = async () => {
+  const loadList = async (targetPage?: number) => {
     setListLoading(true);
     try {
-      const result = await apiRequest<{ data: ContactItem[]; total: number }>(`/admin/contacts?limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`);
-      if (result.data.length === 0 && result.total > 0 && page > 1) { setPage(page - 1); return; }
+      const activePage = targetPage !== undefined ? targetPage : page;
+      const result = await apiRequest<{ data: ContactItem[]; total: number }>(`/admin/contacts?limit=${PAGE_SIZE}&offset=${(activePage - 1) * PAGE_SIZE}`);
+      if (result.data.length === 0 && result.total > 0 && activePage > 1) { setPage(activePage - 1); return; }
       setContacts(result.data);
       setTotal(result.total);
     } catch (requestError) {
@@ -223,10 +224,11 @@ const Contactos: React.FC = () => {
       setReason('');
       
       if (syncPage) {
-        if (result.page && result.page !== page) {
-          setPage(result.page);
+        const targetPage = result.page || 1;
+        if (targetPage !== page) {
+          setPage(targetPage);
         } else {
-          void loadList();
+          void loadList(targetPage);
         }
       }
 
@@ -245,6 +247,7 @@ const Contactos: React.FC = () => {
   };
 
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const processedAutoOpenId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -254,6 +257,14 @@ const Contactos: React.FC = () => {
   useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    const queryId = searchParams.get('id');
+    if (queryId && queryId !== processedAutoOpenId.current) {
+      processedAutoOpenId.current = queryId;
+      void loadDetail(queryId, true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (location.state && typeof location.state === 'object' && 'autoOpenId' in location.state) {
@@ -547,7 +558,7 @@ const Contactos: React.FC = () => {
           <button onClick={() => setCreateModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#06CFD6]/10 border border-[#06CFD6]/20 px-4 py-2 text-sm font-medium text-[#06CFD6] transition-colors hover:bg-[#06CFD6]/20">
             <Plus className="h-4 w-4" /> <span>Nuevo Caso</span>
           </button>
-          <button onClick={loadList} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={() => void loadList()} className="flex items-center gap-2 rounded-lg bg-white/5 border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white">
             <RefreshCw className="h-4 w-4" /> <span>Actualizar</span>
           </button>
         </div>
