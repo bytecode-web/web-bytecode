@@ -33,7 +33,8 @@ interface RecalculatedComplaint {
 /**
  * Recalibra de forma reactiva y transaccional los expedientes de reclamos en trámite (is_terminal = false)
  * ante la adición o supresión de un feriado en el sistema.
- * Registra un evento HOLIDAY_SCHEDULE_ADJUSTED en complaint_time_events únicamente si la fecha de vencimiento legal varía.
+ * Solo recalcula y registra eventos para reclamos cuyo vencimiento legal haya sido efectivamente impactado
+ * por este feriado específico (es decir, el feriado cayó dentro de sus 15 días hábiles).
  */
 async function recalibrateActiveComplaintsDueDate(
   client: any,
@@ -44,18 +45,11 @@ async function recalibrateActiveComplaintsDueDate(
     day: number;
     month: number;
     year: number | null;
-  }
+  },
+  previousHolidays: SystemHoliday[],
+  currentHolidays: SystemHoliday[]
 ): Promise<RecalculatedComplaint[]> {
-  // 1. Obtener todos los feriados actuales de Perú en el sistema
-  const holidaysRes = await client.query(
-    `SELECT sh.month, sh.day, sh.year, sh.description 
-     FROM system_holidays sh 
-     JOIN countries c ON sh.country_id = c.id 
-     WHERE c.iso2 = 'PE'`
-  );
-  const currentHolidays: SystemHoliday[] = holidaysRes.rows;
-
-  // 2. Obtener catálogo de prioridades para sincronización
+  // 1. Obtener catálogo de prioridades para sincronización
   const prioRes = await client.query('SELECT id, code FROM priority_catalog WHERE is_active = true');
   const prioByCode = new Map<string, string>();
   prioRes.rows.forEach((r: { id: string; code: string }) => prioByCode.set(r.code, r.id));
@@ -63,7 +57,7 @@ async function recalibrateActiveComplaintsDueDate(
   const highPrioId = prioByCode.get('high');
   const urgentPrioId = prioByCode.get('urgent');
 
-  // 3. Obtener expedientes abiertos/en trámite (is_terminal = false y no archivados físicamente)
+  // 2. Obtener expedientes abiertos/en trámite (is_terminal = false y no archivados físicamente)
   // Se aplica bloqueo FOR UPDATE OF c para garantizar concurrencia segura sin race conditions
   const complaintsRes = await client.query(
     `SELECT c.id, c.complaint_code, c.created_at, c.legal_response_due_at, c.priority_id
@@ -81,16 +75,19 @@ async function recalibrateActiveComplaintsDueDate(
 
   for (const c of complaintsRes.rows) {
     const regDate = new Date(c.created_at);
-    const { dueDate: newDueDate, skippedWeekends, skippedHolidays } = calculateLegalDueDate(
-      regDate,
-      currentHolidays,
-      15
-    );
 
-    const oldDueDate = c.legal_response_due_at ? new Date(c.legal_response_due_at) : null;
-    const isDueChanged = !oldDueDate || Math.abs(newDueDate.getTime() - oldDueDate.getTime()) > 1000;
+    // Calcular vencimiento ANTES y DESPUÉS de esta modificación de feriado
+    const calcBefore = calculateLegalDueDate(regDate, previousHolidays, 15);
+    const calcAfter = calculateLegalDueDate(regDate, currentHolidays, 15);
 
-    if (isDueChanged) {
+    // Verificación estricta: ¿Este feriado en particular cambió la fecha límite del reclamo?
+    // Si el feriado está fuera de la ventana de 15 días hábiles del reclamo, calcAfter y calcBefore son idénticos.
+    const isDueChangedByThisHoliday = Math.abs(calcAfter.dueDate.getTime() - calcBefore.dueDate.getTime()) > 1000;
+
+    if (isDueChangedByThisHoliday) {
+      const newDueDate = calcAfter.dueDate;
+      const oldDueDate = c.legal_response_due_at ? new Date(c.legal_response_due_at) : calcBefore.dueDate;
+
       // Calcular nueva prioridad por días hábiles restantes
       const remDays = calculateRemainingBusinessDays(newDueDate, now, currentHolidays);
       let targetPrioId = normalPrioId;
@@ -129,8 +126,8 @@ async function recalibrateActiveComplaintsDueDate(
             old_due_date: oldDueDate ? oldDueDate.toISOString() : null,
             new_due_date: newDueDate.toISOString(),
             remaining_business_days: remDays,
-            skipped_weekends: skippedWeekends,
-            skipped_holidays: skippedHolidays,
+            skipped_weekends: calcAfter.skippedWeekends,
+            skipped_holidays: calcAfter.skippedHolidays,
             performed_by_admin_id: adminInfo?.id || null,
             adjusted_by: adminInfo?.email || adminInfo?.name || null,
             adjusted_at: now.toISOString(),
@@ -175,29 +172,54 @@ systemHolidaysRouter.post(
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener datos del país para auditoría
+      // 1. Obtener lista previa de feriados de Perú antes de insertar
+      const prevHolidaysRes = await client.query(
+        `SELECT sh.month, sh.day, sh.year, sh.description 
+         FROM system_holidays sh 
+         JOIN countries c ON sh.country_id = c.id 
+         WHERE c.iso2 = 'PE'`
+      );
+      const previousHolidays: SystemHoliday[] = prevHolidaysRes.rows;
+
+      // 2. Obtener datos del país para auditoría
       const countryRes = await client.query('SELECT id, iso2, name FROM countries WHERE id = $1', [body.country_id]);
       const country = countryRes.rows[0] || null;
 
-      // 2. Insertar nuevo feriado
+      // 3. Insertar nuevo feriado
       const result = await client.query(
         'INSERT INTO system_holidays (country_id, month, day, year, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [body.country_id, body.month, body.day, body.year, body.description]
       );
       const insertedHoliday = result.rows[0];
 
-      // 3. Recalibrar en la misma transacción los expedientes activos en trámite
-      const recalculated = await recalibrateActiveComplaintsDueDate(client, req.admin, {
-        action: 'created',
-        description: body.description,
-        day: body.day,
-        month: body.month,
-        year: body.year,
-      });
+      const currentHolidays: SystemHoliday[] = [
+        ...previousHolidays,
+        {
+          month: insertedHoliday.month,
+          day: insertedHoliday.day,
+          year: insertedHoliday.year,
+          description: insertedHoliday.description,
+        },
+      ];
+
+      // 4. Recalibrar en la misma transacción ÚNICAMENTE los expedientes activos cuyo plazo se vea afectado
+      const recalculated = await recalibrateActiveComplaintsDueDate(
+        client,
+        req.admin,
+        {
+          action: 'created',
+          description: body.description,
+          day: body.day,
+          month: body.month,
+          year: body.year,
+        },
+        previousHolidays,
+        currentHolidays
+      );
 
       await client.query('COMMIT');
 
-      // 4. Registro forense de auditoría inmutable
+      // 5. Registro forense de auditoría inmutable
       await auditService.logAdminAction({
         userId: req.admin?.id,
         action: 'create_system_holiday',
@@ -248,32 +270,53 @@ systemHolidaysRouter.delete(
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener snapshot previo del feriado a eliminar
-      const currentRes = await client.query(
-        `SELECT sh.*, c.iso2 as country_code, c.name as country_name
+      // 1. Obtener todos los feriados actuales de Perú antes de eliminar
+      const prevHolidaysRes = await client.query(
+        `SELECT sh.id, sh.month, sh.day, sh.year, sh.description, c.iso2 as country_code, c.name as country_name, sh.country_id
          FROM system_holidays sh
          JOIN countries c ON sh.country_id = c.id
-         WHERE sh.id = $1`,
-        [id]
+         WHERE c.iso2 = 'PE'`
       );
+      const previousHolidaysWithId = prevHolidaysRes.rows;
 
-      if (currentRes.rowCount === 0) {
+      const holidayToDelete = previousHolidaysWithId.find((h: any) => h.id === id);
+      if (!holidayToDelete) {
         throw new HttpError(404, 'Feriado no encontrado en el sistema.');
       }
-
-      const holidayToDelete = currentRes.rows[0];
 
       // 2. Eliminar físicamente el feriado
       await client.query('DELETE FROM system_holidays WHERE id = $1', [id]);
 
-      // 3. Recalibrar en la misma transacción los expedientes activos en trámite
-      const recalculated = await recalibrateActiveComplaintsDueDate(client, req.admin, {
-        action: 'deleted',
-        description: holidayToDelete.description,
-        day: holidayToDelete.day,
-        month: holidayToDelete.month,
-        year: holidayToDelete.year,
-      });
+      const currentHolidays: SystemHoliday[] = previousHolidaysWithId
+        .filter((h: any) => h.id !== id)
+        .map((h: any) => ({
+          month: h.month,
+          day: h.day,
+          year: h.year,
+          description: h.description,
+        }));
+
+      const previousHolidays: SystemHoliday[] = previousHolidaysWithId.map((h: any) => ({
+        month: h.month,
+        day: h.day,
+        year: h.year,
+        description: h.description,
+      }));
+
+      // 3. Recalibrar en la misma transacción ÚNICAMENTE los expedientes activos cuyo plazo se vea afectado
+      const recalculated = await recalibrateActiveComplaintsDueDate(
+        client,
+        req.admin,
+        {
+          action: 'deleted',
+          description: holidayToDelete.description,
+          day: holidayToDelete.day,
+          month: holidayToDelete.month,
+          year: holidayToDelete.year,
+        },
+        previousHolidays,
+        currentHolidays
+      );
 
       await client.query('COMMIT');
 

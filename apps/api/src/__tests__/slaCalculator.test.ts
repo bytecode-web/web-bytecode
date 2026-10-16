@@ -77,3 +77,26 @@ test('calculateLegalDueDate ignores single-year holidays from different years', 
   assert.equal(result.finalMonth, 11);
   assert.equal(result.skippedHolidays.length, 0);
 });
+
+test('Adding an October holiday does NOT change the due date of a May complaint', () => {
+  // Reclamo registrado el 11 de mayo de 2026
+  const mayComplaintDate = new Date('2026-05-11T14:00:00.000Z');
+  
+  const holidaysWithoutOctober: SystemHoliday[] = [
+    { month: 5, day: 1, year: null, description: 'Día del Trabajo' },
+    { month: 11, day: 1, year: null, description: 'Día de Todos los Santos' },
+  ];
+
+  const holidaysWithOctober: SystemHoliday[] = [
+    ...holidaysWithoutOctober,
+    { month: 10, day: 19, year: null, description: 'Nuevo Feriado Octubre' },
+  ];
+
+  const calcBefore = calculateLegalDueDate(mayComplaintDate, holidaysWithoutOctober, 15);
+  const calcAfter = calculateLegalDueDate(mayComplaintDate, holidaysWithOctober, 15);
+
+  // La fecha debe ser exactamente la misma (el feriado de octubre no cae en mayo)
+  assert.equal(calcBefore.dueDate.getTime(), calcAfter.dueDate.getTime());
+  assert.equal(calcAfter.finalMonth, 6);
+  assert.equal(calcAfter.finalDay, 1); // 1 de junio de 2026
+});
