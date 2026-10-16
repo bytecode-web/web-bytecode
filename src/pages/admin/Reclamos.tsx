@@ -1259,17 +1259,31 @@ const Reclamos: React.FC = () => {
                 />
 
                 {/* Selector de Archivos Adjuntos a la Respuesta */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-white/70">Documentos o Pruebas Adjuntas (Opcional)</span>
+                <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-white/90 flex items-center gap-1.5">
+                        <Paperclip className="h-3.5 w-3.5 text-cyan-400" />
+                        Sustentos o Evidencias de la Resolución
+                      </span>
+                      <span className="text-[11px] text-white/40">
+                        Opcional · PDF, PNG, JPG o WEBP (máx. 5 archivos, hasta 25MB total)
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => responseFileInputRef.current?.click()}
                       disabled={responseFiles.length >= 5 || isResponding}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 disabled:opacity-40 transition"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-500/10 hover:bg-cyan-500/20 active:bg-cyan-500/25 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 hover:border-cyan-500/50 shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
                     >
                       <Paperclip className="h-3.5 w-3.5" />
-                      <span>{responseFiles.length >= 5 ? 'Límite alcanzado (5)' : 'Adjuntar archivo'}</span>
+                      <span>
+                        {responseFiles.length >= 5
+                          ? 'Límite alcanzado (5/5)'
+                          : responseFiles.length > 0
+                          ? `+ Adjuntar más (${responseFiles.length}/5)`
+                          : '+ Adjuntar Evidencia'}
+                      </span>
                     </button>
                     <input
                       ref={responseFileInputRef}
@@ -1284,17 +1298,17 @@ const Reclamos: React.FC = () => {
                   {responseFiles.length > 0 && (
                     <div className="flex flex-col gap-1.5 mt-1">
                       {responseFiles.map((f, idx) => (
-                        <div key={idx} className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs">
+                        <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-md bg-white/5 border border-white/10 hover:bg-white/[0.07] transition text-xs">
                           <div className="flex items-center gap-2 truncate mr-2">
-                            <FileText className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-                            <span className="text-white/90 truncate" title={f.name}>{f.name}</span>
+                            <FileText className="h-4 w-4 text-cyan-400 shrink-0" />
+                            <span className="text-white/90 truncate font-medium" title={f.name}>{f.name}</span>
                             <span className="text-[10px] text-white/40 shrink-0">({formatFileSize(f.size)})</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveResponseFile(idx)}
                             disabled={isResponding}
-                            className="text-white/40 hover:text-red-400 p-0.5 transition"
+                            className="text-white/40 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition"
                             title="Eliminar adjunto"
                           >
                             <X className="h-3.5 w-3.5" />
