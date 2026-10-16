@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test src/__tests__/adminQueries.test.ts src/__tests__/cors.test.ts src/__tests__/csrf.test.ts src/__tests__/errorHandler.test.ts src/__tests__/rateLimiters.test.ts src/__tests__/upload.test.ts src/__tests__/complaintResolutionEmail.test.ts src/__tests__/complaintsSlaCron.test.ts",
+    "test": "node --import tsx --test src/__tests__/adminQueries.test.ts src/__tests__/cors.test.ts src/__tests__/csrf.test.ts src/__tests__/errorHandler.test.ts src/__tests__/rateLimiters.test.ts src/__tests__/upload.test.ts src/__tests__/complaintResolutionEmail.test.ts src/__tests__/complaintsSlaCron.test.ts src/__tests__/slaCalculator.test.ts",
     "db:migrate": "tsx src/db/migrate.ts",
     "admin:create": "tsx src/scripts/createAdmin.ts",
     "permissions:seed": "tsx src/scripts/seedInitialPermissions.ts",

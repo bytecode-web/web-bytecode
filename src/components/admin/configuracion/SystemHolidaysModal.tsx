@@ -124,7 +124,7 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
       }
       if (!cid) throw new Error('No se pudo determinar el ID de Perú.');
 
-      await apiRequest('/admin/system-holidays', {
+      const res = await apiRequest<{ item: any; recalculated_complaints_count: number }>('/admin/system-holidays', {
         method: 'POST',
         json: {
           country_id: cid,
@@ -135,7 +135,11 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
         },
       });
 
-      addToast('Feriado agregado exitosamente.', 'success');
+      if (res.recalculated_complaints_count > 0) {
+        addToast(`Feriado agregado exitosamente. Se recalculó la fecha límite de ${res.recalculated_complaints_count} expediente(s) en trámite.`, 'success');
+      } else {
+        addToast('Feriado agregado exitosamente.', 'success');
+      }
       setNewHoliday({ day: 1, month: 1, year: '', description: '' });
       await onRefresh();
       setCurrentPage(1);
@@ -150,8 +154,12 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
     if (!holidayToDelete) return;
     setDeleting(true);
     try {
-      await apiRequest(`/admin/system-holidays/${holidayToDelete.id}`, { method: 'DELETE' });
-      addToast('Feriado eliminado exitosamente.', 'success');
+      const res = await apiRequest<{ success: boolean; recalculated_complaints_count: number }>(`/admin/system-holidays/${holidayToDelete.id}`, { method: 'DELETE' });
+      if (res.recalculated_complaints_count > 0) {
+        addToast(`Feriado eliminado exitosamente. Se recalculó la fecha límite de ${res.recalculated_complaints_count} expediente(s) en trámite.`, 'success');
+      } else {
+        addToast('Feriado eliminado exitosamente.', 'success');
+      }
       setHolidayToDelete(null);
       await onRefresh();
 

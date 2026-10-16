@@ -2,56 +2,12 @@ import cron from 'node-cron';
 import { pool } from '../db/pool.js';
 import { sendInAppNotification, sendDirectInAppNotification } from '../services/notificationService.js';
 
-export interface SystemHoliday {
-  month: number;
-  day: number;
-  year: number | null;
-}
+import { 
+  calculateRemainingBusinessDays, 
+  type SystemHoliday 
+} from '../lib/slaCalculator.js';
 
-/**
- * Calcula los días hábiles oficiales restantes hasta la fecha límite legal
- * anclando el calendario a la zona horaria oficial de Perú (America/Lima)
- * y descontando fines de semana (Sáb-Dom) y feriados de system_holidays.
- */
-export function calculateRemainingBusinessDays(dueDate: Date, now: Date, holidays: SystemHoliday[]): number {
-  const getLimaCal = (d: Date) => {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/Lima',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric'
-      }).formatToParts(d).map(p => [p.type, p.value])
-    );
-    return new Date(Date.UTC(parseInt(parts.year, 10), parseInt(parts.month, 10) - 1, parseInt(parts.day, 10), 12, 0, 0));
-  };
-
-  const nowCal = getLimaCal(now);
-  const dueCal = getLimaCal(dueDate);
-
-  const isOverdue = nowCal.getTime() > dueCal.getTime();
-
-  let diffDays = 0;
-  const startCalc = isOverdue ? new Date(dueCal) : new Date(nowCal);
-  const endCalc = isOverdue ? new Date(nowCal) : new Date(dueCal);
-
-  const current = new Date(startCalc);
-  while (current < endCalc) {
-    current.setUTCDate(current.getUTCDate() + 1);
-    const day = current.getUTCDay();
-    const y = current.getUTCFullYear();
-    const m = current.getUTCMonth() + 1;
-    const d = current.getUTCDate();
-
-    const isHoliday = (day !== 0 && day !== 6) && holidays.some(h => h.month === m && h.day === d && (h.year === null || h.year === y));
-
-    if (day !== 0 && day !== 6 && !isHoliday) {
-      diffDays++;
-    }
-  }
-
-  return isOverdue ? -diffDays : diffDays;
-}
+export { calculateRemainingBusinessDays, type SystemHoliday };
 
 /**
  * Ejecuta la verificación horaria de SLA para reclamos:

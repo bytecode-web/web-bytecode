@@ -12,6 +12,7 @@ import { publicFormLimiter } from '../middleware/rateLimiters.js';
 import { notifyAdmins } from '../services/email.js';
 import { capitalize } from '../services/emailTemplates.js';
 import { sendInAppNotification, enqueueEmail } from '../services/notificationService.js';
+import { calculateLegalDueDate } from '../lib/slaCalculator.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -885,57 +886,16 @@ router.post(
       );
       const holidaysList: Array<{ month: number; day: number; year: number | null; description: string }> = holidaysRes.rows;
 
-      const findHoliday = (y: number, m: number, d: number) => {
-        return holidaysList.find(h => {
-          if (h.month !== m || h.day !== d) return false;
-          return h.year === null || h.year === undefined || h.year === y;
-        });
-      };
-
-      let currentCal = new Date(Date.UTC(currentYear, startMonth - 1, startDay, 12, 0, 0));
-      let businessDaysAdded = 0;
-      let skippedWeekends = 0;
-      const skippedHolidaysList: string[] = [];
-
-      while (businessDaysAdded < 15) {
-        currentCal.setUTCDate(currentCal.getUTCDate() + 1);
-        const dayOfWeek = currentCal.getUTCDay();
-        const curYear = currentCal.getUTCFullYear();
-        const curMonth = currentCal.getUTCMonth() + 1;
-        const curDay = currentCal.getUTCDate();
-
-        const holiday = findHoliday(curYear, curMonth, curDay);
-
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          skippedWeekends++;
-          if (holiday && !skippedHolidaysList.includes(`${holiday.description} (${curDay}/${curMonth})`)) {
-            skippedHolidaysList.push(`${holiday.description} (${curDay}/${curMonth})`);
-          }
-          continue;
-        }
-
-        if (holiday) {
-          if (!skippedHolidaysList.includes(`${holiday.description} (${curDay}/${curMonth})`)) {
-            skippedHolidaysList.push(`${holiday.description} (${curDay}/${curMonth})`);
-          }
-          continue;
-        }
-
-        businessDaysAdded++;
-      }
-
-      const finalYear = currentCal.getUTCFullYear();
-      const finalMonthIndex = currentCal.getUTCMonth();
-      const finalDayNum = currentCal.getUTCDate();
-      const finalMonth = String(finalMonthIndex + 1).padStart(2, '0');
+      const {
+        dueDate,
+        skippedWeekends,
+        skippedHolidays: skippedHolidaysList,
+        finalYear,
+        finalMonth: finalMonthNum,
+        finalDay: finalDayNum,
+      } = calculateLegalDueDate(submissionDate, holidaysList, 15);
+      const finalMonth = String(finalMonthNum).padStart(2, '0');
       const finalDay = String(finalDayNum).padStart(2, '0');
-
-      // Calcular dueDate al término del 15° día hábil (23:59:59 en Hora Oficial de Perú - UTC-5)
-      // En UTC (PET + 5h): 23:59:59 PET equivale a las 28:59:59 UTC (04:59:59 UTC del día siguiente)
-      let dueDate = new Date(Date.UTC(finalYear, finalMonthIndex, finalDayNum, 23 + 5, 59, 59));
-      if (isNaN(dueDate.getTime())) {
-        dueDate = new Date(submissionDate.getTime() + 15 * 24 * 60 * 60 * 1000);
-      }
 
       const result = await client.query(
         `

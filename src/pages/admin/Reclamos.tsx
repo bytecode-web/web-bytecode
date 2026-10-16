@@ -1169,59 +1169,115 @@ const Reclamos: React.FC = () => {
               <div className="mt-6">
                 <Timeline 
                   heading="Trazabilidad SLA (Caja Negra)" 
-                  items={timeEvents.map(te => ({
-                    date: te.created_at,
-                    title: (
-                      <div className="flex flex-col gap-2">
-                        <span className="text-sm font-semibold text-cyan-400">{te.event_type}</span>
-                        {te.metadata && te.event_type === 'SUBMITTED_AND_CALCULATED' && (
-                          <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
-                            {(() => {
-                              const baseDual = formatLegalDualDate(te.metadata.base_date || te.created_at, true);
-                              const dueDual = formatLegalDualDate(te.metadata.calculated_due_date, true, true);
-                              return (
-                                <>
-                                  <div className="mb-1.5">
-                                    <strong className="text-white/90">Registro Oficial:</strong> {baseDual.peruText}
-                                    {baseDual.isDifferentTimezone && (
-                                      <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {baseDual.localText}</span>
+                  items={timeEvents.map(te => {
+                    const meta = typeof te.metadata === 'string' ? (() => { try { return JSON.parse(te.metadata); } catch { return {}; } })() : (te.metadata || {});
+                    return {
+                      date: te.created_at,
+                      title: (
+                        <div className="flex flex-col gap-2">
+                          <span className={`text-sm font-semibold ${
+                            te.event_type === 'HOLIDAY_SCHEDULE_ADJUSTED'
+                              ? 'text-amber-400'
+                              : te.event_type === 'OFFICIAL_RESPONSE_SENT'
+                              ? 'text-emerald-400'
+                              : 'text-cyan-400'
+                          }`}>
+                            {te.event_type === 'HOLIDAY_SCHEDULE_ADJUSTED'
+                              ? 'Ajuste de Calendario Oficial (Feriados)'
+                              : te.event_type === 'SUBMITTED_AND_CALCULATED'
+                              ? 'Cálculo Inicial de SLA (15 Días Hábiles)'
+                              : te.event_type === 'OFFICIAL_RESPONSE_SENT'
+                              ? 'Respuesta Oficial Notificada'
+                              : te.event_type}
+                          </span>
+                          {meta && te.event_type === 'SUBMITTED_AND_CALCULATED' && (
+                            <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
+                              {(() => {
+                                const baseDual = formatLegalDualDate(meta.base_date || te.created_at, true);
+                                const dueDual = formatLegalDualDate(meta.calculated_due_date, true, true);
+                                return (
+                                  <>
+                                    <div className="mb-1.5">
+                                      <strong className="text-white/90">Registro Oficial:</strong> {baseDual.peruText}
+                                      {baseDual.isDifferentTimezone && (
+                                        <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {baseDual.localText}</span>
+                                      )}
+                                    </div>
+                                    <p><strong className="text-white/90">Plazo (Días Hábiles):</strong> {meta.business_days_allotted || 15}</p>
+                                    <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {meta.skipped_weekends || 0}</p>
+                                    <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(meta.skipped_holidays) && meta.skipped_holidays.length > 0 ? meta.skipped_holidays.join(', ') : 'Ninguno'}</p>
+                                    <div className="mt-2 pt-2 border-t border-white/10">
+                                      <span className="text-amber-400 font-bold uppercase tracking-wider">
+                                        Vencimiento: {dueDual.peruText || 'N/A'}
+                                      </span>
+                                      {dueDual.isDifferentTimezone && (
+                                        <span className="block text-[11px] text-amber-300/80 font-sans mt-0.5 font-normal">↳ {dueDual.localText}</span>
+                                      )}
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          )}
+                          {meta && te.event_type === 'HOLIDAY_SCHEDULE_ADJUSTED' && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
+                              <div className="flex items-center gap-1.5 text-amber-400 font-semibold mb-1">
+                                <span>Ajuste Normativo de Calendario Oficial</span>
+                              </div>
+                              {meta.reason && (
+                                <p className="text-white/90 mb-2 font-sans italic text-xs leading-relaxed">{meta.reason}</p>
+                              )}
+                              {meta.old_due_date && meta.new_due_date && (() => {
+                                const oldDual = formatLegalDualDate(meta.old_due_date, true, true);
+                                const newDual = formatLegalDualDate(meta.new_due_date, true, true);
+                                return (
+                                  <div className="space-y-1 mb-2 pb-2 border-b border-white/10">
+                                    <div>
+                                      <span className="text-white/50">Vencimiento Previo: </span>
+                                      <span className="line-through text-white/40">{oldDual.peruText}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-amber-400 font-bold uppercase tracking-wider">Nuevo Vencimiento: </span>
+                                      <span className="text-amber-300 font-bold">{newDual.peruText}</span>
+                                      {newDual.isDifferentTimezone && (
+                                        <span className="block text-[11px] text-amber-200/80 font-sans mt-0.5 font-normal">↳ {newDual.localText}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                              <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {meta.skipped_weekends || 0}</p>
+                              <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(meta.skipped_holidays) && meta.skipped_holidays.length > 0 ? meta.skipped_holidays.join(', ') : 'Ninguno'}</p>
+                              {typeof meta.remaining_business_days === 'number' && (
+                                <p className="mt-1 text-cyan-300/90"><strong className="text-white/90">Días Hábiles Restantes:</strong> {meta.remaining_business_days} día(s)</p>
+                              )}
+                              {meta.adjusted_by && (
+                                <p className="mt-1.5 pt-1.5 border-t border-white/10 text-white/50 text-[11px] font-sans">
+                                  <strong className="text-white/70">Ajustado por:</strong> {meta.adjusted_by}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {meta && te.event_type === 'OFFICIAL_RESPONSE_SENT' && (
+                            <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
+                              <p><strong className="text-white/90">Tipo de Resolución:</strong> {meta.resolution_type === 'founded' ? 'Fundado' : meta.resolution_type === 'unfounded' ? 'Infundado' : meta.resolution_type || 'Concluido'}</p>
+                              {meta.sent_at && (() => {
+                                const sentDual = formatLegalDualDate(meta.sent_at, true);
+                                return (
+                                  <div className="mt-1.5 pt-1.5 border-t border-white/10">
+                                    <strong className="text-white/90">Notificado Oficial:</strong> {sentDual.peruText}
+                                    {sentDual.isDifferentTimezone && (
+                                      <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {sentDual.localText}</span>
                                     )}
                                   </div>
-                                  <p><strong className="text-white/90">Plazo (Días Hábiles):</strong> {te.metadata.business_days_allotted || 15}</p>
-                                  <p><strong className="text-white/90">Fines de Semana (Saltados):</strong> {te.metadata.skipped_weekends || 0}</p>
-                                  <p><strong className="text-white/90">Feriados (Saltados):</strong> {Array.isArray(te.metadata.skipped_holidays) && te.metadata.skipped_holidays.length > 0 ? te.metadata.skipped_holidays.join(', ') : 'Ninguno'}</p>
-                                  <div className="mt-2 pt-2 border-t border-white/10">
-                                    <span className="text-amber-400 font-bold uppercase tracking-wider">
-                                      Vencimiento: {dueDual.peruText || 'N/A'}
-                                    </span>
-                                    {dueDual.isDifferentTimezone && (
-                                      <span className="block text-[11px] text-amber-300/80 font-sans mt-0.5 font-normal">↳ {dueDual.localText}</span>
-                                    )}
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        {te.metadata && te.event_type === 'OFFICIAL_RESPONSE_SENT' && (
-                          <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
-                            <p><strong className="text-white/90">Tipo de Resolución:</strong> {te.metadata.resolution_type === 'founded' ? 'Fundado' : te.metadata.resolution_type === 'unfounded' ? 'Infundado' : te.metadata.resolution_type || 'Concluido'}</p>
-                            {te.metadata.sent_at && (() => {
-                              const sentDual = formatLegalDualDate(te.metadata.sent_at, true);
-                              return (
-                                <div className="mt-1.5 pt-1.5 border-t border-white/10">
-                                  <strong className="text-white/90">Notificado Oficial:</strong> {sentDual.peruText}
-                                  {sentDual.isDifferentTimezone && (
-                                    <span className="block text-[11px] text-cyan-400/80 font-sans mt-0.5">↳ {sentDual.localText}</span>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  }))} 
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    };
+                  })} 
                   emptyMessage="No hay eventos de SLA." 
                 />
               </div>
