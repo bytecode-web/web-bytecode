@@ -110,9 +110,62 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
 
   if (!isOpen) return null;
 
+  const getMaxDaysForMonth = (m: number, y: string | number) => {
+    const parsedYear = Number(y);
+    const yearNum = !isNaN(parsedYear) && parsedYear >= 2020 ? parsedYear : 2024;
+    const isLeap = (yearNum % 4 === 0 && yearNum % 100 !== 0) || yearNum % 400 === 0;
+    const days = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return days[m - 1] || 31;
+  };
+
+  const maxDays = getMaxDaysForMonth(newHoliday.month, newHoliday.year);
+
   const handleAddHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newHoliday.description.trim()) return;
+    const trimmedDesc = newHoliday.description.trim();
+
+    if (trimmedDesc.length < 2) {
+      addToast('La descripción del feriado debe tener al menos 2 caracteres.', 'error');
+      return;
+    }
+
+    if (trimmedDesc.length > 100) {
+      addToast('La descripción no puede superar los 100 caracteres.', 'error');
+      return;
+    }
+
+    const allowedRegex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s\-\.\,\(\)\/]+$/;
+    if (!allowedRegex.test(trimmedDesc)) {
+      addToast('La descripción contiene caracteres o símbolos no permitidos.', 'error');
+      return;
+    }
+
+    const currentMaxDays = getMaxDaysForMonth(Number(newHoliday.month), newHoliday.year);
+    if (newHoliday.day < 1 || newHoliday.day > currentMaxDays) {
+      addToast(`El día debe estar entre 1 y ${currentMaxDays} para el mes seleccionado.`, 'error');
+      return;
+    }
+
+    let targetYear: number | null = null;
+    if (newHoliday.year !== '' && newHoliday.year !== undefined && newHoliday.year !== null) {
+      targetYear = Number(newHoliday.year);
+      if (isNaN(targetYear) || targetYear < 2020 || targetYear > 2100) {
+        addToast('El año debe ser un número entero entre 2020 y 2100 (o déjalo vacío para recurrente).', 'error');
+        return;
+      }
+    }
+
+    // Prevención de colisiones / duplicados antes del envío
+    const isDuplicate = holidays.some(
+      h =>
+        h.month === Number(newHoliday.month) &&
+        h.day === Number(newHoliday.day) &&
+        (h.year === null || targetYear === null || h.year === targetYear)
+    );
+    if (isDuplicate) {
+      addToast('Ya existe un feriado registrado para esa misma fecha.', 'error');
+      return;
+    }
 
     setAdding(true);
     try {
@@ -130,8 +183,8 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
           country_id: cid,
           month: Number(newHoliday.month),
           day: Number(newHoliday.day),
-          year: newHoliday.year ? Number(newHoliday.year) : null,
-          description: newHoliday.description.trim(),
+          year: targetYear,
+          description: trimmedDesc,
         },
       });
 
@@ -236,11 +289,12 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
                   <input
                     type="number"
                     min="1"
-                    max="31"
+                    max={maxDays}
                     value={newHoliday.day}
-                    onChange={e =>
-                      setNewHoliday({ ...newHoliday, day: Number(e.target.value) })
-                    }
+                    onChange={e => {
+                      const val = Number(e.target.value);
+                      setNewHoliday({ ...newHoliday, day: Math.min(Math.max(val, 1), maxDays) });
+                    }}
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90 outline-none transition-colors focus:border-[#06CFD6]/50 focus:ring-1 focus:ring-[#06CFD6]/30"
                     required
                   />
@@ -252,9 +306,15 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
                   </label>
                   <CustomDropdown
                     value={String(newHoliday.month)}
-                    onChange={val =>
-                      setNewHoliday({ ...newHoliday, month: Number(val) })
-                    }
+                    onChange={val => {
+                      const nextMonth = Number(val);
+                      const nextMax = getMaxDaysForMonth(nextMonth, newHoliday.year);
+                      setNewHoliday({
+                        ...newHoliday,
+                        month: nextMonth,
+                        day: Math.min(newHoliday.day, nextMax),
+                      });
+                    }}
                     options={MONTH_OPTIONS}
                     placeholder="Seleccionar mes..."
                     variant="admin"
@@ -268,9 +328,19 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
                   </label>
                   <input
                     type="number"
+                    min="2020"
+                    max="2100"
                     placeholder="Recurrente"
                     value={newHoliday.year}
-                    onChange={e => setNewHoliday({ ...newHoliday, year: e.target.value })}
+                    onChange={e => {
+                      const yVal = e.target.value;
+                      const nextMax = getMaxDaysForMonth(newHoliday.month, yVal);
+                      setNewHoliday({
+                        ...newHoliday,
+                        year: yVal,
+                        day: Math.min(newHoliday.day, nextMax),
+                      });
+                    }}
                     className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90 outline-none transition-colors placeholder:text-white/25 focus:border-[#06CFD6]/50 focus:ring-1 focus:ring-[#06CFD6]/30"
                   />
                 </div>
@@ -281,6 +351,7 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
                   </label>
                   <input
                     type="text"
+                    maxLength={100}
                     placeholder="Ej. Año Nuevo"
                     value={newHoliday.description}
                     onChange={e =>

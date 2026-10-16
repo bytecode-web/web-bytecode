@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { pool } from '../../db/pool.js';
 import { requirePermission, requireSuperAdmin } from '../../middleware/auth.js';
 import { requireCsrf } from '../../middleware/csrf.js';
+import { adminHolidayMutationLimiter } from '../../middleware/rateLimiters.js';
 import { auditService } from '../../services/audit.js';
 import { calculateLegalDueDate, calculateRemainingBusinessDays, type SystemHoliday } from '../../lib/slaCalculator.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -15,13 +16,49 @@ export const auditLogsRouter = Router();
 export const governanceRouter = Router();
 export const systemHolidaysRouter = Router();
 
-const systemHolidaySchema = z.object({
-  country_id: z.string().uuid(),
-  month: z.number().int().min(1).max(12),
-  day: z.number().int().min(1).max(31),
-  year: z.number().int().nullable(),
-  description: z.string().min(1).max(255)
-});
+const systemHolidaySchema = z
+  .object({
+    country_id: z.string().uuid('ID de país inválido.'),
+    month: z
+      .number()
+      .int('El mes debe ser un número entero.')
+      .min(1, 'El mes debe estar entre 1 y 12.')
+      .max(12, 'El mes debe estar entre 1 y 12.'),
+    day: z
+      .number()
+      .int('El día debe ser un número entero.')
+      .min(1, 'El día debe ser al menos 1.')
+      .max(31, 'El día no puede exceder 31.'),
+    year: z
+      .number()
+      .int('El año debe ser un número entero.')
+      .min(2020, 'El año debe ser a partir de 2020.')
+      .max(2100, 'El año no puede exceder 2100.')
+      .nullable(),
+    description: z
+      .string()
+      .trim()
+      .min(2, 'La descripción debe tener al menos 2 caracteres.')
+      .max(100, 'La descripción no puede exceder 100 caracteres.')
+      .regex(
+        /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s\-\.\,\(\)\/]+$/,
+        'La descripción contiene caracteres o símbolos no permitidos.'
+      ),
+  })
+  .refine(
+    (data) => {
+      // Validar si el día existe realmente en el calendario según el mes y año
+      // Para feriados recurrentes (year === null), validamos contra año bisiesto para permitir 29 de febrero
+      const testYear = data.year ?? 2024;
+      const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      const daysInMonth = [31, isLeap(testYear) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      return data.day <= daysInMonth[data.month - 1];
+    },
+    {
+      message: 'El día seleccionado no existe en el calendario para el mes especificado.',
+      path: ['day'],
+    }
+  );
 
 interface RecalculatedComplaint {
   id: string;
@@ -164,6 +201,7 @@ systemHolidaysRouter.get(
 systemHolidaysRouter.post(
   '/system-holidays',
   requireCsrf,
+  adminHolidayMutationLimiter,
   requirePermission('admin.settings.manage'),
   asyncHandler(async (req: Request, res: Response) => {
     const body = systemHolidaySchema.parse(req.body);
@@ -172,7 +210,40 @@ systemHolidaysRouter.post(
     try {
       await client.query('BEGIN');
 
-      // 1. Obtener lista previa de feriados de Perú antes de insertar
+      // 1. Validar existencia del país
+      const countryRes = await client.query('SELECT id, iso2, name FROM countries WHERE id = $1', [body.country_id]);
+      if (countryRes.rowCount === 0) {
+        throw new HttpError(400, 'El país seleccionado no existe o no es válido.');
+      }
+      const country = countryRes.rows[0];
+
+      // 2. Control de saturación (anti-flooding / límite máximo de 100 feriados)
+      const countRes = await client.query(
+        'SELECT count(*)::int AS total FROM system_holidays WHERE country_id = $1',
+        [body.country_id]
+      );
+      if ((countRes.rows[0]?.total ?? 0) >= 100) {
+        throw new HttpError(400, 'Se ha alcanzado el límite máximo permitido de 100 feriados del sistema para este país.');
+      }
+
+      // 3. Control de colisiones / duplicados (anti-spam / idempotencia)
+      const dupRes = await client.query(
+        `SELECT id, description, year FROM system_holidays 
+         WHERE country_id = $1 
+           AND month = $2 
+           AND day = $3 
+           AND (year IS NULL OR $4::int IS NULL OR year = $4::int)
+         LIMIT 1`,
+        [body.country_id, body.month, body.day, body.year]
+      );
+
+      if (dupRes.rowCount && dupRes.rowCount > 0) {
+        const dup = dupRes.rows[0];
+        const scope = dup.year ? `del año ${dup.year}` : 'anual recurrente';
+        throw new HttpError(409, `Ya existe un feriado ${scope} registrado para esta fecha ("${dup.description}").`);
+      }
+
+      // 4. Obtener lista previa de feriados de Perú antes de insertar
       const prevHolidaysRes = await client.query(
         `SELECT sh.month, sh.day, sh.year, sh.description 
          FROM system_holidays sh 
@@ -181,11 +252,7 @@ systemHolidaysRouter.post(
       );
       const previousHolidays: SystemHoliday[] = prevHolidaysRes.rows;
 
-      // 2. Obtener datos del país para auditoría
-      const countryRes = await client.query('SELECT id, iso2, name FROM countries WHERE id = $1', [body.country_id]);
-      const country = countryRes.rows[0] || null;
-
-      // 3. Insertar nuevo feriado
+      // 5. Insertar nuevo feriado sanitizado
       const result = await client.query(
         'INSERT INTO system_holidays (country_id, month, day, year, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [body.country_id, body.month, body.day, body.year, body.description]
@@ -262,6 +329,7 @@ systemHolidaysRouter.post(
 systemHolidaysRouter.delete(
   '/system-holidays/:id',
   requireCsrf,
+  adminHolidayMutationLimiter,
   requirePermission('admin.settings.manage'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = z.string().uuid().parse(req.params.id);

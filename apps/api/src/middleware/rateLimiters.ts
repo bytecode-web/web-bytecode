@@ -42,3 +42,14 @@ export const adminLimiter = rateLimit({
     res.status(429).json({ message: 'Límite de solicitudes administrativas alcanzado.' });
   },
 });
+
+export const adminHolidayMutationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  skip: () => isDev,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response, _next: NextFunction) => {
+    res.status(429).json({ message: 'Demasiadas operaciones de feriados en poco tiempo. Espera un momento.' });
+  },
+});
