@@ -2,14 +2,16 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 import { useToastStore } from '../../stores/toastStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { CalendarDays, Mail, MessageSquareText, RefreshCw, Tag, X, UserCheck, Megaphone, Search, FilterX, Paperclip, FileText, Eye, EyeOff, Trash2, Download, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { apiRequest, apiUrl } from '../../lib/api';
 import { forceDownload } from '../../lib/download';
-import { formatLocalDate, formatLegalDualDate } from '../../lib/dateFormatter';
+import { formatLocalDate, formatLegalDualDate, alignLegalDueDate } from '../../lib/dateFormatter';
 import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline';
 import Timeline from '../../components/ui/Timeline';
 import type { StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import ShineBorder from '../../components/ui/shine-border';
 import { useTerminalState } from '../../hooks/useTerminalState';
 import { useOutletContext, useLocation, useSearchParams } from 'react-router-dom';
 import type { AdminUser } from '../../components/admin/AdminLayout';
@@ -238,6 +240,15 @@ const Reclamos: React.FC = () => {
   const [filterOrigin, setFilterOrigin] = useState('');
   const [filterAgent, setFilterAgent] = useState('');
   const [filterArchived, setFilterArchived] = useState('false');
+
+  // Retention & Purge Modals state
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [purgeModalOpen, setPurgeModalOpen] = useState(false);
+  const [purgeConfirmCode, setPurgeConfirmCode] = useState('');
+  const [purgePassword, setPurgePassword] = useState('');
+  const [showPurgePassword, setShowPurgePassword] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -607,43 +618,67 @@ const Reclamos: React.FC = () => {
     }
   };
 
-  const handleArchive = async () => {
-    if (!selectedId || !window.confirm('¿Está seguro de archivar este reclamo? Se ocultará de la lista principal.')) return;
+  const handleOpenArchive = () => {
+    if (!selectedId) return;
+    setArchiveModalOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!selectedId) return;
+    setIsArchiving(true);
     try {
       await apiRequest(`/admin/complaints/${selectedId}/archive`, { method: 'POST' });
-      addToast('Reclamo archivado.', 'success');
+      addToast('Expediente archivado en custodia de retención legal.', 'success');
+      setArchiveModalOpen(false);
       setSelectedId(null);
       setDetail(null);
-      loadList();
+      await loadList();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al archivar', 'error');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
-  const handlePurge = async () => {
+  const handleOpenPurge = () => {
     if (!selectedId || !detail?.code) return;
-    const confirmCode = window.prompt(`Esta acción DESTRUIRÁ FÍSICAMENTE el reclamo y todos sus datos forenses.\nEscriba el código exacto del reclamo (${detail.code}) para confirmar:`);
-    if (confirmCode !== detail.code) {
-      if (confirmCode !== null) addToast('Código incorrecto. Operación cancelada.', 'error');
+    setPurgeConfirmCode('');
+    setPurgePassword('');
+    setShowPurgePassword(false);
+    setPurgeModalOpen(true);
+  };
+
+  const handleConfirmPurge = async () => {
+    if (!selectedId || !detail?.code) return;
+    if (purgeConfirmCode.trim().toUpperCase() !== String(detail.code).trim().toUpperCase()) {
+      addToast(`El código de confirmación no coincide con ${detail.code}.`, 'error');
       return;
     }
-    const adminPassword = window.prompt('Por seguridad, ingrese su contraseña de administrador para autorizar la purga:');
-    if (!adminPassword) {
-      addToast('Operación cancelada. Se requiere contraseña.', 'error');
+    if (!purgePassword) {
+      addToast('Ingrese su contraseña de Super Administrador para autorizar la purga.', 'error');
       return;
     }
-    
+
+    setIsPurging(true);
     try {
       await apiRequest(`/admin/complaints/${selectedId}/purge`, { 
         method: 'DELETE',
-        json: { password: adminPassword }
+        json: { 
+          password: purgePassword,
+          confirm_code: purgeConfirmCode.trim()
+        }
       });
-      addToast('Reclamo purgado físicamente.', 'success');
+      addToast('Expediente purgado y destruido físicamente de la base de datos.', 'success');
+      setPurgeModalOpen(false);
+      setPurgeConfirmCode('');
+      setPurgePassword('');
       setSelectedId(null);
       setDetail(null);
-      loadList();
+      await loadList();
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Error al purgar', 'error');
+      addToast(err instanceof Error ? err.message : 'Error al purgar el reclamo.', 'error');
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -670,7 +705,7 @@ const Reclamos: React.FC = () => {
       return null;
     })();
 
-    const dueDate = detail.legal_response_due_at ? new Date(String(detail.legal_response_due_at)) : null;
+    const dueDate = detail.legal_response_due_at ? alignLegalDueDate(new Date(String(detail.legal_response_due_at))) : null;
     const now = new Date();
     const isOverdue = dueDate ? now > dueDate : false;
     const isAttendedOnTime = Boolean(
@@ -746,7 +781,7 @@ const Reclamos: React.FC = () => {
                 {detail.legal_response_due_at && (
                   <span className="text-xs text-white/50 flex items-center gap-1.5 flex-wrap" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
                     <span>
-                      Vencimiento Legal: <strong className="text-amber-400 font-semibold">{formatLegalDualDate(detail.legal_response_due_at, false).peruText}</strong>
+                      Vencimiento Legal: <strong className="text-amber-400 font-semibold">{formatLegalDualDate(detail.legal_response_due_at, false, true).peruText}</strong>
                     </span>
                     {isTerminal ? (
                       isAttendedOnTime ? (
@@ -1038,7 +1073,7 @@ const Reclamos: React.FC = () => {
                           <div className="bg-white/5 border border-white/10 rounded-md p-3 text-xs text-white/70 font-mono mt-1">
                             {(() => {
                               const baseDual = formatLegalDualDate(te.metadata.base_date || te.created_at, true);
-                              const dueDual = formatLegalDualDate(te.metadata.calculated_due_date, true);
+                              const dueDual = formatLegalDualDate(te.metadata.calculated_due_date, true, true);
                               return (
                                 <>
                                   <div className="mb-1.5">
@@ -1217,12 +1252,12 @@ const Reclamos: React.FC = () => {
                 {(isReadOnly || Boolean(detail.isTerminal ?? detail.is_terminal) || filterArchived === 'true') && (
                   <div className="border-t border-white/10 pt-4 flex flex-col gap-2">
                     {filterArchived === 'false' && (
-                      <button onClick={handleArchive} className="flex items-center justify-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 py-2.5 text-sm font-medium transition hover:bg-amber-500/20">
+                      <button onClick={handleOpenArchive} className="flex items-center justify-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 py-2.5 text-sm font-medium transition hover:bg-amber-500/20">
                         <Tag className="h-4 w-4" /> Archivar Expediente (Retención Legal)
                       </button>
                     )}
                     {filterArchived === 'true' && admin.roles.includes('super_admin') && (
-                      <button onClick={handlePurge} className="flex items-center justify-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 py-2.5 text-sm font-medium transition hover:bg-red-500/20">
+                      <button onClick={handleOpenPurge} className="flex items-center justify-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 py-2.5 text-sm font-medium transition hover:bg-red-500/20">
                         <FilterX className="h-4 w-4" /> Purga Física (Destrucción Total)
                       </button>
                     )}
@@ -1490,6 +1525,132 @@ const Reclamos: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Confirmación con ShineBorder para Archivar Reclamo */}
+      <ConfirmModal
+        isOpen={archiveModalOpen}
+        title="¿Archivar Expediente?"
+        message={`¿Está seguro de archivar el reclamo ${detail?.code ? `"${detail.code}"` : 'seleccionado'}? Se ocultará de la lista principal y se resguardará bajo custodia de retención legal (900 días).`}
+        confirmText={isArchiving ? 'Archivando...' : 'Archivar'}
+        cancelText="Cancelar"
+        type="warning"
+        onConfirm={handleConfirmArchive}
+        onCancel={() => {
+          if (!isArchiving) setArchiveModalOpen(false);
+        }}
+      />
+
+      {/* Modal Blindado con ShineBorder para Purga Física */}
+      {purgeModalOpen && detail && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#ef4444', '#991b1b', '#ef4444']}
+            className="w-full max-w-md bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(239,68,68,0.35)]"
+          >
+            <div className="p-6 text-left w-full flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-500/10 border border-red-500/25 text-red-500">
+                  <Trash2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white/95">Purga Física de Expediente</h2>
+                  <p className="text-xs text-red-400 font-semibold tracking-wide uppercase">Acción Destructiva Irreversible</p>
+                </div>
+              </div>
+
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-200/90 leading-relaxed flex flex-col gap-1.5">
+                <p>
+                  Esta operación ejecutará la <strong>destrucción física permanente</strong> del expediente <strong>{detail.code}</strong> en la base de datos (junto con notas, historial de estados y archivos adjuntos).
+                </p>
+                <p className="text-[11px] text-red-300/70">
+                  Acción de alta seguridad exclusiva para Super Administradores con registro inmutable en auditoría forense.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1.5">
+                    1. Ingrese el código exacto <span className="font-mono text-red-400 font-bold select-all">{detail.code}</span> para desbloquear:
+                  </label>
+                  <input
+                    type="text"
+                    value={purgeConfirmCode}
+                    onChange={(e) => setPurgeConfirmCode(e.target.value)}
+                    placeholder={String(detail.code || '')}
+                    disabled={isPurging}
+                    className="w-full rounded-lg border border-white/10 bg-black/50 px-3.5 py-2 text-sm text-white font-mono placeholder:text-white/20 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1.5">
+                    2. Contraseña de Super Administrador:
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPurgePassword ? 'text' : 'password'}
+                      value={purgePassword}
+                      onChange={(e) => setPurgePassword(e.target.value)}
+                      placeholder="Ingrese su contraseña maestra"
+                      disabled={isPurging}
+                      className="w-full rounded-lg border border-white/10 bg-black/50 pl-3.5 pr-10 py-2 text-sm text-white placeholder:text-white/20 focus:border-red-500/50 focus:outline-none focus:ring-1 focus:ring-red-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPurgePassword(!showPurgePassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 p-1"
+                      tabIndex={-1}
+                    >
+                      {showPurgePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isPurging) {
+                      setPurgeModalOpen(false);
+                      setPurgeConfirmCode('');
+                      setPurgePassword('');
+                    }
+                  }}
+                  disabled={isPurging}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPurge}
+                  disabled={
+                    isPurging ||
+                    purgeConfirmCode.trim().toUpperCase() !== String(detail.code).trim().toUpperCase() ||
+                    !purgePassword
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 px-4 py-2 text-sm font-semibold text-white transition-colors shadow-lg shadow-red-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isPurging ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Destruyendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FilterX className="h-4 w-4" />
+                      <span>Destruir Expediente Definitivamente</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </ShineBorder>
+        </div>
+      )}
     </div>
   );
 };

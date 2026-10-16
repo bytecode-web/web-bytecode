@@ -220,7 +220,13 @@ const hasNormalizedContactSchema = async () => {
   cg.project_or_unit_name as nombre_unidad, '' as opcion_bien, ct.name as claim_type, cg.category as tipo_reclamo, 
   cd.incident_detail as detalle, cd.requested_solution as pedido, sc.code as status,
   sc.name as status_name, sc.is_terminal as is_terminal, sc.is_terminal as "isTerminal",
-  cd.customer_ip, cd.customer_user_agent, c.legal_response_due_at, c.legal_acceptance_at,
+  cd.customer_ip, cd.customer_user_agent, 
+  CASE 
+    WHEN c.legal_response_due_at IS NOT NULL AND (EXTRACT(HOUR FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 23 OR EXTRACT(MINUTE FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 59)
+    THEN (date_trunc('day', c.legal_response_due_at AT TIME ZONE 'America/Lima') + INTERVAL '23 hours 59 minutes 59 seconds') AT TIME ZONE 'America/Lima'
+    ELSE c.legal_response_due_at
+  END as legal_response_due_at,
+  c.legal_acceptance_at,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
   c.assigned_to, c.created_at, c.updated_at,
@@ -802,7 +808,11 @@ casesRouter.get(
              ct.name as claim_type, cg.category as tipo_reclamo, 
              sc.code AS status, sc.name AS status_name, sc.is_terminal as "isTerminal", 
              pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, 
-             fa.original_name as attachment_original_name, c.created_at, c.updated_at, c.legal_response_due_at, c.deleted_at
+             fa.original_name as attachment_original_name, c.created_at, c.updated_at, CASE 
+                WHEN c.legal_response_due_at IS NOT NULL AND (EXTRACT(HOUR FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 23 OR EXTRACT(MINUTE FROM (c.legal_response_due_at AT TIME ZONE 'America/Lima')) != 59)
+                THEN (date_trunc('day', c.legal_response_due_at AT TIME ZONE 'America/Lima') + INTERVAL '23 hours 59 minutes 59 seconds') AT TIME ZONE 'America/Lima'
+                ELSE c.legal_response_due_at
+              END as legal_response_due_at, c.deleted_at
       FROM complaints c
       JOIN customers cu ON c.customer_id = cu.id LEFT JOIN channel_catalog ccat ON c.source_channel_id = ccat.id
       JOIN status_catalog sc ON c.status_id = sc.id
@@ -1832,25 +1842,47 @@ casesRouter.post(
   requirePermission('admin.reclamos.manage'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
-    // Verificar si cumple los 30 meses (900 días aprox)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      throw new HttpError(400, 'Identificador de reclamo inválido.');
+    }
+
     const checkRes = await pool.query(
-      `SELECT status_id, created_at, EXTRACT(DAY FROM (NOW() - created_at)) as age_days FROM complaints WHERE id = $1`,
+      `SELECT c.id, c.complaint_code, c.deleted_at, c.archived_at, sc.is_terminal, sc.name as status_name 
+       FROM complaints c
+       JOIN status_catalog sc ON c.status_id = sc.id
+       WHERE c.id = $1`,
       [id]
     );
     if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
-    
-    // Check status terminal and age
-    const statusRes = await pool.query(`SELECT is_terminal FROM status_catalog WHERE id = $1`, [checkRes.rows[0].status_id]);
-    const isTerminal = statusRes.rows[0]?.is_terminal;
-    
-    if (!isTerminal || checkRes.rows[0].age_days < 900) {
-      throw new HttpError(400, 'El reclamo no cumple las condiciones para ser archivado (Debe estar cerrado y tener más de 30 meses de antigüedad).');
+    const complaint = checkRes.rows[0];
+
+    if (complaint.deleted_at || complaint.archived_at) {
+      throw new HttpError(400, 'El expediente ya se encuentra archivado en custodia de retención legal.');
     }
 
-    const result = await pool.query(
-      `UPDATE complaints SET deleted_at = NOW(), archived_at = NOW() WHERE id = $1 RETURNING id`,
+    if (!complaint.is_terminal) {
+      throw new HttpError(400, 'Solo se pueden archivar expedientes que hayan concluido su trámite oficial (estado cerrado o resuelto).');
+    }
+
+    await pool.query(
+      `UPDATE complaints SET deleted_at = NOW(), archived_at = NOW() WHERE id = $1`,
       [id]
     );
+
+    await auditService.logAdminAction({
+      userId: req.admin?.id,
+      action: 'ARCHIVE_COMPLAINT',
+      entityType: 'complaints',
+      entityId: id,
+      entity: {
+        complaint_code: complaint.complaint_code,
+        status: complaint.status_name,
+        archived_at: new Date().toISOString()
+      },
+      req,
+    });
+
     res.json({ success: true, message: 'Reclamo archivado exitosamente.' });
   })
 );
@@ -1860,24 +1892,88 @@ casesRouter.delete(
   requirePermission('admin.reclamos.manage'),
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
-    const password = req.body.password;
-    if (!password) throw new HttpError(400, 'Se requiere la contraseña de administrador para purgar.');
-    const adminId = (req as any).admin?.id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      throw new HttpError(400, 'Identificador de reclamo inválido.');
+    }
+
+    // Blindaje de Seguridad 1: Exclusivo para Super Administradores
+    const adminRoles = req.admin?.roles || [];
+    if (!adminRoles.includes('super_admin')) {
+      throw new HttpError(403, 'Acceso denegado. La purga física y destrucción definitiva es potestad exclusiva del Super Administrador.');
+    }
+
+    const { password, confirm_code } = req.body;
+    if (!password || typeof password !== 'string') {
+      throw new HttpError(400, 'Se requiere la contraseña de Super Administrador para autorizar la purga.');
+    }
+
+    // Blindaje de Seguridad 2: El expediente debe existir y estar previamente archivado
+    const checkRes = await pool.query(
+      `SELECT c.id, c.complaint_code, c.customer_id, c.deleted_at, c.archived_at, sc.is_terminal
+       FROM complaints c
+       JOIN status_catalog sc ON c.status_id = sc.id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    const complaint = checkRes.rows[0];
+
+    if (!complaint.deleted_at && !complaint.archived_at) {
+      throw new HttpError(400, 'Operación denegada. Por protocolo de custodia, solo se pueden purgar físicamente expedientes que se encuentren archivados.');
+    }
+
+    // Blindaje de Seguridad 3: Validación estricta del código de expediente
+    if (!confirm_code || typeof confirm_code !== 'string' || confirm_code.trim().toUpperCase() !== complaint.complaint_code.trim().toUpperCase()) {
+      throw new HttpError(400, `El código de confirmación no coincide con el expediente a purgar (${complaint.complaint_code}).`);
+    }
+
+    // Blindaje de Seguridad 4: Verificación criptográfica de contraseña del Super Admin
+    const adminId = req.admin?.id;
     if (!adminId) throw new HttpError(401, 'No autorizado.');
 
+    const adminRes = await pool.query('SELECT password_hash, is_active FROM admin_users WHERE id = $1', [adminId]);
+    if (adminRes.rowCount === 0 || !adminRes.rows[0].is_active) {
+      throw new HttpError(401, 'Administrador no encontrado o inactivo.');
+    }
+    const validPassword = await bcrypt.compare(password, adminRes.rows[0].password_hash);
+    if (!validPassword) {
+      await auditService.logAdminAction({
+        userId: adminId,
+        action: 'FAILED_PURGE_PASSWORD_ATTEMPT',
+        entityType: 'complaints',
+        entityId: id,
+        entity: { complaint_code: complaint.complaint_code },
+        req,
+      });
+      throw new HttpError(401, 'Contraseña de autorización incorrecta.');
+    }
+
+    // Blindaje de Seguridad 5: Registro forense previo en auditoría antes de la destrucción de la fila
+    await auditService.logAdminAction({
+      userId: adminId,
+      action: 'PURGE_PHYSICAL_COMPLAINT',
+      entityType: 'complaints',
+      entityId: id,
+      entity: {
+        complaint_code: complaint.complaint_code,
+        customer_id: complaint.customer_id,
+        purged_at: new Date().toISOString(),
+        purged_by: req.admin?.email,
+        security_clearance: 'super_admin'
+      },
+      req,
+    });
+
+    // Blindaje de Seguridad 6: Transacción aislada satisfaciendo el trigger prevent_legal_delete()
     const client = await pool.connect();
     try {
-      const adminRes = await client.query('SELECT password_hash FROM admin_users WHERE id = $1', [adminId]);
-      if (adminRes.rowCount === 0) throw new HttpError(401, 'Administrador no encontrado.');
-      const validPassword = await bcrypt.compare(password, adminRes.rows[0].password_hash);
-      if (!validPassword) throw new HttpError(401, 'Contraseña incorrecta.');
-
       await client.query('BEGIN');
       await client.query("SET LOCAL app.allow_physical_delete = 'true'");
       const result = await client.query('DELETE FROM complaints WHERE id = $1 RETURNING id', [id]);
       if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
       await client.query('COMMIT');
-      res.json({ success: true, message: 'Reclamo destruido físicamente.' });
+      res.json({ success: true, message: `Expediente ${complaint.complaint_code} destruido físicamente de la base de datos.` });
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

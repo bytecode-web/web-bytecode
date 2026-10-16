@@ -153,16 +153,50 @@ export const isNonPeruTimezone = (): boolean => {
 };
 
 /**
+ * Normaliza una fecha de vencimiento legal para que ancle con precisión jurídica
+ * al término del día hábil (23:59:59 en hora oficial de Perú, America/Lima, UTC-5).
+ */
+export const alignLegalDueDate = (value?: string | number | Date | null): Date | null => {
+  if (value === undefined || value === null || value === '') return null;
+  const d = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
+  if (isNaN(d.getTime())) return null;
+
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Lima',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+      }).formatToParts(d).map((p) => [p.type, p.value])
+    );
+    const y = parseInt(parts.year, 10);
+    const m = parseInt(parts.month, 10) - 1;
+    const day = parseInt(parts.day, 10);
+    // 23:59:59 PET equivale a 28:59:59 UTC (UTC-5)
+    return new Date(Date.UTC(y, m, day, 23 + 5, 59, 59));
+  } catch {
+    return d;
+  }
+};
+
+/**
  * Formatea una fecha legalmente en Hora de Perú (PET / UTC-5) y, si el agente o usuario está en otro país,
  * provee también la hora local de su navegador para evitar discrepancias operativas.
  */
 export const formatLegalDualDate = (
   value?: string | number | Date | null,
-  includeSeconds = true
+  includeSeconds = true,
+  isLegalDueDate = false
 ): { peruText: string; localText?: string; isDifferentTimezone: boolean } => {
   if (value === undefined || value === null || value === '') return { peruText: '', isDifferentTimezone: false };
-  const d = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
+  let d = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value;
   if (isNaN(d.getTime())) return { peruText: '', isDifferentTimezone: false };
+
+  if (isLegalDueDate) {
+    const aligned = alignLegalDueDate(d);
+    if (aligned) d = aligned;
+  }
 
   try {
     const timeOptions: Intl.DateTimeFormatOptions = {
