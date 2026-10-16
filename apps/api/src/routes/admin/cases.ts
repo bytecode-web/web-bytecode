@@ -1250,6 +1250,7 @@ casesRouter.post(
                COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc,
                COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc,
                ct.name as claim_type,
+               sc.name as previous_status_name,
                sc.is_terminal as current_is_terminal
         FROM complaints c
         LEFT JOIN customers cu ON c.customer_id = cu.id
@@ -1294,6 +1295,7 @@ casesRouter.post(
       // Procesar y asociar archivos adjuntos (si fueron enviados)
       const attachedFileNames: string[] = [];
       const uniqueEmailAttachments: { filename: string; content: Buffer; contentType: string }[] = [];
+      const attachedFileDetails: { id: string; name: string; mime_type: string; size_bytes: number }[] = [];
       const seenChecksums = new Set<string>();
 
       if (files && files.length > 0) {
@@ -1374,6 +1376,13 @@ casesRouter.post(
             `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
             [id, fileAssetId]
           );
+
+          attachedFileDetails.push({
+            id: fileAssetId,
+            name: validatedFile.originalName,
+            mime_type: validatedFile.mimeType,
+            size_bytes: f.size || f.buffer?.length || 0,
+          });
         }
       }
 
@@ -1525,11 +1534,31 @@ casesRouter.post(
         action: 'send_complaint_official_response',
         entityType: 'complaints',
         entityId: id,
+        previousState: {
+          complaint_code: complaint.complaint_code,
+          status: complaint.previous_status_name || 'En trámite',
+          is_terminal: false,
+        },
         entity: {
-          resolution_type: body.final_status_code,
-          response_length: body.response_body.length,
-          attachments_count: attachedFileNames.length,
+          complaint_code: complaint.complaint_code,
+          claimant_name: `${complaint.nombres || ''} ${complaint.apellidos || ''}`.trim() || complaint.legal_name || 'No especificado',
+          claimant_email: complaint.email,
+          claimant_document: `${complaint.tipo_doc || ''} ${complaint.numero_doc || ''}`.trim(),
+          claim_type: complaint.claim_type,
+          resolution: {
+            code: body.final_status_code,
+            label: resolutionLabel,
+          },
+          response_body: body.response_body,
+          attachments: attachedFileDetails,
+          attachments_count: attachedFileDetails.length,
           sent_to_email: complaint.email,
+          responded_by: {
+            admin_id: req.admin?.id,
+            name: req.admin?.name || 'Administrador',
+            email: req.admin?.email,
+          },
+          responded_at: new Date().toISOString(),
         },
         req,
       });
@@ -1749,16 +1778,23 @@ casesRouter.post(
     }
 
     const client = await pool.connect();
-    const addedFiles: { id: string; name: string }[] = [];
+    const addedFiles: { id: string; name: string; mime_type: string; size_bytes: number }[] = [];
     const seenChecksums = new Set<string>();
 
     try {
       await client.query('BEGIN');
       
       const current = await client.query(
-        `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal 
+        `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal, sc.name as status_name,
+                c.customer_snapshot,
+                COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as first_name,
+                COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as last_name,
+                COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+                COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name
          FROM complaints c
          LEFT JOIN status_catalog sc ON c.status_id = sc.id
+         LEFT JOIN customers cu ON c.customer_id = cu.id
+         LEFT JOIN organizations o ON c.organization_id = o.id
          WHERE c.id = $1 FOR UPDATE OF c`,
         [id]
       );
@@ -1833,7 +1869,12 @@ casesRouter.post(
           `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
           [id, fileAssetId]
         );
-        addedFiles.push({ id: fileAssetId, name: validatedFile.originalName });
+        addedFiles.push({
+          id: fileAssetId,
+          name: validatedFile.originalName,
+          mime_type: validatedFile.mimeType,
+          size_bytes: f.size || f.buffer?.length || 0,
+        });
       }
 
       await client.query('COMMIT');
@@ -1858,8 +1899,17 @@ casesRouter.post(
         entityType: 'complaints',
         entityId: id,
         entity: {
+          complaint_code: complaintCode,
+          claimant_name: `${current.rows[0]?.first_name || ''} ${current.rows[0]?.last_name || ''}`.trim() || current.rows[0]?.legal_name || 'No especificado',
+          claimant_email: current.rows[0]?.email || 'No especificado',
+          complaint_status: current.rows[0]?.status_name || 'En trámite',
+          uploaded_by: {
+            admin_id: req.admin?.id,
+            name: actorName,
+            email: req.admin?.email,
+          },
           file_count: addedFiles.length,
-          files: addedFiles.map(a => a.name)
+          files: addedFiles,
         },
         req
       });
@@ -1905,9 +1955,16 @@ casesRouter.post(
     const { note_text } = noteSchema.parse(req.body);
 
     const complaintRes = await pool.query(
-      `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal
+      `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal, sc.name as status_name,
+              c.customer_snapshot,
+              COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as first_name,
+              COALESCE(c.customer_snapshot->>'apellidos', cu.last_name) as last_name,
+              COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
+              COALESCE(o.legal_name, c.customer_snapshot->>'nombres') as legal_name
        FROM complaints c
        LEFT JOIN status_catalog sc ON c.status_id = sc.id
+       LEFT JOIN customers cu ON c.customer_id = cu.id
+       LEFT JOIN organizations o ON c.organization_id = o.id
        WHERE c.id = $1`,
       [id]
     );
@@ -1943,8 +2000,18 @@ casesRouter.post(
       entityType: 'complaints',
       entityId: id,
       entity: {
+        complaint_code: complaintCode,
+        claimant_name: `${complaintRes.rows[0]?.first_name || ''} ${complaintRes.rows[0]?.last_name || ''}`.trim() || complaintRes.rows[0]?.legal_name || 'No especificado',
+        claimant_email: complaintRes.rows[0]?.email || 'No especificado',
+        complaint_status: complaintRes.rows[0]?.status_name || 'En trámite',
         note_id: result.rows[0].id,
-        note_length: note_text.length
+        note_text: note_text,
+        author: {
+          admin_id: req.admin?.id,
+          name: authorName,
+          email: req.admin?.email,
+        },
+        created_at: result.rows[0].created_at || new Date().toISOString(),
       },
       req
     });
@@ -1961,14 +2028,15 @@ casesRouter.post(
     const id = z.string().uuid('Identificador de reclamo inválido.').parse(req.params.id);
 
     const checkRes = await pool.query(
-      `SELECT c.id, c.complaint_code, c.deleted_at, c.archived_at, sc.is_terminal, sc.name as status_name 
+      `SELECT ${complaintColumns} 
        FROM complaints c
-       JOIN status_catalog sc ON c.status_id = sc.id
+       ${complaintJoins}
        WHERE c.id = $1`,
       [id]
     );
     if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
     const complaint = checkRes.rows[0];
+    const complaintCode = complaint.code || complaint.complaint_code;
 
     if (complaint.deleted_at || complaint.archived_at) {
       throw new HttpError(400, 'El expediente ya se encuentra archivado en custodia de retención legal.');
@@ -1978,20 +2046,57 @@ casesRouter.post(
       throw new HttpError(400, 'Solo se pueden archivar expedientes que hayan concluido su trámite oficial (estado cerrado o resuelto).');
     }
 
+    const archivedAt = new Date().toISOString();
+
     await pool.query(
       `UPDATE complaints SET deleted_at = NOW(), archived_at = NOW() WHERE id = $1`,
       [id]
     );
+
+    const [responseRes, notesCountRes, evidencesCountRes] = await Promise.all([
+      pool.query('SELECT * FROM complaint_responses WHERE complaint_id = $1 ORDER BY created_at DESC LIMIT 1', [id]),
+      pool.query('SELECT COUNT(*)::int as count FROM complaint_notes WHERE complaint_id = $1', [id]),
+      pool.query('SELECT COUNT(*)::int as count FROM complaint_evidences WHERE complaint_id = $1', [id]),
+    ]);
+
+    const officialResponse = responseRes.rows[0] || null;
+    const notesCount = notesCountRes.rows[0]?.count || 0;
+    const evidencesCount = evidencesCountRes.rows[0]?.count || 0;
 
     await auditService.logAdminAction({
       userId: req.admin?.id,
       action: 'ARCHIVE_COMPLAINT',
       entityType: 'complaints',
       entityId: id,
+      previousState: {
+        complaint_code: complaintCode,
+        complaint: complaint,
+        archived: false,
+        archived_at: null,
+      },
       entity: {
-        complaint_code: complaint.complaint_code,
-        status: complaint.status_name,
-        archived_at: new Date().toISOString()
+        complaint_code: complaintCode,
+        complaint: {
+          ...complaint,
+          archived: true,
+          archived_at: archivedAt,
+        },
+        official_resolution: officialResponse ? {
+          resolution_code: officialResponse.resolution_code || officialResponse.final_status_code,
+          response_body: officialResponse.response_body || officialResponse.body,
+          sent_at: officialResponse.sent_at || officialResponse.created_at,
+          sent_by: officialResponse.sent_by || officialResponse.admin_user_id,
+        } : null,
+        counts_at_archive: {
+          internal_notes_count: notesCount,
+          evidences_count: evidencesCount,
+        },
+        archived_by: {
+          admin_id: req.admin?.id,
+          name: req.admin?.name || 'Administrador',
+          email: req.admin?.email,
+        },
+        archived_at: archivedAt,
       },
       req,
     });
@@ -2020,22 +2125,23 @@ casesRouter.delete(
 
     // Blindaje de Seguridad 2: El expediente debe existir y estar previamente archivado
     const checkRes = await pool.query(
-      `SELECT c.id, c.complaint_code, c.customer_id, c.deleted_at, c.archived_at, sc.is_terminal
+      `SELECT ${complaintColumns} 
        FROM complaints c
-       JOIN status_catalog sc ON c.status_id = sc.id
+       ${complaintJoins}
        WHERE c.id = $1`,
       [id]
     );
     if (checkRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
     const complaint = checkRes.rows[0];
+    const complaintCode = complaint.code || complaint.complaint_code;
 
     if (!complaint.deleted_at && !complaint.archived_at) {
       throw new HttpError(400, 'Operación denegada. Por protocolo de custodia, solo se pueden purgar físicamente expedientes que se encuentren archivados.');
     }
 
     // Blindaje de Seguridad 3: Validación estricta del código de expediente
-    if (!confirm_code || typeof confirm_code !== 'string' || confirm_code.trim().toUpperCase() !== complaint.complaint_code.trim().toUpperCase()) {
-      throw new HttpError(400, `El código de confirmación no coincide con el expediente a purgar (${complaint.complaint_code}).`);
+    if (!confirm_code || typeof confirm_code !== 'string' || confirm_code.trim().toUpperCase() !== complaintCode.trim().toUpperCase()) {
+      throw new HttpError(400, `El código de confirmación no coincide con el expediente a purgar (${complaintCode}).`);
     }
 
     // Blindaje de Seguridad 4: Verificación criptográfica de contraseña del Super Admin
@@ -2053,11 +2159,27 @@ casesRouter.delete(
         action: 'FAILED_PURGE_PASSWORD_ATTEMPT',
         entityType: 'complaints',
         entityId: id,
-        entity: { complaint_code: complaint.complaint_code },
+        entity: {
+          complaint_code: complaintCode,
+          attempted_by: req.admin?.email,
+          timestamp: new Date().toISOString()
+        },
         req,
       });
       throw new HttpError(401, 'Contraseña de autorización incorrecta.');
     }
+
+    // Obtener data completa de relaciones asociadas antes de su eliminación física definitiva
+    const [notesRes, responsesRes, evidencesRes] = await Promise.all([
+      pool.query('SELECT id, author_id, note_text, created_at FROM complaint_notes WHERE complaint_id = $1 ORDER BY created_at ASC', [id]),
+      pool.query('SELECT * FROM complaint_responses WHERE complaint_id = $1 ORDER BY created_at ASC', [id]),
+      pool.query(`
+        SELECT fa.id, fa.original_name, fa.mime_type, fa.byte_size, fa.checksum_sha256 
+        FROM complaint_evidences ce
+        JOIN file_assets fa ON ce.file_asset_id = fa.id
+        WHERE ce.complaint_id = $1
+      `, [id]),
+    ]);
 
     // Blindaje de Seguridad 5: Registro forense previo en auditoría antes de la destrucción de la fila
     await auditService.logAdminAction({
@@ -2065,12 +2187,38 @@ casesRouter.delete(
       action: 'PURGE_PHYSICAL_COMPLAINT',
       entityType: 'complaints',
       entityId: id,
+      previousState: {
+        complaint_code: complaintCode,
+        complaint: complaint,
+        associated_data: {
+          notes: notesRes.rows,
+          responses: responsesRes.rows,
+          evidences: evidencesRes.rows,
+        },
+      },
       entity: {
-        complaint_code: complaint.complaint_code,
-        customer_id: complaint.customer_id,
+        complaint_code: complaintCode,
         purged_at: new Date().toISOString(),
-        purged_by: req.admin?.email,
-        security_clearance: 'super_admin'
+        purged_by: {
+          admin_id: adminId,
+          name: req.admin?.name || 'Super Administrador',
+          email: req.admin?.email,
+          security_clearance: 'super_admin'
+        },
+        complaint_snapshot: complaint,
+        associated_data_snapshot: {
+          notes: notesRes.rows,
+          responses: responsesRes.rows,
+          evidences: evidencesRes.rows,
+        },
+        destruction_summary: {
+          notes_deleted: notesRes.rowCount,
+          responses_deleted: responsesRes.rowCount,
+          evidences_deleted: evidencesRes.rowCount,
+          confirm_code_entered: confirm_code.trim(),
+          matched_complaint_code: complaintCode,
+          verified_with_superadmin_credentials: true,
+        }
       },
       req,
     });
