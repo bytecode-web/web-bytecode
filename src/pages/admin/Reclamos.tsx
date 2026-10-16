@@ -674,6 +674,8 @@ const Reclamos: React.FC = () => {
       setPurgePassword('');
       setSelectedId(null);
       setDetail(null);
+      setSearchQuery('');
+      setDebouncedSearchQuery('');
       await loadList();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Error al purgar el reclamo.', 'error');
@@ -1317,6 +1319,11 @@ const Reclamos: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40 pointer-events-none" />
                 <input
                   type="text"
+                  name="complaints_search_filter"
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  data-bwignore="true"
                   placeholder="Buscar por código, nombre, email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1549,7 +1556,17 @@ const Reclamos: React.FC = () => {
             color={['#ef4444', '#991b1b', '#ef4444']}
             className="w-full max-w-md bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(239,68,68,0.35)]"
           >
-            <div className="p-6 text-left w-full flex flex-col gap-4">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmPurge();
+              }}
+              autoComplete="off"
+              className="p-6 text-left w-full flex flex-col gap-4"
+            >
+              {/* Señuelo anti-autocompletado para atrapar credenciales de navegadores y gestores de contraseñas */}
+              <input type="text" name="prevent_autofill_username" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="username" />
+
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-500/10 border border-red-500/25 text-red-500">
                   <Trash2 className="h-6 w-6" />
@@ -1576,6 +1593,11 @@ const Reclamos: React.FC = () => {
                   </label>
                   <input
                     type="text"
+                    name="complaint_purge_code_confirmation"
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    data-lpignore="true"
+                    data-bwignore="true"
                     value={purgeConfirmCode}
                     onChange={(e) => setPurgeConfirmCode(e.target.value)}
                     placeholder={String(detail.code || '')}
@@ -1591,6 +1613,11 @@ const Reclamos: React.FC = () => {
                   <div className="relative">
                     <input
                       type={showPurgePassword ? 'text' : 'password'}
+                      name="purge_superadmin_password"
+                      autoComplete="new-password"
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      data-bwignore="true"
                       value={purgePassword}
                       onChange={(e) => setPurgePassword(e.target.value)}
                       placeholder="Ingrese su contraseña maestra"
@@ -1636,8 +1663,7 @@ const Reclamos: React.FC = () => {
                   Cancelar
                 </button>
                 <button
-                  type="button"
-                  onClick={handleConfirmPurge}
+                  type="submit"
                   disabled={
                     isPurging ||
                     purgeConfirmCode.trim().toUpperCase() !== String(detail.code).trim().toUpperCase() ||
@@ -1658,7 +1684,7 @@ const Reclamos: React.FC = () => {
                   )}
                 </button>
               </div>
-            </div>
+            </form>
           </ShineBorder>
         </div>
       )}
