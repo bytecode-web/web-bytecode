@@ -775,17 +775,19 @@ const Reclamos: React.FC = () => {
         <div className="p-6 lg:p-8 flex flex-col gap-8">
           {/* Cabecera del expediente con semáforo SLA */}
           <div className="flex items-center justify-between pb-4 border-b border-white/5">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-xl font-semibold text-white/90">Detalle del Reclamo</h2>
+                {isArchived && (
+                  <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                    Archivado (Custodia Legal)
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className={"w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border " + slaColorClass}>
                   {slaLabel}
                 </div>
-                {isArchived && (
-                  <div className="w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-amber-500/30 bg-amber-500/10 text-amber-400">
-                    Archivado (Custodia Legal)
-                  </div>
-                )}
                 {detail.legal_response_due_at && (
                   <span className="text-xs text-white/50 flex items-center gap-1.5 flex-wrap" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
                     <span>
