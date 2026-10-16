@@ -695,6 +695,7 @@ const Reclamos: React.FC = () => {
     }
 
     const isTerminal = Boolean(detail.isTerminal ?? detail.is_terminal) || ['founded', 'unfounded', 'closed', 'rejected', 'resolved'].includes(String(detail.status).toLowerCase());
+    const isArchived = Boolean(detail.archived_at || detail.deleted_at);
 
     const officialResponseDate = (() => {
       const timeEv = timeEvents.find(te => te.event_type === 'OFFICIAL_RESPONSE_SENT');
@@ -780,6 +781,11 @@ const Reclamos: React.FC = () => {
                 <div className={"w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border " + slaColorClass}>
                   {slaLabel}
                 </div>
+                {isArchived && (
+                  <div className="w-fit rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                    Archivado (Custodia Legal)
+                  </div>
+                )}
                 {detail.legal_response_due_at && (
                   <span className="text-xs text-white/50 flex items-center gap-1.5 flex-wrap" title="Fecha límite legal según horario oficial de Perú (UTC-5)">
                     <span>
@@ -1251,14 +1257,14 @@ const Reclamos: React.FC = () => {
                   )}
                 </div>
                 {/* Protocolo de Retención */}
-                {(isReadOnly || Boolean(detail.isTerminal ?? detail.is_terminal) || filterArchived === 'true') && (
+                {(isReadOnly || isTerminal || isArchived) && (
                   <div className="border-t border-white/10 pt-4 flex flex-col gap-2">
-                    {filterArchived === 'false' && (
+                    {!isArchived && isTerminal && (
                       <button onClick={handleOpenArchive} className="flex items-center justify-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 py-2.5 text-sm font-medium transition hover:bg-amber-500/20">
                         <Tag className="h-4 w-4" /> Archivar Expediente (Retención Legal)
                       </button>
                     )}
-                    {filterArchived === 'true' && admin.roles.includes('super_admin') && (
+                    {isArchived && admin.roles.includes('super_admin') && (
                       <button onClick={handleOpenPurge} className="flex items-center justify-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 py-2.5 text-sm font-medium transition hover:bg-red-500/20">
                         <FilterX className="h-4 w-4" /> Purga Física (Destrucción Total)
                       </button>
@@ -1384,7 +1390,12 @@ const Reclamos: React.FC = () => {
                 <CustomDropdown
                   value={filterArchived}
                   options={archivedOptions}
-                  onChange={(val) => setFilterArchived(val)}
+                  onChange={(val) => {
+                    setFilterArchived(val);
+                    setSelectedId(null);
+                    setDetail(null);
+                    setPage(1);
+                  }}
                   placeholder="Estado archivo"
                   size="sm"
                   variant="admin"

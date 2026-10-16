@@ -229,7 +229,7 @@ const hasNormalizedContactSchema = async () => {
   c.legal_acceptance_at,
   c.internal_notes as admin_notes, pc.code as priority, pc.name as priority_name, pc.weight as priority_weight, fa.original_name as attachment_original_name, 
   fa.mime_type as attachment_mime_type, fa.byte_size as attachment_size,
-  c.assigned_to, c.created_at, c.updated_at,
+  c.assigned_to, c.created_at, c.updated_at, c.deleted_at, c.archived_at,
   ccat.code as source_channel, ccat.icon_name as channel_icon, ccat.color_hex as channel_color
 `;
 
