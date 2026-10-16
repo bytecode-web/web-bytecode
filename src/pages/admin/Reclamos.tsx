@@ -411,6 +411,13 @@ const Reclamos: React.FC = () => {
   };
 
   const loadDetail = async (id: string, syncPage = false) => {
+    if (id !== selectedId) {
+      setNewNote('');
+      setResponseFiles([]);
+      setResponseBody('');
+      setResponseFormOpen(false);
+      setResolutionType('founded');
+    }
     setSelectedId(id);
     try {
       const result = await apiRequest<ComplaintFullResponse>(`/admin/complaints/${id}/full?limit=${PAGE_SIZE}`);
@@ -495,6 +502,14 @@ const Reclamos: React.FC = () => {
   useEffect(() => {
     void loadList();
   }, [page]);
+
+  useEffect(() => {
+    setNewNote('');
+    setResponseFiles([]);
+    setResponseBody('');
+    setResponseFormOpen(false);
+    setResolutionType('founded');
+  }, [selectedId]);
 
   const isInitialFilterMount = useRef(true);
 
