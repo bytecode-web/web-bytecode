@@ -3,6 +3,7 @@ import { X, Calendar, Plus, Trash2, Search, Loader2, Sparkles } from 'lucide-rea
 import ShineBorder from '../../ui/shine-border';
 import PaginationControl from '../../ui/PaginationControl';
 import { ConfirmModal } from '../../ui/ConfirmModal';
+import CustomDropdown from '../../ui/CustomDropdown';
 import { apiRequest } from '../../../lib/api';
 import { useToastStore } from '../../../stores/toastStore';
 
@@ -39,6 +40,11 @@ const MONTHS = [
   { value: 11, label: 'Noviembre' },
   { value: 12, label: 'Diciembre' },
 ];
+
+const MONTH_OPTIONS = MONTHS.map(m => ({
+  value: String(m.value),
+  label: m.label,
+}));
 
 export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
   isOpen,
@@ -232,23 +238,20 @@ export const SystemHolidaysModal: React.FC<SystemHolidaysModalProps> = ({
                   />
                 </div>
 
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-3 relative z-30">
                   <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-white/50">
                     Mes
                   </label>
-                  <select
-                    value={newHoliday.month}
-                    onChange={e =>
-                      setNewHoliday({ ...newHoliday, month: Number(e.target.value) })
+                  <CustomDropdown
+                    value={String(newHoliday.month)}
+                    onChange={val =>
+                      setNewHoliday({ ...newHoliday, month: Number(val) })
                     }
-                    className="w-full rounded-lg border border-white/10 bg-[#0e0e0e] px-3 py-2 text-sm text-white/90 outline-none transition-colors focus:border-[#06CFD6]/50 focus:ring-1 focus:ring-[#06CFD6]/30"
-                  >
-                    {MONTHS.map(m => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={MONTH_OPTIONS}
+                    placeholder="Seleccionar mes..."
+                    variant="admin"
+                    triggerClassName="!py-2 !px-3"
+                  />
                 </div>
 
                 <div className="sm:col-span-2">
