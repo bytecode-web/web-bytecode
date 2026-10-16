@@ -114,17 +114,25 @@ const ProjectEnvironmentsHub: React.FC<{ projectId: string; isAdmin?: boolean }>
               borderRadius={16}
               borderWidth={1.5}
               color={['#06CFD6', '#3b82f6', '#06CFD6']}
-              className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+              className="relative flex flex-col max-h-[90vh] w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
             >
-              <form onSubmit={save}>
-                <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4"><h3 className="font-semibold text-white/90">Añadir Entorno</h3><button type="button" onClick={() => setModalOpen(false)} className="p-2 text-white/45"><X className="h-5 w-5" /></button></div>
-                <div className="grid gap-4">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 flex-shrink-0">
+                <h3 className="font-semibold text-white/90">Añadir Entorno</h3>
+                <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg p-1.5 text-white/45 hover:text-white hover:bg-white/5 transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <form onSubmit={save} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
                   <div><span className="mb-1.5 block text-xs uppercase tracking-wider text-white/45">Tipo</span><CustomDropdown value={form.type} onChange={changeType} placeholder="Seleccionar tipo..." options={[{ value: 'production', label: 'Producción' }, { value: 'staging', label: 'Staging' }]} /></div>
                   <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">Nombre</span><input required minLength={2} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
                   <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">URL</span><input required type="url" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} placeholder="https://frontend.vercel.app" className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /></label>
                   <label className="grid gap-1.5"><span className="text-xs uppercase tracking-wider text-white/45">API URL (Backend) - Para validación de Health Check</span><input type="url" value={form.apiUrl} onChange={(event) => setForm({ ...form, apiUrl: event.target.value })} placeholder="https://api.example.com" className="rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white" /><span className="text-xs text-white/30">Se consultará /api/health en esta URL. Si se omite, se usará la URL principal.</span></label>
                 </div>
-                <div className="mt-6 flex justify-end gap-3 border-t border-white/5 pt-5"><button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/60">Cancelar</button><button disabled={saving} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-40">{saving ? 'Guardando...' : 'Guardar'}</button></div>
+                <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 flex-shrink-0 bg-white/[0.01]">
+                  <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/60 hover:bg-white/5 transition-colors">Cancelar</button>
+                  <button disabled={saving} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90 disabled:opacity-40">{saving ? 'Guardando...' : 'Guardar'}</button>
+                </div>
               </form>
             </ShineBorder>
           </div>

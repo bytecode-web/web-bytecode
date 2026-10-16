@@ -79,32 +79,29 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <ShineBorder
+        borderRadius={16}
+        borderWidth={1.5}
+        color={['#06CFD6', '#3b82f6', '#06CFD6']}
+        className="relative flex flex-col max-h-[90vh] w-full max-w-md overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 flex-shrink-0">
+          <h3 className="text-lg font-medium text-white/90">
+            {isEditing ? 'Editar País' : 'Nuevo País'}
+          </h3>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-        <ShineBorder
-          borderRadius={16}
-          borderWidth={1.5}
-          color={['#06CFD6', '#3b82f6', '#06CFD6']}
-          className="relative w-full max-w-md transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] transition-all"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-lg font-medium text-white/90">
-              {isEditing ? 'Editar País' : 'Nuevo País'}
-            </h3>
-            <button onClick={onClose} className="text-white/40 hover:text-white/70">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {error && (
-            <div className="mb-4 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+            {error && (
+              <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm text-rose-400">
+                {error}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-white/70 mb-1">Nombre del País</label>
               <input
@@ -225,26 +222,26 @@ export default function CountryModal({ country, onClose, onSuccess }: CountryMod
               </div>
               <span className="text-sm text-white/80">País Activo</span>
             </label>
+          </div>
 
-            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-white/10">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-black bg-[#06CFD6] hover:bg-[#06CFD6]/90 transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </form>
-        </ShineBorder>
-      </div>
+          <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 flex-shrink-0 bg-white/[0.01]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 bg-white/5 hover:bg-white/10 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-black bg-[#06CFD6] hover:bg-[#06CFD6]/90 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </ShineBorder>
     </div>
   );
 }

@@ -153,15 +153,14 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <ShineBorder
-          borderRadius={16}
-          borderWidth={1.5}
-          color={['#06CFD6', '#3b82f6', '#06CFD6']}
-          className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] md:p-8"
-        >
-        <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <ShineBorder
+        borderRadius={16}
+        borderWidth={1.5}
+        color={['#06CFD6', '#3b82f6', '#06CFD6']}
+        className="relative flex flex-col max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5 md:px-8 flex-shrink-0">
           <h2 className="text-lg font-semibold text-white/90">
             {editingId ? 'Editar Contacto' : 'Nuevo Contacto'}
           </h2>
@@ -175,8 +174,9 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid gap-5 md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8 space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
             <label className="grid gap-1.5">
               <span className="text-xs uppercase tracking-wider text-white/40">Nombres *</span>
               <input
@@ -336,8 +336,9 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
               </label>
             </div>
           </div>
+          </div>
 
-          <div className="mt-4 flex justify-end gap-3 border-t border-white/5 pt-5">
+          <div className="flex justify-end gap-3 border-t border-white/10 px-6 py-4 md:px-8 flex-shrink-0 bg-white/[0.01]">
             <button
               type="button"
               onClick={onClose}
@@ -356,7 +357,6 @@ export default function CustomerModal({ isOpen, onClose, onSuccess, editingId, i
           </div>
         </form>
       </ShineBorder>
-      </div>
     </div>
   );
 }
