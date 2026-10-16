@@ -11,6 +11,7 @@ import StatusHistoryTimeline from '../../components/admin/StatusHistoryTimeline'
 import type { StatusCatalogItem, StatusHistoryRecord } from '../../types/status';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import ShineBorder from '../../components/ui/shine-border';
 import { useLocation } from 'react-router-dom';
 import { formatCurrencyValue, useQuoterState, type EditableQuoteItemData, type PreparedQuotePayload, type PricingCatalogItem } from '../../hooks/useQuoterState';
 import { formatLocalDate } from '../../lib/dateFormatter';
@@ -434,7 +435,12 @@ const AdminCotizador: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-5xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8 max-h-[90vh] overflow-y-auto">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] md:p-8 max-h-[90vh]"
+          >
             <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
               <h2 className="text-lg font-semibold text-white/90">{editingQuoteId ? 'Editar Cotizacion' : 'Nueva Cotizacion'}</h2>
               <button
@@ -501,7 +507,7 @@ const AdminCotizador: React.FC = () => {
               }}
               onGenerate={handleCreate}
             />
-          </div>
+          </ShineBorder>
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { apiRequest } from '../../../lib/api';
 import { useToastStore } from '../../../stores/toastStore';
 import { Users, Trash2, Building2, X } from 'lucide-react';
 import { ConfirmModal } from '../../ui/ConfirmModal';
+import ShineBorder from '../../ui/shine-border';
 
 interface Contact {
   customer_id: string;
@@ -82,7 +83,12 @@ export default function OrganizationContactsModal({ isOpen, onClose, organizatio
     <>
       <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="flex min-h-full items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] md:p-8"
+          >
             
             <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
               <div className="flex items-center gap-3">
@@ -142,7 +148,7 @@ export default function OrganizationContactsModal({ isOpen, onClose, organizatio
               )}
             </div>
 
-          </div>
+          </ShineBorder>
         </div>
       </div>
 

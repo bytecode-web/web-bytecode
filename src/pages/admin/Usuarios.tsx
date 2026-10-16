@@ -8,6 +8,7 @@ import AdminPanel from '../../components/admin/AdminPanel';
 import CustomDropdown from '../../components/ui/CustomDropdown';
 import PaginationControl from '../../components/ui/PaginationControl';
 import { ConfirmModal, type ConfirmModalProps } from '../../components/ui/ConfirmModal';
+import ShineBorder from '../../components/ui/shine-border';
 
 const PAGE_SIZE = 9;
 
@@ -363,7 +364,12 @@ const Usuarios: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative w-full max-w-md overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">{isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/5 transition-colors">
@@ -497,7 +503,7 @@ const Usuarios: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
+          </ShineBorder>
         </div>
       )}
 

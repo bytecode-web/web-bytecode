@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
 import AnimatedSubmitButton from '../../ui/AnimatedSubmitButton';
+import ShineBorder from '../../ui/shine-border';
 import { apiRequest } from '../../../lib/api';
 import { IconBrandWhatsapp, IconBrandFacebook, IconBrandInstagram, IconBrandLinkedin, IconWorld, IconMail, IconPhone, IconShield } from '@tabler/icons-react';
 
@@ -134,7 +135,12 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-        <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl md:p-8">
+        <ShineBorder
+          borderRadius={16}
+          borderWidth={1.5}
+          color={['#06CFD6', '#3b82f6', '#06CFD6']}
+          className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] md:p-8"
+        >
           
           <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-4">
             <h2 className="text-lg font-semibold text-white/90">
@@ -242,7 +248,7 @@ export function CreateContactModal({ isOpen, onClose, onSuccess }: Props) {
             </div>
           </form>
 
-        </div>
+        </ShineBorder>
       </div>
     </div>
   );

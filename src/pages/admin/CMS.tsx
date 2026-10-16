@@ -8,6 +8,7 @@ import { formatLocalDate } from '../../lib/dateFormatter';
 import AdminPanel from '../../components/admin/AdminPanel';
 import PaginationControl from '../../components/ui/PaginationControl';
 import CustomDropdown from '../../components/ui/CustomDropdown';
+import ShineBorder from '../../components/ui/shine-border';
 
 const PAGE_SIZE = 9;
 
@@ -232,7 +233,12 @@ const AdminCMS: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-          <div className="w-full max-w-md rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-2xl">
+          <ShineBorder
+            borderRadius={16}
+            borderWidth={1.5}
+            color={['#06CFD6', '#3b82f6', '#06CFD6']}
+            className="relative w-full max-w-md overflow-hidden rounded-2xl bg-[#0a0a0a] border border-white/10 p-6 md:p-8 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)]"
+          >
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
               <h2 className="text-lg font-semibold text-white/90">
                 Editar sección / metadatos: <span className="font-mono text-white/50 text-sm">/{formData.slug}</span>
@@ -273,7 +279,7 @@ const AdminCMS: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
+          </ShineBorder>
         </div>
       )}
     </div>

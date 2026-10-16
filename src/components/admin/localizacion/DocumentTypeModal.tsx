@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
+import ShineBorder from '../../ui/shine-border';
 import { apiRequest } from '../../../lib/api';
 import { useToastStore } from '../../../stores/toastStore';
 import CustomDropdown from '../../ui/CustomDropdown';
@@ -90,7 +91,12 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
       <div className="flex min-h-screen items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} />
 
-        <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-2xl transition-all">
+        <ShineBorder
+          borderRadius={16}
+          borderWidth={1.5}
+          color={['#06CFD6', '#3b82f6', '#06CFD6']}
+          className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-[#0a0a0a] border border-white/10 p-6 shadow-[0_0_50px_-12px_rgba(6,207,214,0.18)] transition-all"
+        >
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-lg font-medium text-white/90">
               {isEditing ? 'Editar Tipo de Documento' : 'Nuevo Tipo de Documento'}
@@ -275,7 +281,7 @@ export default function DocumentTypeModal({ documentType, countries, onClose, on
               </button>
             </div>
           </form>
-        </div>
+        </ShineBorder>
       </div>
     </div>
   );
