@@ -568,10 +568,30 @@ const Reclamos: React.FC = () => {
       return;
     }
 
+    const totalBatchBytes = files.reduce((acc, f) => acc + f.size, 0);
+    if (totalBatchBytes > 25 * 1024 * 1024) {
+      addToast('El tamaño acumulado de los archivos no debe superar los 25MB.', 'error');
+      e.target.value = '';
+      return;
+    }
+
     const seenNames = new Set<string>();
     for (const f of files) {
       if (f.size > 8 * 1024 * 1024) {
         addToast(`El archivo "${f.name}" supera el límite máximo de 8MB.`, 'error');
+        e.target.value = '';
+        return;
+      }
+
+      if (f.size < 32) {
+        addToast(`El archivo "${f.name}" está vacío o corrupto.`, 'error');
+        e.target.value = '';
+        return;
+      }
+
+      const ext = f.name.split('.').pop()?.toLowerCase();
+      if (!ext || !['pdf', 'jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+        addToast(`El archivo "${f.name}" tiene un formato no permitido. Solo se aceptan PDF, JPEG, PNG y WEBP.`, 'error');
         e.target.value = '';
         return;
       }
@@ -611,17 +631,20 @@ const Reclamos: React.FC = () => {
 
   const handleAddNote = async () => {
     if (!selectedId || !newNote.trim()) return;
+    if (newNote.trim().length > 4000) {
+      return addToast('La nota no puede exceder los 4,000 caracteres.', 'error');
+    }
     setIsAddingNote(true);
     try {
       await apiRequest(`/admin/complaints/${selectedId}/notes`, {
         method: 'POST',
-        json: { note_text: newNote },
+        json: { note_text: newNote.trim() },
       });
       setNewNote('');
       addToast('Nota interna agregada.', 'success');
       await loadDetail(selectedId);
     } catch (err) {
-      addToast('Error al agregar nota.', 'error');
+      addToast(err instanceof Error ? err.message : 'Error al agregar nota.', 'error');
     } finally {
       setIsAddingNote(false);
     }
@@ -633,10 +656,26 @@ const Reclamos: React.FC = () => {
       addToast('La respuesta debe ser más detallada (mínimo 10 caracteres).', 'error');
       return;
     }
+    if (responseBody.trim().length > 10000) {
+      addToast('La respuesta no puede exceder los 10,000 caracteres.', 'error');
+      return;
+    }
+
+    if (responseFiles.length > 5) {
+      addToast('Puede adjuntar un máximo de 5 archivos de sustento.', 'error');
+      return;
+    }
+
+    const totalBatchBytes = responseFiles.reduce((acc, f) => acc + f.size, 0);
+    if (totalBatchBytes > 25 * 1024 * 1024) {
+      addToast('El tamaño acumulado de los archivos de sustento no debe superar los 25MB.', 'error');
+      return;
+    }
+
     setIsResponding(true);
     try {
       const payload = new FormData();
-      payload.append('response_body', responseBody);
+      payload.append('response_body', responseBody.trim());
       payload.append('final_status_code', resolutionType);
       responseFiles.forEach(f => {
         payload.append('archivosAdjuntos', f);

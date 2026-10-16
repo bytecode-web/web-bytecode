@@ -1031,7 +1031,7 @@ casesRouter.get(
   '/complaints/:id/evidences',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
     const result = await pool.query(
       `
       SELECT fa.id, fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url, ce.created_at
@@ -1051,8 +1051,8 @@ casesRouter.get(
   '/complaints/:id/attachment',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
-    const fileId = req.query.fileId as string;
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const fileId = req.query.fileId ? z.string().uuid('ID de archivo adjunto inválido.').parse(req.query.fileId) : undefined;
 
     let query = `
       SELECT fa.original_name, fa.mime_type, fa.storage_provider, fa.storage_key, fa.public_url
@@ -1211,21 +1211,36 @@ casesRouter.post(
   requireNonTerminalState('complaints'),
   upload.array('archivosAdjuntos', 5),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
     const bodySchema = z.object({
-      response_body: z.string().min(10, 'La respuesta debe ser más detallada.'),
+      response_body: z.string({ message: 'El cuerpo de la respuesta es requerido.' })
+        .trim()
+        .min(10, 'La respuesta debe ser más detallada (mínimo 10 caracteres).')
+        .max(10000, 'La respuesta no puede exceder los 10,000 caracteres.')
+        .refine(val => !/[\0\x08\x0B\x0C\x0E-\x1F]/.test(val), 'El texto contiene caracteres no válidos.'),
       final_status_code: z.enum(['founded', 'unfounded']),
     });
     
     const body = bodySchema.parse(req.body);
     const files = req.files as Express.Multer.File[] | undefined;
 
+    if (files && files.length > 5) {
+      throw new HttpError(400, 'No puede adjuntar más de 5 archivos de sustento.');
+    }
+
+    if (files && files.length > 0) {
+      const totalBatchBytes = files.reduce((acc, f) => acc + (f.size || f.buffer?.length || 0), 0);
+      if (totalBatchBytes > 25 * 1024 * 1024) {
+        throw new HttpError(413, 'El tamaño total acumulado de los archivos no debe superar los 25MB.');
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
       const current = await client.query(`
-        SELECT c.id, c.complaint_code, c.status_id, c.organization_id,
+        SELECT c.id, c.complaint_code, c.status_id, c.organization_id, c.deleted_at,
                c.customer_snapshot,
                COALESCE(c.customer_snapshot->>'email', cu.primary_email) as email,
                COALESCE(c.customer_snapshot->>'nombres', cu.first_name) as nombres,
@@ -1234,17 +1249,37 @@ casesRouter.post(
                COALESCE(c.customer_snapshot->>'personType', cu.person_type, '') as person_type,
                COALESCE(c.customer_snapshot->>'tipoDoc', '') as tipo_doc,
                COALESCE(c.customer_snapshot->>'numeroDoc', '') as numero_doc,
-               ct.name as claim_type
+               ct.name as claim_type,
+               sc.is_terminal as current_is_terminal
         FROM complaints c
         LEFT JOIN customers cu ON c.customer_id = cu.id
         LEFT JOIN organizations o ON c.organization_id = o.id
         LEFT JOIN complaint_types ct ON c.complaint_type_id = ct.id
+        LEFT JOIN status_catalog sc ON c.status_id = sc.id
         WHERE c.id = $1 FOR UPDATE OF c
       `, [id]);
       
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
 
       const complaint = current.rows[0];
+
+      // Blindaje contra reclamos archivados / purgados
+      if (complaint.deleted_at) {
+        throw new HttpError(400, 'No se puede emitir una respuesta para un expediente archivado o purgado.');
+      }
+
+      // Blindaje de concurrencia contra doble respuesta / estado terminal bajo bloqueo de fila
+      if (complaint.current_is_terminal) {
+        throw new HttpError(409, 'El reclamo ya cuenta con una resolución final emitida.');
+      }
+
+      const existingResponseCheck = await client.query(
+        'SELECT id FROM complaint_responses WHERE complaint_id = $1 LIMIT 1',
+        [id]
+      );
+      if ((existingResponseCheck.rowCount ?? 0) > 0) {
+        throw new HttpError(409, 'Ya existe una respuesta oficial registrada para este reclamo.');
+      }
 
       // Get new status ID
       const statusRes = await client.query(
@@ -1294,9 +1329,9 @@ casesRouter.post(
 
           attachedFileNames.push(validatedFile.originalName);
           uniqueEmailAttachments.push({
-            filename: f.originalname,
+            filename: validatedFile.originalName,
             content: f.buffer,
-            contentType: f.mimetype,
+            contentType: validatedFile.mimeType,
           });
 
           let fileAssetId: string;
@@ -1484,6 +1519,20 @@ casesRouter.post(
         id,
         req.admin?.id
       );
+
+      await auditService.logAdminAction({
+        userId: req.admin?.id,
+        action: 'send_complaint_official_response',
+        entityType: 'complaints',
+        entityId: id,
+        entity: {
+          resolution_type: body.final_status_code,
+          response_length: body.response_body.length,
+          attachments_count: attachedFileNames.length,
+          sent_to_email: complaint.email,
+        },
+        req,
+      });
 
       res.json({ success: true, message: 'Respuesta enviada y reclamo cerrado.' });
     } catch (err) {
@@ -1683,23 +1732,43 @@ casesRouter.get(
 
 casesRouter.post(
   '/complaints/:id/evidences',
+  requireCsrf,
   requirePermission('admin.reclamos.manage'),
   requireNonTerminalState('complaints'),
   upload.array('archivosAdjuntos', 5),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
     const files = req.files as Express.Multer.File[] | undefined;
     if (!files || files.length === 0) throw new HttpError(400, 'Debe adjuntar al menos un archivo.');
+    if (files.length > 5) throw new HttpError(400, 'No puede adjuntar más de 5 archivos por envío.');
+
+    // Validar tamaño acumulado del lote (máximo 25MB)
+    const totalBatchBytes = files.reduce((acc, f) => acc + (f.size || f.buffer?.length || 0), 0);
+    if (totalBatchBytes > 25 * 1024 * 1024) {
+      throw new HttpError(413, 'El tamaño total acumulado de los archivos no debe superar los 25MB.');
+    }
 
     const client = await pool.connect();
-    const addedFiles: string[] = [];
+    const addedFiles: { id: string; name: string }[] = [];
     const seenChecksums = new Set<string>();
 
     try {
       await client.query('BEGIN');
       
-      const current = await client.query('SELECT id, complaint_code FROM complaints WHERE id = $1 FOR UPDATE', [id]);
+      const current = await client.query(
+        `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal 
+         FROM complaints c
+         LEFT JOIN status_catalog sc ON c.status_id = sc.id
+         WHERE c.id = $1 FOR UPDATE OF c`,
+        [id]
+      );
       if (current.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+      if (current.rows[0].deleted_at) {
+        throw new HttpError(400, 'No se pueden adjuntar evidencias a un expediente archivado o purgado.');
+      }
+      if (current.rows[0].is_terminal) {
+        throw new HttpError(409, 'No se pueden adjuntar evidencias a un expediente con resolución final emitida.');
+      }
 
       for (const f of files) {
         const validatedFile = await validateUpload(f);
@@ -1764,7 +1833,7 @@ casesRouter.post(
           `INSERT INTO complaint_evidences (complaint_id, file_asset_id) VALUES ($1, $2)`,
           [id, fileAssetId]
         );
-        addedFiles.push(fileAssetId);
+        addedFiles.push({ id: fileAssetId, name: validatedFile.originalName });
       }
 
       await client.query('COMMIT');
@@ -1783,6 +1852,18 @@ casesRouter.post(
         req.admin?.id
       );
 
+      await auditService.logAdminAction({
+        userId: req.admin?.id,
+        action: 'add_complaint_evidence',
+        entityType: 'complaints',
+        entityId: id,
+        entity: {
+          file_count: addedFiles.length,
+          files: addedFiles.map(a => a.name)
+        },
+        req
+      });
+
       res.json({ success: true, count: addedFiles.length });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1797,7 +1878,7 @@ casesRouter.get(
   '/complaints/:id/notes',
   requirePermission('admin.reclamos.view'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
     const result = await pool.query(
       `SELECT n.*, u.name as author_name FROM complaint_notes n LEFT JOIN admin_users u ON n.author_id = u.id WHERE n.complaint_id = $1 ORDER BY n.created_at DESC`,
       [id]
@@ -1808,18 +1889,41 @@ casesRouter.get(
 
 casesRouter.post(
   '/complaints/:id/notes',
+  requireCsrf,
   requirePermission('admin.reclamos.manage'),
   requireNonTerminalState('complaints'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
-    const { note_text } = req.body;
-    if (!note_text || !String(note_text).trim()) throw new HttpError(400, 'El texto es requerido.');
+    const id = z.string().uuid('ID de reclamo inválido.').parse(req.params.id);
+    const noteSchema = z.object({
+      note_text: z.string({ message: 'El texto de la nota es requerido.' })
+        .trim()
+        .min(2, 'La nota debe tener al menos 2 caracteres.')
+        .max(4000, 'La nota no puede exceder los 4,000 caracteres.')
+        .refine(val => !/[\0\x08\x0B\x0C\x0E-\x1F]/.test(val), 'El texto contiene caracteres no válidos.')
+    });
+
+    const { note_text } = noteSchema.parse(req.body);
+
+    const complaintRes = await pool.query(
+      `SELECT c.id, c.complaint_code, c.deleted_at, sc.is_terminal
+       FROM complaints c
+       LEFT JOIN status_catalog sc ON c.status_id = sc.id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (complaintRes.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
+    if (complaintRes.rows[0].deleted_at) {
+      throw new HttpError(400, 'No se pueden añadir notas a un expediente archivado o purgado.');
+    }
+    if (complaintRes.rows[0].is_terminal) {
+      throw new HttpError(409, 'No se pueden añadir notas a un expediente con resolución final emitida.');
+    }
+
     const result = await pool.query(
       `INSERT INTO complaint_notes (complaint_id, author_id, note_text) VALUES ($1, $2, $3) RETURNING *`,
       [id, req.admin?.id, note_text]
     );
 
-    const complaintRes = await pool.query('SELECT complaint_code FROM complaints WHERE id = $1', [id]);
     const complaintCode = complaintRes.rows[0]?.complaint_code || id.split('-')[0];
     const authorName = req.admin?.name || 'Un administrador';
     const noteSnippet = note_text.length > 60 ? `${note_text.slice(0, 57)}...` : note_text;
@@ -1833,19 +1937,28 @@ casesRouter.post(
       req.admin?.id
     );
 
+    await auditService.logAdminAction({
+      userId: req.admin?.id,
+      action: 'create_complaint_note',
+      entityType: 'complaints',
+      entityId: id,
+      entity: {
+        note_id: result.rows[0].id,
+        note_length: note_text.length
+      },
+      req
+    });
+
     res.json({ item: result.rows[0] });
   })
 );
 
 casesRouter.post(
   '/complaints/:id/archive',
+  requireCsrf,
   requirePermission('admin.reclamos.manage'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      throw new HttpError(400, 'Identificador de reclamo inválido.');
-    }
+    const id = z.string().uuid('Identificador de reclamo inválido.').parse(req.params.id);
 
     const checkRes = await pool.query(
       `SELECT c.id, c.complaint_code, c.deleted_at, c.archived_at, sc.is_terminal, sc.name as status_name 
@@ -1889,13 +2002,10 @@ casesRouter.post(
 
 casesRouter.delete(
   '/complaints/:id/purge',
+  requireCsrf,
   requirePermission('admin.reclamos.manage'),
   asyncHandler(async (req: Request, res: Response) => {
-    const id = String(req.params.id);
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(id)) {
-      throw new HttpError(400, 'Identificador de reclamo inválido.');
-    }
+    const id = z.string().uuid('Identificador de reclamo inválido.').parse(req.params.id);
 
     // Blindaje de Seguridad 1: Exclusivo para Super Administradores
     const adminRoles = req.admin?.roles || [];
