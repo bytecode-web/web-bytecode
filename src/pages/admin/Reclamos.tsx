@@ -1600,10 +1600,21 @@ const Reclamos: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowPurgePassword(!showPurgePassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors flex items-center justify-center w-5 h-5"
                       tabIndex={-1}
+                      aria-label={showPurgePassword ? 'Ocultar contraseña' : 'Ver contraseña'}
                     >
-                      {showPurgePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                          key={showPurgePassword ? 'eye-off' : 'eye'}
+                          initial={{ opacity: 0, scale: 0.5 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.5 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          {showPurgePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </motion.div>
+                      </AnimatePresence>
                     </button>
                   </div>
                 </div>

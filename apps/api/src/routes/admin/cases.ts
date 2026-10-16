@@ -1970,6 +1970,17 @@ casesRouter.delete(
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL app.allow_physical_delete = 'true'");
+
+      // Eliminar registros asociados en orden estricto de dependencia
+      await client.query('DELETE FROM complaint_notes WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_responses WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_time_events WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_assignments WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_status_history WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_evidences WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_goods WHERE complaint_id = $1', [id]);
+      await client.query('DELETE FROM complaint_details WHERE complaint_id = $1', [id]);
+
       const result = await client.query('DELETE FROM complaints WHERE id = $1 RETURNING id', [id]);
       if (result.rowCount === 0) throw new HttpError(404, 'Reclamo no encontrado.');
       await client.query('COMMIT');
